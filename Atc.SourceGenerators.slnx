@@ -1,0 +1,39 @@
+<Solution>
+  <Folder Name="/docs/">
+    <File Path="README.md" />
+  </Folder>
+  <Folder Name="/docs/generators/">
+    <File Path="docs/generators/DependencyRegistration.md" />
+    <File Path="docs/generators/EnumMapping.md" />
+    <File Path="docs/generators/Mapping.md" />
+    <File Path="docs/generators/OptionsBinding.md" />
+  </Folder>
+  <Folder Name="/docs/samples/">
+    <File Path="docs/samples/DependencyRegistration.md" />
+    <File Path="docs/samples/EnumMapping.md" />
+    <File Path="docs/samples/Mapping.md" />
+    <File Path="docs/samples/OptionsBinding.md" />
+    <File Path="docs/samples/PetStoreApi.md" />
+  </Folder>
+  <Folder Name="/sample/">
+    <Project Path="sample/Atc.SourceGenerators.DependencyRegistration.Domain/Atc.SourceGenerators.DependencyRegistration.Domain.csproj" />
+    <Project Path="sample/Atc.SourceGenerators.DependencyRegistration/Atc.SourceGenerators.DependencyRegistration.csproj" />
+    <Project Path="sample/Atc.SourceGenerators.EnumMapping/Atc.SourceGenerators.EnumMapping.csproj" />
+    <Project Path="sample/Atc.SourceGenerators.Mapping.DataAccess/Atc.SourceGenerators.Mapping.DataAccess.csproj" />
+    <Project Path="sample/Atc.SourceGenerators.Mapping.Domain/Atc.SourceGenerators.Mapping.Domain.csproj" />
+    <Project Path="sample/Atc.SourceGenerators.Mapping/Atc.SourceGenerators.Mapping.csproj" />
+    <Project Path="sample/Atc.SourceGenerators.OptionsBinding.Domain/Atc.SourceGenerators.OptionsBinding.Domain.csproj" />
+    <Project Path="sample/Atc.SourceGenerators.OptionsBinding/Atc.SourceGenerators.OptionsBinding.csproj" />
+    <Project Path="sample/PetStore.Api.Contract/PetStore.Api.Contract.csproj" />
+    <Project Path="sample/PetStore.Api/PetStore.Api.csproj" />
+    <Project Path="sample/PetStore.DataAccess/PetStore.DataAccess.csproj" />
+    <Project Path="sample/PetStore.Domain/PetStore.Domain.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/Atc.SourceGenerators.Annotations/Atc.SourceGenerators.Annotations.csproj" />
+    <Project Path="src/Atc.SourceGenerators/Atc.SourceGenerators.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="test/Atc.SourceGenerators.Tests/Atc.SourceGenerators.Tests.csproj" />
+  </Folder>
+</Solution>

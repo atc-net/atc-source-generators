@@ -1,0 +1,12 @@
+{
+  "profiles": {
+    "PetStore.Api": {
+      "commandName": "Project",
+      "launchBrowser": true,
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      },
+      "applicationUrl": "https://localhost:42616;http://localhost:42617"
+    }
+  }
+}

@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <NoWarn>$(NoWarn);CS0436;SA0001;CS1591;IDE0005</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.0" />
+    <PackageReference Include="Scalar.AspNetCore" Version="2.10.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\PetStore.Domain\PetStore.Domain.csproj" />
+    <ProjectReference Include="..\PetStore.Api.Contract\PetStore.Api.Contract.csproj" />
+    <ProjectReference Include="..\..\src\Atc.SourceGenerators\Atc.SourceGenerators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <!-- Prevent XML documentation files from referenced projects from being copied -->
+  <Target Name="RemoveReferencedXmlDocs" BeforeTargets="GenerateMSBuildEditorConfigFileShouldRun;CoreCompile">
+    <ItemGroup>
+      <!-- Remove XML files from ReferenceCopyLocalPaths -->
+      <ReferenceCopyLocalPaths Remove="@(ReferenceCopyLocalPaths)" Condition="'%(Extension)' == '.xml' and '%(Filename)' != '$(AssemblyName)'" />
+    </ItemGroup>
+  </Target>
+
+  <!-- Also remove after build for cleanup -->
+  <Target Name="CleanupXmlDocs" AfterTargets="Build">
+    <ItemGroup>
+      <XmlFilesToDelete Include="$(OutputPath)*.xml" Exclude="$(OutputPath)$(AssemblyName).xml" />
+    </ItemGroup>
+    <Delete Files="@(XmlFilesToDelete)" />
+  </Target>
+
+</Project>

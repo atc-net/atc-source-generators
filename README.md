@@ -1,2 +1,757 @@
-# atc-source-generators
-Roslyn C# source generators for .NET
+# 🎯 Atc Source Generators
+
+A collection of Roslyn C# source generators for .NET that eliminate boilerplate code and improve developer productivity.
+
+## 🚀 Source Generators
+
+- **[⚡ DependencyRegistrationGenerator](#-dependencyregistrationgenerator)** - Automatic DI service registration with attributes
+- **[⚙️ OptionsBindingGenerator](#️-optionsbindinggenerator)** - Automatic configuration binding to strongly-typed options classes
+- **[🗺️ MappingGenerator](#️-mappinggenerator)** - Automatic object-to-object mapping with type safety
+- **[🔄 EnumMappingGenerator](#-enummappinggenerator)** - Automatic enum-to-enum mapping with intelligent matching
+
+---
+
+### ⚡ DependencyRegistrationGenerator
+
+Stop writing repetitive service registration code. Decorate your services with `[Registration]` and let the generator handle the rest.
+
+#### 📚 Documentation
+
+- **[Complete Guide](docs/generators/DependencyRegistration.md)** - In-depth documentation with examples
+- **[Quick Start](docs/generators/DependencyRegistration.md#get-started---quick-guide)** - PetStore 3-layer architecture tutorial
+- **[Multi-Project Setup](docs/generators/DependencyRegistration.md#multi-project-setup)** - Working with multiple projects
+- **[Auto-Detection](docs/generators/DependencyRegistration.md#auto-detection)** - Understanding automatic interface detection
+- **[Sample Projects](docs/samples/DependencyRegistration.md)** - Working code examples with architecture diagrams
+
+#### 😫 From This
+
+```csharp
+// Program.cs - Manual registration hell 😫
+services.AddScoped<IUserService, UserService>();
+services.AddScoped<IOrderService, OrderService>();
+services.AddScoped<IPetRepository, PetRepository>();
+services.AddSingleton<ICacheService, CacheService>();
+services.AddTransient<ILogger, Logger>();
+services.AddScoped<IPetService, PetService>();
+services.AddScoped<IEmailService, EmailService>();
+// ... 50+ more lines of registration code
+// ... spread across multiple files
+// ... easy to forget or get wrong
+```
+
+#### ✨ To This
+
+```csharp
+// Your services - Clean, declarative, self-documenting ✨
+[Registration(Lifetime.Scoped)]
+public class UserService : IUserService { }
+
+[Registration(Lifetime.Scoped)]
+public class OrderService : IOrderService { }
+
+[Registration]
+public class CacheService : ICacheService { }
+
+// Program.cs - One line per project (with smart naming!)
+using Atc.DependencyInjection;
+
+builder.Services.AddDependencyRegistrationsFromApi();
+builder.Services.AddDependencyRegistrationsFromDomain();
+builder.Services.AddDependencyRegistrationsFromDataAccess();
+```
+
+#### ✨ Key Features
+
+- **🎯 Auto-Detection**: Automatically registers against all implemented interfaces - no more `As = typeof(IService)`
+- **🧹 Smart Filtering**: System interfaces (IDisposable, etc.) are excluded automatically
+- **🔍 Multi-Interface**: Implementing multiple interfaces? Registers against all of them
+- **✨ Smart Naming**: Generates clean method names using suffixes when unique, full names when conflicts exist
+- **⚡ Zero Runtime Cost**: All code generated at compile time
+- **🚀 Native AOT Compatible**: No reflection or runtime code generation - fully trimming-safe
+- **🏗️ Multi-Project**: Works seamlessly across layered architectures
+- **🛡️ Type-Safe**: Compile-time validation catches errors before runtime
+- **📦 Flexible Lifetimes**: Singleton (default), Scoped, and Transient support
+
+#### 🚀 Quick Example
+
+```csharp
+using Atc.DependencyInjection;
+
+// That's it! Auto-detected as IUserService
+[Registration(Lifetime.Scoped)]
+public class UserService : IUserService
+{
+    public void CreateUser(string name) { }
+}
+
+// Multiple interfaces? No problem - registers against ALL of them
+[Registration]
+public class EmailService : IEmailService, INotificationService { }
+
+// Need both interface AND concrete type?
+[Registration(AsSelf = true)]
+public class ReportService : IReportService { }
+```
+
+#### 📦 Installation
+
+**Required:**
+```bash
+dotnet add package Atc.SourceGenerators
+```
+
+**Optional (recommended for better IntelliSense):**
+```bash
+dotnet add package Atc.SourceGenerators.Annotations
+```
+
+Or in your `.csproj`:
+
+```xml
+<ItemGroup>
+  <!-- Required: Source generator -->
+  <PackageReference Include="Atc.SourceGenerators" Version="1.0.0" />
+
+  <!-- Optional: Attribute definitions with XML documentation -->
+  <PackageReference Include="Atc.SourceGenerators.Annotations" Version="1.0.0" />
+</ItemGroup>
+```
+
+**Note:** The generator emits fallback attributes automatically, so the Annotations package is optional. However, it provides better XML documentation and IntelliSense. If you include it, suppress the expected CS0436 warning: `<NoWarn>$(NoWarn);CS0436</NoWarn>`
+
+See the [complete guide](docs/generators/DependencyRegistration.md) for multi-project setups.
+
+#### 🔧 Service Lifetimes
+
+```csharp
+[Registration]                          // Singleton (default)
+[Registration(Lifetime.Singleton)]      // Explicit singleton
+[Registration(Lifetime.Scoped)]         // Per-request (web apps)
+[Registration(Lifetime.Transient)]      // New instance every time
+```
+
+#### 🛡️ Compile-Time Safety
+
+Get errors at compile time, not runtime:
+
+| ID | Description |
+|----|-------------|
+| ATCDIR001 | `As` parameter must be an interface type |
+| ATCDIR002 | Class must implement the specified interface |
+| ATCDIR003 | Duplicate registration with different lifetimes |
+
+---
+
+### ⚙️ OptionsBindingGenerator
+
+Eliminate boilerplate configuration binding code. Decorate your options classes with `[OptionsBinding]` and let the generator create type-safe configuration bindings automatically.
+
+#### 📚 Documentation
+
+- **[Options Binding Guide](docs/generators/OptionsBinding.md)** - Full documentation with examples
+- **[Sample Projects](docs/samples/OptionsBinding.md)** - Working examples with architecture diagrams
+
+#### 😫 From This
+
+```csharp
+// Manual options binding - repetitive and error-prone 😫
+services.AddOptions<DatabaseOptions>()
+    .Bind(configuration.GetSection("Database"))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+
+services.AddOptions<ApiOptions>()
+    .Bind(configuration.GetSection("App:Api"))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+
+services.AddOptions<LoggingOptions>()
+    .Bind(configuration.GetSection("Logging"))
+    .ValidateOnStart();
+
+// ... repeated for every options class
+```
+
+#### ✨ To This
+
+```csharp
+// Your options classes - Clean and declarative ✨
+[OptionsBinding("Database", ValidateDataAnnotations = true, ValidateOnStart = true)]
+public partial class DatabaseOptions
+{
+    [Required]
+    public string ConnectionString { get; set; }
+}
+
+[OptionsBinding("App:Api", ValidateDataAnnotations = true)]
+public partial class ApiOptions
+{
+    public string BaseUrl { get; set; }
+}
+
+[OptionsBinding]  // Section name auto-inferred as "LoggingOptions"
+public partial class LoggingOptions
+{
+    public string Level { get; set; }
+}
+
+// Program.cs - One line binds all options (with smart naming!)
+services.AddOptionsFromApp(configuration);
+```
+
+#### ✨ Key Features
+
+- **🎯 Auto-Inference**: Section names automatically inferred from class names
+- **📝 Const Name Support**: Use `public const string SectionName`, `NameTitle`, or `Name` for custom section names
+- **🔒 Built-in Validation**: Data annotations and startup validation with simple properties
+- **📍 Nested Sections**: Support for complex configuration paths like "App:Services:Email"
+- **⚡ Zero Runtime Cost**: All binding code generated at compile time
+- **🚀 Native AOT Compatible**: No reflection or runtime code generation - fully trimming-safe
+- **🛡️ Type-Safe**: Compile-time validation ensures configuration matches your classes
+- **✨ Smart Naming**: Clean method names (`AddOptionsFromDomain`) for unique suffixes, full names for conflicts
+- **📦 Multi-Project Support**: Each project generates its own extension method with smart naming
+- **⏱️ Options Lifetimes**: Control which options interface to use (IOptions, IOptionsSnapshot, IOptionsMonitor)
+
+#### 🚀 Quick Example
+
+```csharp
+using Atc.SourceGenerators.Annotations;
+using System.ComponentModel.DataAnnotations;
+
+// Automatic section name inference
+[OptionsBinding]  // Binds to "DatabaseOptions" section (uses full class name)
+public partial class DatabaseOptions
+{
+    public string ConnectionString { get; set; }
+}
+
+// Using const SectionName (2nd priority)
+[OptionsBinding(ValidateDataAnnotations = true)]
+public partial class CacheOptions
+{
+    public const string SectionName = "ApplicationCache";  // Binds to "ApplicationCache"
+
+    [Range(1, 1000)]
+    public int MaxSize { get; set; }
+}
+
+// Using const Name (4th priority)
+[OptionsBinding]
+public partial class EmailOptions
+{
+    public const string Name = "EmailConfiguration";  // Binds to "EmailConfiguration"
+    public string SmtpServer { get; set; }
+}
+
+// Full priority demonstration
+[OptionsBinding]
+public partial class LoggingOptions
+{
+    public const string SectionName = "X1";  // 2nd prio - WINS
+    public const string NameTitle = "X2";    // 3rd prio
+    public const string Name = "X3";         // 4th prio
+    // Binds to "X1"
+}
+
+// Explicit section path (1st priority - highest)
+[OptionsBinding("App:Email:Smtp")]
+public partial class SmtpOptions
+{
+    public string Host { get; set; }
+    public int Port { get; set; }
+}
+
+// Specify lifetime for different injection patterns
+[OptionsBinding("Features", Lifetime = OptionsLifetime.Monitor)]
+public partial class FeatureOptions
+{
+    public bool EnableNewFeature { get; set; }
+}
+
+// Usage in your services:
+public class MyService
+{
+    public MyService(IOptions<DatabaseOptions> db)               // Singleton
+    public MyService(IOptionsSnapshot<SmtpOptions> smtp)         // Scoped (reloads per request)
+    public MyService(IOptionsMonitor<FeatureOptions> features)   // Monitor (change notifications)
+}
+```
+
+#### 📦 Installation
+
+**Required:**
+```bash
+dotnet add package Atc.SourceGenerators
+```
+
+**Optional (recommended for better IntelliSense):**
+```bash
+dotnet add package Atc.SourceGenerators.Annotations
+```
+
+Or in your `.csproj`:
+
+```xml
+<ItemGroup>
+  <!-- Required: Source generator -->
+  <PackageReference Include="Atc.SourceGenerators" Version="1.0.0" />
+
+  <!-- Optional: Attribute definitions with XML documentation -->
+  <PackageReference Include="Atc.SourceGenerators.Annotations" Version="1.0.0" />
+</ItemGroup>
+```
+
+**Note:** The generator emits fallback attributes automatically, so the Annotations package is optional. However, it provides better XML documentation and IntelliSense. If you include it, suppress the expected CS0436 warning: `<NoWarn>$(NoWarn);CS0436</NoWarn>`
+
+#### 🛡️ Compile-Time Safety
+
+| ID | Description |
+|----|-------------|
+| ATCOPT001 | Options class must be declared as partial |
+| ATCOPT002 | Section name cannot be null or empty |
+| ATCOPT003 | Invalid options binding configuration |
+
+---
+
+### 🗺️ MappingGenerator
+
+Eliminate tedious object-to-object mapping code. Decorate your classes with `[MapTo(typeof(TargetType))]` and let the generator create type-safe mapping extension methods automatically.
+
+#### 📚 Documentation
+
+- **[Object Mapping Guide](docs/generators/ObjectMapping.md)** - Full documentation with examples
+- **[Quick Start](docs/generators/ObjectMapping.md#get-started---quick-guide)** - UserApp 3-layer architecture tutorial
+- **[Advanced Scenarios](docs/generators/ObjectMapping.md#advanced-scenarios)** - Enums, nested objects, multi-layer mapping
+- **[Sample Projects](docs/samples/Mapping.md)** - Working code examples with DataAccess → Domain → API
+
+#### 😫 From This
+
+```csharp
+// Manual mapping - tedious, repetitive, error-prone 😫
+public UserDto MapToDto(User user)
+{
+    return new UserDto
+    {
+        Id = user.Id,
+        FirstName = user.FirstName,
+        LastName = user.LastName,
+        Email = user.Email,
+        Status = (UserStatusDto)user.Status,
+        Address = user.Address != null ? new AddressDto
+        {
+            Street = user.Address.Street,
+            City = user.Address.City,
+            State = user.Address.State,
+            PostalCode = user.Address.PostalCode,
+            Country = user.Address.Country
+        } : null,
+        CreatedAt = user.CreatedAt,
+        UpdatedAt = user.UpdatedAt
+    };
+}
+// ... repeat for every type
+// ... across every layer
+// ... easy to forget properties
+```
+
+#### ✨ To This
+
+```csharp
+// Your domain models - Clean, declarative, self-documenting ✨
+using Atc.SourceGenerators.Annotations;
+
+[MapTo(typeof(UserDto))]
+public partial class User
+{
+    public Guid Id { get; init; }
+    public string FirstName { get; init; } = string.Empty;
+    public string LastName { get; init; } = string.Empty;
+    public string Email { get; init; } = string.Empty;
+    public UserStatus Status { get; init; }
+    public Address? Address { get; init; }
+    public DateTimeOffset CreatedAt { get; init; }
+    public DateTimeOffset? UpdatedAt { get; init; }
+}
+
+[MapTo(typeof(AddressDto))]
+public partial class Address
+{
+    public string Street { get; init; } = string.Empty;
+    public string City { get; init; } = string.Empty;
+    public string State { get; init; } = string.Empty;
+    public string PostalCode { get; init; } = string.Empty;
+    public string Country { get; init; } = string.Empty;
+}
+
+// Usage - One line per mapping
+using Atc.Mapping;
+
+var dto = user.MapToUserDto();
+var dtos = users.Select(u => u.MapToUserDto()).ToList();
+```
+
+#### ✨ Key Features
+
+- **🔄 Smart Enum Conversion**:
+  - Uses safe **EnumMapping** extension methods when enums have `[MapTo]` attributes
+  - Falls back to casts for enums without attributes
+  - Supports special case handling (None → Unknown, etc.) via EnumMappingGenerator
+- **🪆 Nested Object Mapping**: Automatically chains mappings for nested properties
+- **🔁 Multi-Layer Support**: Build Entity → Domain → DTO mapping chains effortlessly
+- **⚡ Zero Runtime Cost**: All code generated at compile time
+- **🛡️ Type-Safe**: Compile-time validation catches mapping errors before runtime
+- **📦 Null Safety**: Built-in null checking for nullable reference types
+- **🎯 Convention-Based**: Maps properties by name - no configuration needed
+
+#### 🚀 Quick Example
+
+```csharp
+using Atc.SourceGenerators.Annotations;
+using Atc.Mapping;
+
+// Source with nested object and enum
+[MapTo(typeof(PersonDto))]
+public partial class Person
+{
+    public int Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public Status Status { get; set; }
+    public Address? Address { get; set; }
+}
+
+[MapTo(typeof(AddressDto))]
+public partial class Address
+{
+    public string Street { get; set; } = string.Empty;
+    public string City { get; set; } = string.Empty;
+}
+
+public enum Status { Active = 0, Inactive = 1 }
+
+// Target types
+public class PersonDto
+{
+    public int Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public StatusDto Status { get; set; }
+    public AddressDto? Address { get; set; }
+}
+
+public class AddressDto
+{
+    public string Street { get; set; } = string.Empty;
+    public string City { get; set; } = string.Empty;
+}
+
+public enum StatusDto { Active = 0, Inactive = 1 }
+
+// ✨ Use generated extension methods
+var person = new Person
+{
+    Id = 1,
+    Name = "John Doe",
+    Status = Status.Active,
+    Address = new Address { Street = "123 Main St", City = "NYC" }
+};
+
+var dto = person.MapToPersonDto();
+// ✨ Automatic enum conversion
+// ✨ Automatic nested object mapping (Address → AddressDto)
+// ✨ Null safety built-in
+```
+
+#### 📦 Installation
+
+**Required:**
+```bash
+dotnet add package Atc.SourceGenerators
+```
+
+**Optional (recommended for better IntelliSense):**
+```bash
+dotnet add package Atc.SourceGenerators.Annotations
+```
+
+Or in your `.csproj`:
+
+```xml
+<ItemGroup>
+  <!-- Required: Source generator -->
+  <PackageReference Include="Atc.SourceGenerators" Version="1.0.0" />
+
+  <!-- Optional: Attribute definitions with XML documentation -->
+  <PackageReference Include="Atc.SourceGenerators.Annotations" Version="1.0.0" />
+</ItemGroup>
+```
+
+**Note:** The generator emits fallback attributes automatically, so the Annotations package is optional. However, it provides better XML documentation and IntelliSense. If you include it, suppress the expected CS0436 warning: `<NoWarn>$(NoWarn);CS0436</NoWarn>`
+
+#### 🔁 Multi-Layer Architecture
+
+Perfect for 3-layer architectures:
+
+```
+Database (Entities) → Domain (Models) → API (DTOs)
+```
+
+```csharp
+// Data Access Layer
+[MapTo(typeof(Domain.Product))]
+public partial class ProductEntity
+{
+    public int DatabaseId { get; set; }
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public decimal Price { get; set; }
+    public bool IsDeleted { get; set; }  // DB-specific field
+}
+
+// Domain Layer
+namespace Domain;
+
+[MapTo(typeof(ProductDto))]
+public partial class Product
+{
+    public Guid Id { get; init; }
+    public string Name { get; init; } = string.Empty;
+    public decimal Price { get; init; }
+}
+
+public class ProductDto
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public decimal Price { get; set; }
+}
+
+// ✨ Complete mapping chain
+var entity = repository.GetById(1);
+var domain = entity.MapToProduct();
+var dto = domain.MapToProductDto();
+```
+
+#### 🛡️ Compile-Time Safety
+
+Get errors at compile time, not runtime:
+
+| ID | Description |
+|----|-------------|
+| ATCMAP001 | Mapping class must be declared as partial |
+| ATCMAP002 | Target type must be a class or struct |
+
+---
+
+### 🔄 EnumMappingGenerator
+
+Eliminate manual enum conversions with intelligent enum-to-enum mapping. Decorate your enums with `[MapTo(typeof(TargetEnum))]` and let the generator create type-safe switch expression mappings with special case handling automatically.
+
+#### 📚 Documentation
+
+- **[Enum Mapping Guide](docs/generators/EnumMapping.md)** - Full documentation with examples
+- **[Quick Start](docs/generators/EnumMapping.md#get-started---quick-guide)** - PetStore enum mapping tutorial
+- **[Special Case Mappings](docs/generators/EnumMapping.md#-special-case-mappings)** - None → Unknown, Active → Enabled, etc.
+- **[Sample Projects](docs/samples/EnumMapping.md)** - Working code examples with bidirectional mapping
+
+#### 😫 From This
+
+```csharp
+// Manual enum mapping - tedious, error-prone, inflexible 😫
+public PetStatusDto MapToDto(PetStatusEntity status)
+{
+    return status switch
+    {
+        PetStatusEntity.None => PetStatusDto.Unknown,
+        PetStatusEntity.Pending => PetStatusDto.Pending,
+        PetStatusEntity.Available => PetStatusDto.Available,
+        PetStatusEntity.Adopted => PetStatusDto.Adopted,
+        _ => throw new ArgumentOutOfRangeException(nameof(status)),
+    };
+}
+
+public PetStatusEntity MapToEntity(PetStatusDto status)
+{
+    return status switch
+    {
+        PetStatusDto.Unknown => PetStatusEntity.None,
+        PetStatusDto.Pending => PetStatusEntity.Pending,
+        PetStatusDto.Available => PetStatusEntity.Available,
+        PetStatusDto.Adopted => PetStatusEntity.Adopted,
+        _ => throw new ArgumentOutOfRangeException(nameof(status)),
+    };
+}
+// ... repeat for every enum pair
+// ... across every layer
+// ... easy to make mistakes
+```
+
+#### ✨ To This
+
+```csharp
+// Your enums - Clean, declarative, self-documenting ✨
+using Atc.SourceGenerators.Annotations;
+
+// Database layer
+[MapTo(typeof(PetStatusDto), Bidirectional = true)]
+public enum PetStatusEntity
+{
+    None,       // ✨ Auto-maps to PetStatusDto.Unknown (special case)
+    Pending,
+    Available,
+    Adopted,
+}
+
+// API layer
+public enum PetStatusDto
+{
+    Unknown,    // ✨ Auto-maps from PetStatusEntity.None
+    Available,
+    Pending,
+    Adopted,
+}
+
+// Usage - Generated extension methods
+using Atc.Mapping;
+
+var entity = PetStatusEntity.None;
+var dto = entity.MapToPetStatusDto();         // PetStatusDto.Unknown
+var back = dto.MapToPetStatusEntity();        // PetStatusEntity.None (bidirectional!)
+```
+
+#### ✨ Key Features
+
+- **🎯 Intelligent Name Matching**: Maps enum values by name with case-insensitive support
+- **🔀 Special Case Detection**: Automatically handles "zero/empty/null" state equivalents:
+  - `None` ↔ `Unknown`, `Default`
+  - `Unknown` ↔ `None`, `Default`
+  - `Default` ↔ `None`, `Unknown`
+  - Limited to just these three values to avoid unexpected mappings
+- **🔁 Bidirectional Mapping**: Generate both forward and reverse mappings with one attribute
+- **⚡ Zero Runtime Cost**: Pure switch expressions, no reflection
+- **🛡️ Type-Safe**: Compile-time validation with warnings for unmapped values
+- **🚀 Native AOT Compatible**: No reflection or runtime code generation - fully trimming-safe
+- **⚠️ Runtime Safety**: `ArgumentOutOfRangeException` for unmapped values
+
+#### 🚀 Quick Example
+
+```csharp
+using Atc.SourceGenerators.Annotations;
+using Atc.Mapping;
+
+// Database layer enum with special case mapping
+[MapTo(typeof(StatusDto), Bidirectional = true)]
+public enum StatusEntity
+{
+    None,        // ✨ Maps to StatusDto.Unknown (special case)
+    Active,      // ✨ Exact name match
+    Inactive,    // ✨ Exact name match
+}
+
+public enum StatusDto
+{
+    Unknown,     // ✨ Maps from StatusEntity.None (special case)
+    Active,      // ✨ Exact name match
+    Inactive,    // ✨ Exact name match
+}
+
+// ✨ Use generated extension methods
+var entity = StatusEntity.None;
+var dto = entity.MapToStatusDto();        // StatusDto.Unknown
+var back = dto.MapToStatusEntity();       // StatusEntity.None (bidirectional!)
+```
+
+#### 📦 Installation
+
+**Required:**
+```bash
+dotnet add package Atc.SourceGenerators
+```
+
+**Optional (recommended for better IntelliSense):**
+```bash
+dotnet add package Atc.SourceGenerators.Annotations
+```
+
+Or in your `.csproj`:
+
+```xml
+<ItemGroup>
+  <!-- Required: Source generator -->
+  <PackageReference Include="Atc.SourceGenerators" Version="1.0.0" />
+
+  <!-- Optional: Attribute definitions with XML documentation -->
+  <PackageReference Include="Atc.SourceGenerators.Annotations" Version="1.0.0" />
+</ItemGroup>
+```
+
+**Note:** The generator emits fallback attributes automatically, so the Annotations package is optional. However, it provides better XML documentation and IntelliSense. If you include it, suppress the expected CS0436 warning: `<NoWarn>$(NoWarn);CS0436</NoWarn>`
+
+#### 🛡️ Compile-Time Safety
+
+Get errors and warnings at compile time, not runtime:
+
+| ID | Description |
+|----|-------------|
+| ATCENUM001 | Target type must be an enum |
+| ATCENUM002 | Enum value has no matching target value (Warning) |
+
+---
+
+## 🔨 Building
+
+```bash
+dotnet build
+```
+
+## 🧪 Testing
+
+```bash
+dotnet test
+```
+
+## 📚 Sample Projects
+
+Working code examples demonstrating each generator in realistic scenarios:
+
+### ⚡ [DependencyRegistration Sample](docs/samples/DependencyRegistration.md)
+Multi-project console app showing automatic DI registration across layers with auto-detection of interfaces.
+```bash
+cd sample/Atc.SourceGenerators.DependencyRegistration
+dotnet run
+```
+
+### ⚙️ [OptionsBinding Sample](docs/samples/OptionsBinding.md)
+Console app demonstrating type-safe configuration binding with validation and multiple options classes.
+```bash
+cd sample/Atc.SourceGenerators.OptionsBinding
+dotnet run
+```
+
+### 🗺️ [Mapping Sample](docs/samples/Mapping.md)
+ASP.NET Core Minimal API showing 3-layer mapping (Entity → Domain → DTO) with automatic enum conversion and nested objects.
+```bash
+cd sample/Atc.SourceGenerators.Mapping
+dotnet run
+```
+
+### 🔄 [EnumMapping Sample](docs/samples/EnumMapping.md)
+Console app demonstrating intelligent enum-to-enum mapping with special case handling (None → Unknown, Active → Enabled), bidirectional mappings, and case-insensitive matching.
+```bash
+cd sample/Atc.SourceGenerators.EnumMapping
+dotnet run
+```
+
+### 🎯 [PetStore API - Complete Example](docs/samples/PetStoreApi.md)
+Full-featured ASP.NET Core application using **all four generators** together with OpenAPI/Scalar documentation. This demonstrates production-ready patterns for modern .NET applications.
+```bash
+cd sample/PetStore.Api
+dotnet run
+# Open https://localhost:42616/scalar/v1 for API documentation
+```
+
+## 🤝 Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## 📄 License
+
+[License information here]

@@ -1,0 +1,19 @@
+; Shipped analyzer releases
+; https://github.com/dotnet/roslyn-analyzers/blob/main/src/Microsoft.CodeAnalysis.Analyzers/ReleaseTrackingAnalyzers.Help.md
+
+## Release 1.0
+
+### New Rules
+
+Rule ID | Category | Severity | Notes
+--------|----------|----------|-------
+ATCDIR001 | DependencyInjection | Error | Service 'As' type must be an interface
+ATCDIR002 | DependencyInjection | Error | Class does not implement specified interface
+ATCDIR003 | DependencyInjection | Warning | Duplicate service registration with different lifetime
+ATCOPT001 | OptionsBinding | Error | Options class must be partial
+ATCOPT002 | OptionsBinding | Error | Section name cannot be null or empty
+ATCOPT003 | OptionsBinding | Error | Const section name cannot be null or empty
+ATCMAP001 | ObjectMapping | Error | Mapping class must be partial
+ATCMAP002 | ObjectMapping | Error | Target type must be a class or struct
+ATCENUM001 | EnumMapping | Error | Target type must be an enum
+ATCENUM002 | EnumMapping | Warning | Source enum value has no matching target value
