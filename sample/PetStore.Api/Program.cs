@@ -3,7 +3,7 @@
 
 var builder = WebApplication.CreateBuilder(args);
 
-// ✨ Scenario B: Register all services transitively (Domain + DataAccess)
+// ✨ Register all services transitively (Domain + DataAccess)
 // This single call registers:
 //   - PetService from PetStore.Domain
 //   - PetRepository from PetStore.DataAccess (auto-detected as referenced assembly)
@@ -34,7 +34,9 @@ app.UseHttpsRedirection();
 app
     .MapGet("/", context =>
     {
-        if (context.RequestServices.GetRequiredService<IWebHostEnvironment>().IsDevelopment())
+        if (context.RequestServices
+            .GetRequiredService<IWebHostEnvironment>()
+            .IsDevelopment())
         {
             context.Response.Redirect("/scalar/v1");
             return Task.CompletedTask;

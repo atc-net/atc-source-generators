@@ -19,6 +19,7 @@
     <Project Path="sample/Atc.SourceGenerators.DependencyRegistration.Domain/Atc.SourceGenerators.DependencyRegistration.Domain.csproj" />
     <Project Path="sample/Atc.SourceGenerators.DependencyRegistration/Atc.SourceGenerators.DependencyRegistration.csproj" />
     <Project Path="sample/Atc.SourceGenerators.EnumMapping/Atc.SourceGenerators.EnumMapping.csproj" />
+    <Project Path="sample/Atc.SourceGenerators.Mapping.Contract/Atc.SourceGenerators.Mapping.Contract.csproj" />
     <Project Path="sample/Atc.SourceGenerators.Mapping.DataAccess/Atc.SourceGenerators.Mapping.DataAccess.csproj" />
     <Project Path="sample/Atc.SourceGenerators.Mapping.Domain/Atc.SourceGenerators.Mapping.Domain.csproj" />
     <Project Path="sample/Atc.SourceGenerators.Mapping/Atc.SourceGenerators.Mapping.csproj" />

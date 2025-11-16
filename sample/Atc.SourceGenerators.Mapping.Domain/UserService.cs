@@ -22,12 +22,14 @@ public class UserService
     /// <param name="id">The user ID.</param>
     /// <returns>The user domain model, or null if not found.</returns>
     public User? GetById(Guid id)
-        => repository.GetById(id);
+        => repository.GetById(id)?.MapToUser();
 
     /// <summary>
     /// Gets all users.
     /// </summary>
     /// <returns>Collection of user domain models.</returns>
     public IEnumerable<User> GetAll()
-        => repository.GetAll();
+        => repository
+            .GetAll()
+            .Select(e => e.MapToUser());
 }

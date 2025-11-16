@@ -4,6 +4,7 @@ namespace Atc.SourceGenerators.Mapping.Domain;
 /// Represents a user in the system.
 /// </summary>
 [MapTo(typeof(UserDto))]
+[MapTo(typeof(UserEntity), Bidirectional = true)]
 public partial class User
 {
     /// <summary>

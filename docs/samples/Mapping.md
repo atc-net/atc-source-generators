@@ -16,14 +16,18 @@ This sample demonstrates the **MappingGenerator** in a realistic 3-layer archite
 - **Atc.SourceGenerators.Mapping** - ASP.NET Core Minimal API (entry point)
 - **Atc.SourceGenerators.Mapping.Domain** - Domain models and business logic
 - **Atc.SourceGenerators.Mapping.DataAccess** - Data access layer with entities
+- **Atc.SourceGenerators.Mapping.Contract** - API contracts (DTOs)
 
 ## 🏗️ Architecture
 
 ```mermaid
-graph LR
+graph TB
     subgraph "API Layer"
         API[Minimal API Endpoints]
-        DTO[DTOs: UserDto, AddressDto]
+    end
+
+    subgraph "Contract Layer"
+        DTO[DTOs: UserDto, AddressDto, UserStatusDto]
     end
 
     subgraph "Domain Layer"
@@ -36,32 +40,36 @@ graph LR
         EE[Entity Enums: UserStatusEntity]
     end
 
-    subgraph "Generated Mappings"
-        M1["UserEntity.MapToUser()"]
-        M2["User.MapToUserDto()"]
-        M3["AddressEntity.MapToAddress()"]
-        M4["Address.MapToAddressDto()"]
+    subgraph "Generated Bidirectional Mappings"
+        M1["User ↔ UserEntity"]
+        M2["User → UserDto"]
+        M3["Address ↔ AddressEntity"]
+        M4["Address → AddressDto"]
+        M5["UserStatus ↔ UserStatusEntity"]
+        M6["UserStatus → UserStatusDto"]
     end
 
-    ENT -->|MapToUser| M1
-    M1 --> DM
-    DM -->|MapToUserDto| M2
-    M2 --> DTO
-
-    EE -.->|auto cast| DE
-    DE -.->|auto cast| DTO
-
-    ENT -.->|nested| M3
-    M3 --> DM
-    DM -.->|nested| M4
-
     API --> DTO
-    DTO --> API
+    DTO --> DM
+    DM --> M1
+    DM --> M2
+    DM --> M3
+    DM --> M4
+    DE --> M5
+    DE --> M6
+    M1 --> ENT
+    M3 --> ENT
+    M5 --> EE
+    M2 --> DTO
+    M4 --> DTO
+    M6 --> DTO
 
     style M1 fill:#2ea44f
     style M2 fill:#2ea44f
     style M3 fill:#2ea44f
     style M4 fill:#2ea44f
+    style M5 fill:#2ea44f
+    style M6 fill:#2ea44f
 ```
 
 ## 🔄 Mapping Flow
@@ -109,37 +117,42 @@ sequenceDiagram
 ### Data Access Layer
 
 ```csharp
-using Atc.SourceGenerators.Annotations;
+namespace Atc.SourceGenerators.Mapping.DataAccess.Entities;
 
-namespace Atc.SourceGenerators.Mapping.DataAccess;
-
-// Entity with mapping to Domain
-[MapTo(typeof(Domain.User))]
-public partial class UserEntity
+// Entity - NO mapping attribute (mapping defined in Domain)
+public class UserEntity
 {
     public int DatabaseId { get; set; }
     public Guid Id { get; set; }
-    public string Name { get; set; } = string.Empty;
+    public string FirstName { get; set; } = string.Empty;
+    public string LastName { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
     public UserStatusEntity Status { get; set; }
     public AddressEntity? Address { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset? UpdatedAt { get; set; }
     public bool IsDeleted { get; set; }  // DB-specific field
+    public byte[] RowVersion { get; set; } = [];  // DB-specific field
 }
 
-[MapTo(typeof(Domain.Address))]
-public partial class AddressEntity
+public class AddressEntity
 {
+    public int Id { get; set; }
     public string Street { get; set; } = string.Empty;
     public string City { get; set; } = string.Empty;
+    public string State { get; set; } = string.Empty;
     public string PostalCode { get; set; } = string.Empty;
+    public string Country { get; set; } = string.Empty;
+    public DateTime CreatedAt { get; set; }
+    public DateTime? UpdatedAt { get; set; }
 }
 
 public enum UserStatusEntity
 {
     Active = 0,
     Inactive = 1,
-    Suspended = 2
+    Suspended = 2,
+    Deleted = 3
 }
 ```
 
@@ -150,49 +163,76 @@ using Atc.SourceGenerators.Annotations;
 
 namespace Atc.SourceGenerators.Mapping.Domain;
 
-// Domain model with mapping to DTO
+// Domain model with BIDIRECTIONAL mapping to Entity and forward mapping to DTO
 [MapTo(typeof(UserDto))]
+[MapTo(typeof(UserEntity), Bidirectional = true)]
 public partial class User
 {
-    public Guid Id { get; init; }
-    public string Name { get; init; } = string.Empty;
-    public string Email { get; init; } = string.Empty;
-    public UserStatus Status { get; init; }
-    public Address? Address { get; init; }
-    public DateTimeOffset CreatedAt { get; init; }
+    public Guid Id { get; set; }
+    public string FirstName { get; set; } = string.Empty;
+    public string LastName { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+    public UserStatus Status { get; set; }
+    public Address? Address { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset? UpdatedAt { get; set; }
 }
 
 [MapTo(typeof(AddressDto))]
+[MapTo(typeof(AddressEntity), Bidirectional = true)]
 public partial class Address
 {
-    public string Street { get; init; } = string.Empty;
-    public string City { get; init; } = string.Empty;
-    public string PostalCode { get; init; } = string.Empty;
+    public string Street { get; set; } = string.Empty;
+    public string City { get; set; } = string.Empty;
+    public string State { get; set; } = string.Empty;
+    public string PostalCode { get; set; } = string.Empty;
+    public string Country { get; set; } = string.Empty;
 }
 
+[MapTo(typeof(UserStatusDto))]
+[MapTo(typeof(UserStatusEntity), Bidirectional = true)]
 public enum UserStatus
 {
     Active = 0,
     Inactive = 1,
-    Suspended = 2
+    Suspended = 2,
+    Deleted = 3
 }
+```
 
-// DTOs
+### Contract Layer
+
+```csharp
+namespace Atc.SourceGenerators.Mapping.Contract;
+
+// DTOs - no mapping attributes needed (mapped from Domain)
 public class UserDto
 {
     public Guid Id { get; set; }
-    public string Name { get; set; } = string.Empty;
+    public string FirstName { get; set; } = string.Empty;
+    public string LastName { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
-    public string Status { get; set; } = string.Empty;  // Different type!
+    public UserStatusDto Status { get; set; }
     public AddressDto? Address { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset? UpdatedAt { get; set; }
 }
 
 public class AddressDto
 {
     public string Street { get; set; } = string.Empty;
     public string City { get; set; } = string.Empty;
+    public string State { get; set; } = string.Empty;
     public string PostalCode { get; set; } = string.Empty;
+    public string Country { get; set; } = string.Empty;
+}
+
+public enum UserStatusDto
+{
+    Active = 0,
+    Inactive = 1,
+    Suspended = 2,
+    Deleted = 3
 }
 ```
 
@@ -200,81 +240,82 @@ public class AddressDto
 
 ```csharp
 using Atc.Mapping;
+using Atc.SourceGenerators.Mapping.Contract;
 using Atc.SourceGenerators.Mapping.Domain;
 using Microsoft.AspNetCore.Mvc;
 
-var app = WebApplication.Create();
+var builder = WebApplication.CreateBuilder(args);
 
-// POST endpoint - Create user
-app.MapPost("/users", async ([FromBody] CreateUserRequest request) =>
+// Register services
+builder.Services.AddSingleton<IUserRepository, UserRepository>();
+builder.Services.AddSingleton<UserService>();
+
+var app = builder.Build();
+
+// GET endpoint - Retrieve user by ID
+app.MapGet("/users/{id:guid}", (Guid id, UserService userService) =>
 {
-    // Convert DTO → Domain
-    var user = new User
+    var user = userService.GetById(id);
+    if (user is null)
     {
-        Id = Guid.NewGuid(),
-        Name = request.Name,
-        Email = request.Email,
-        Status = UserStatus.Active,
-        CreatedAt = DateTimeOffset.UtcNow
-    };
+        return Results.NotFound(new { message = $"User with ID {id} not found" });
+    }
 
-    // Convert Domain → Entity
-    var entity = user.MapToUserEntity();
-    // Save to database...
+    // ✨ Use generated mapping: Domain → DTO
+    var data = user.MapToUserDto();
+    return Results.Ok(data);
+})
+.WithName("GetUserById")
+.Produces<UserDto>(StatusCodes.Status200OK)
+.Produces(StatusCodes.Status404NotFound);
 
-    // Convert Domain → DTO for response
-    var dto = user.MapToUserDto();
-    return Results.Created($"/users/{user.Id}", dto);
-});
-
-// GET endpoint - Retrieve user
-app.MapGet("/users/{id:guid}", async (Guid id) =>
+// GET endpoint - Retrieve all users
+app.MapGet("/users", (UserService userService) =>
 {
-    // Fetch from database
-    var entity = await repository.GetByIdAsync(id);
-    if (entity == null) return Results.NotFound();
+    // ✨ Use generated mapping: Domain → DTO
+    var data = userService
+        .GetAll()
+        .Select(u => u.MapToUserDto())
+        .ToList();
+    return Results.Ok(data);
+})
+.WithName("GetAllUsers")
+.Produces<List<UserDto>>(StatusCodes.Status200OK);
 
-    // Complete mapping chain: Entity → Domain → DTO
-    var user = entity.MapToUser();      // Auto-converts enum, nested Address
-    var dto = user.MapToUserDto();      // Auto-maps all properties
-
-    return Results.Ok(dto);
-});
-
-app.Run();
+await app.RunAsync();
 ```
 
 ## 📝 Generated Code
 
-The generator creates extension methods for each mapping:
+The generator creates extension methods for bidirectional mappings:
 
 ```csharp
 // <auto-generated />
 namespace Atc.Mapping;
 
-public static partial class UserEntityExtensions
+// Bidirectional mapping: User ↔ UserEntity
+public static partial class UserExtensions
 {
-    public static Domain.User MapToUser(this UserEntity source)
+    public static UserEntity MapToUserEntity(this User source)
     {
         if (source is null)
         {
             return default!;
         }
 
-        return new Domain.User
+        return new UserEntity
         {
             Id = source.Id,
-            Name = source.Name,
+            FirstName = source.FirstName,
+            LastName = source.LastName,
             Email = source.Email,
-            Status = (Domain.UserStatus)source.Status,  // ✨ Auto enum conversion
-            Address = source.Address?.MapToAddress()!,  // ✨ Auto nested mapping
-            CreatedAt = source.CreatedAt
+            Status = source.Status.MapToUserStatusEntity(),  // ✨ Safe enum mapping (bidirectional)
+            Address = source.Address?.MapToAddressEntity()!, // ✨ Auto nested mapping
+            CreatedAt = source.CreatedAt,
+            UpdatedAt = source.UpdatedAt
         };
     }
-}
 
-public static partial class UserExtensions
-{
     public static UserDto MapToUserDto(this User source)
     {
         if (source is null)
@@ -285,11 +326,37 @@ public static partial class UserExtensions
         return new UserDto
         {
             Id = source.Id,
-            Name = source.Name,
+            FirstName = source.FirstName,
+            LastName = source.LastName,
             Email = source.Email,
-            Status = source.Status.ToString(),          // ✨ Enum to string
-            Address = source.Address?.MapToAddressDto()!, // ✨ Nested mapping
-            CreatedAt = source.CreatedAt
+            Status = source.Status.MapToUserStatusDto(),    // ✨ Safe enum mapping
+            Address = source.Address?.MapToAddressDto()!,   // ✨ Nested mapping
+            CreatedAt = source.CreatedAt,
+            UpdatedAt = source.UpdatedAt
+        };
+    }
+}
+
+public static partial class UserEntityExtensions
+{
+    // Reverse mapping (from Bidirectional = true)
+    public static User MapToUser(this UserEntity source)
+    {
+        if (source is null)
+        {
+            return default!;
+        }
+
+        return new User
+        {
+            Id = source.Id,
+            FirstName = source.FirstName,
+            LastName = source.LastName,
+            Email = source.Email,
+            Status = source.Status.MapToUserStatus(),    // ✨ Safe enum mapping (reverse)
+            Address = source.Address?.MapToAddress()!,   // ✨ Auto nested mapping
+            CreatedAt = source.CreatedAt,
+            UpdatedAt = source.UpdatedAt
         };
     }
 }

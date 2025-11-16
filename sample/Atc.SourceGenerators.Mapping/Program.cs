@@ -7,7 +7,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddSingleton<IUserRepository, UserRepository>();
 
 // Register domain services
-builder.Services.AddUserServices();
+builder.Services.AddSingleton<UserService>();
 
 // Add OpenAPI
 builder.Services.AddOpenApi();
@@ -25,7 +25,9 @@ if (app.Environment.IsDevelopment())
 app
     .MapGet("/", context =>
     {
-        if (context.RequestServices.GetRequiredService<IWebHostEnvironment>().IsDevelopment())
+        if (context.RequestServices
+            .GetRequiredService<IWebHostEnvironment>()
+            .IsDevelopment())
         {
             context.Response.Redirect("/scalar/v1");
             return Task.CompletedTask;
