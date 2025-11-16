@@ -1,6 +1,6 @@
 # 🎯 Atc Source Generators
 
-A collection of Roslyn C# source generators for .NET that eliminate boilerplate code and improve developer productivity.
+A collection of Roslyn C# source generators for .NET that eliminate boilerplate code and improve developer productivity. All generators are designed with **Native AOT compatibility** in focus, enabling faster startup times, smaller deployment sizes, and optimal performance for modern cloud-native applications.
 
 ## 🚀 Source Generators
 
@@ -8,6 +8,34 @@ A collection of Roslyn C# source generators for .NET that eliminate boilerplate 
 - **[⚙️ OptionsBindingGenerator](#️-optionsbindinggenerator)** - Automatic configuration binding to strongly-typed options classes
 - **[🗺️ MappingGenerator](#️-mappinggenerator)** - Automatic object-to-object mapping with type safety
 - **[🔄 EnumMappingGenerator](#-enummappinggenerator)** - Automatic enum-to-enum mapping with intelligent matching
+
+## 📦 Installation
+
+All generators are distributed in a single NuGet package. Install once to use all features.
+
+**Required:**
+```bash
+dotnet add package Atc.SourceGenerators
+```
+
+**Optional (recommended for better IntelliSense):**
+```bash
+dotnet add package Atc.SourceGenerators.Annotations
+```
+
+Or in your `.csproj`:
+
+```xml
+<ItemGroup>
+  <!-- Required: Source generator -->
+  <PackageReference Include="Atc.SourceGenerators" Version="1.0.0" />
+
+  <!-- Optional: Attribute definitions with XML documentation -->
+  <PackageReference Include="Atc.SourceGenerators.Annotations" Version="1.0.0" />
+</ItemGroup>
+```
+
+**Note:** The generator emits fallback attributes automatically, so the Annotations package is optional. However, it provides better XML documentation and IntelliSense. If you include it, suppress the expected CS0436 warning: `<NoWarn>$(NoWarn);CS0436</NoWarn>`
 
 ---
 
@@ -92,34 +120,6 @@ public class EmailService : IEmailService, INotificationService { }
 [Registration(AsSelf = true)]
 public class ReportService : IReportService { }
 ```
-
-#### 📦 Installation
-
-**Required:**
-```bash
-dotnet add package Atc.SourceGenerators
-```
-
-**Optional (recommended for better IntelliSense):**
-```bash
-dotnet add package Atc.SourceGenerators.Annotations
-```
-
-Or in your `.csproj`:
-
-```xml
-<ItemGroup>
-  <!-- Required: Source generator -->
-  <PackageReference Include="Atc.SourceGenerators" Version="1.0.0" />
-
-  <!-- Optional: Attribute definitions with XML documentation -->
-  <PackageReference Include="Atc.SourceGenerators.Annotations" Version="1.0.0" />
-</ItemGroup>
-```
-
-**Note:** The generator emits fallback attributes automatically, so the Annotations package is optional. However, it provides better XML documentation and IntelliSense. If you include it, suppress the expected CS0436 warning: `<NoWarn>$(NoWarn);CS0436</NoWarn>`
-
-See the [complete guide](docs/generators/DependencyRegistration.md) for multi-project setups.
 
 #### 🔧 Service Lifetimes
 
@@ -277,32 +277,6 @@ public class MyService
 }
 ```
 
-#### 📦 Installation
-
-**Required:**
-```bash
-dotnet add package Atc.SourceGenerators
-```
-
-**Optional (recommended for better IntelliSense):**
-```bash
-dotnet add package Atc.SourceGenerators.Annotations
-```
-
-Or in your `.csproj`:
-
-```xml
-<ItemGroup>
-  <!-- Required: Source generator -->
-  <PackageReference Include="Atc.SourceGenerators" Version="1.0.0" />
-
-  <!-- Optional: Attribute definitions with XML documentation -->
-  <PackageReference Include="Atc.SourceGenerators.Annotations" Version="1.0.0" />
-</ItemGroup>
-```
-
-**Note:** The generator emits fallback attributes automatically, so the Annotations package is optional. However, it provides better XML documentation and IntelliSense. If you include it, suppress the expected CS0436 warning: `<NoWarn>$(NoWarn);CS0436</NoWarn>`
-
 #### 🛡️ Compile-Time Safety
 
 | ID | Description |
@@ -399,6 +373,7 @@ var dtos = users.Select(u => u.MapToUserDto()).ToList();
 - **🪆 Nested Object Mapping**: Automatically chains mappings for nested properties
 - **🔁 Multi-Layer Support**: Build Entity → Domain → DTO mapping chains effortlessly
 - **⚡ Zero Runtime Cost**: All code generated at compile time
+- **🚀 Native AOT Compatible**: No reflection or runtime code generation - fully trimming-safe
 - **🛡️ Type-Safe**: Compile-time validation catches mapping errors before runtime
 - **📦 Null Safety**: Built-in null checking for nullable reference types
 - **🎯 Convention-Based**: Maps properties by name - no configuration needed
@@ -459,32 +434,6 @@ var dto = person.MapToPersonDto();
 // ✨ Automatic nested object mapping (Address → AddressDto)
 // ✨ Null safety built-in
 ```
-
-#### 📦 Installation
-
-**Required:**
-```bash
-dotnet add package Atc.SourceGenerators
-```
-
-**Optional (recommended for better IntelliSense):**
-```bash
-dotnet add package Atc.SourceGenerators.Annotations
-```
-
-Or in your `.csproj`:
-
-```xml
-<ItemGroup>
-  <!-- Required: Source generator -->
-  <PackageReference Include="Atc.SourceGenerators" Version="1.0.0" />
-
-  <!-- Optional: Attribute definitions with XML documentation -->
-  <PackageReference Include="Atc.SourceGenerators.Annotations" Version="1.0.0" />
-</ItemGroup>
-```
-
-**Note:** The generator emits fallback attributes automatically, so the Annotations package is optional. However, it provides better XML documentation and IntelliSense. If you include it, suppress the expected CS0436 warning: `<NoWarn>$(NoWarn);CS0436</NoWarn>`
 
 #### 🔁 Multi-Layer Architecture
 
@@ -658,32 +607,6 @@ var entity = StatusEntity.None;
 var dto = entity.MapToStatusDto();        // StatusDto.Unknown
 var back = dto.MapToStatusEntity();       // StatusEntity.None (bidirectional!)
 ```
-
-#### 📦 Installation
-
-**Required:**
-```bash
-dotnet add package Atc.SourceGenerators
-```
-
-**Optional (recommended for better IntelliSense):**
-```bash
-dotnet add package Atc.SourceGenerators.Annotations
-```
-
-Or in your `.csproj`:
-
-```xml
-<ItemGroup>
-  <!-- Required: Source generator -->
-  <PackageReference Include="Atc.SourceGenerators" Version="1.0.0" />
-
-  <!-- Optional: Attribute definitions with XML documentation -->
-  <PackageReference Include="Atc.SourceGenerators.Annotations" Version="1.0.0" />
-</ItemGroup>
-```
-
-**Note:** The generator emits fallback attributes automatically, so the Annotations package is optional. However, it provides better XML documentation and IntelliSense. If you include it, suppress the expected CS0436 warning: `<NoWarn>$(NoWarn);CS0436</NoWarn>`
 
 #### 🛡️ Compile-Time Safety
 
