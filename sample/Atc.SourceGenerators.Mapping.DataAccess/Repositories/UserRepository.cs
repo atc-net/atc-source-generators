@@ -1,4 +1,4 @@
-namespace Atc.SourceGenerators.Mapping.DataAccess;
+namespace Atc.SourceGenerators.Mapping.DataAccess.Repositories;
 
 /// <summary>
 /// In-memory user repository for demo purposes.
@@ -62,19 +62,19 @@ public class UserRepository : IUserRepository
     };
 
     /// <summary>
-    /// Gets a user by ID.
+    /// Gets a user entity by ID.
     /// </summary>
     /// <param name="id">The user ID.</param>
-    /// <returns>The user domain model, or null if not found.</returns>
-    public User? GetById(Guid id)
+    /// <returns>The user entity, or null if not found.</returns>
+    public UserEntity? GetById(Guid id)
         => !users.TryGetValue(id, out var entity)
             ? null
-            : entity.MapToUser();
+            : entity;
 
     /// <summary>
-    /// Gets all users.
+    /// Gets all user entities.
     /// </summary>
-    /// <returns>Collection of user domain models.</returns>
-    public IEnumerable<User> GetAll()
-        => users.Values.Select(e => e.MapToUser());
+    /// <returns>Collection of user entities.</returns>
+    public IEnumerable<UserEntity> GetAll()
+        => users.Values;
 }

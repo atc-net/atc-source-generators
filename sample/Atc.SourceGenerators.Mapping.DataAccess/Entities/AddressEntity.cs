@@ -1,10 +1,9 @@
 namespace Atc.SourceGenerators.Mapping.DataAccess.Entities;
 
 /// <summary>
-/// Database entity for address (maps to Domain.Address).
+/// Database entity for address.
 /// </summary>
-[MapTo(typeof(Address))]
-public partial class AddressEntity
+public class AddressEntity
 {
     /// <summary>
     /// Gets or sets the database ID.

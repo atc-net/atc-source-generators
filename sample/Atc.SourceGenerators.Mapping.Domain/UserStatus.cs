@@ -3,6 +3,8 @@ namespace Atc.SourceGenerators.Mapping.Domain;
 /// <summary>
 /// Represents the status of a user account.
 /// </summary>
+[MapTo(typeof(UserStatusDto))]
+[MapTo(typeof(UserStatusEntity), Bidirectional = true)]
 public enum UserStatus
 {
     /// <summary>

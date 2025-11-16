@@ -1,10 +1,9 @@
 namespace Atc.SourceGenerators.Mapping.DataAccess.Entities;
 
 /// <summary>
-/// Database entity for user (maps to Domain.User).
+/// Database entity for user.
 /// </summary>
-[MapTo(typeof(User))]
-public partial class UserEntity
+public class UserEntity
 {
     /// <summary>
     /// Gets or sets the database ID (auto-increment).

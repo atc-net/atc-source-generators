@@ -1,4 +1,4 @@
-namespace Atc.SourceGenerators.Mapping.Domain.ApiContracts;
+namespace Atc.SourceGenerators.Mapping.Contract;
 
 /// <summary>
 /// Data transfer object for User (used for API responses).

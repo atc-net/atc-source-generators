@@ -4,6 +4,7 @@ namespace Atc.SourceGenerators.Mapping.Domain;
 /// Represents a physical address.
 /// </summary>
 [MapTo(typeof(AddressDto))]
+[MapTo(typeof(AddressEntity), Bidirectional = true)]
 public partial class Address
 {
     /// <summary>
