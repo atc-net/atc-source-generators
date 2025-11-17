@@ -858,6 +858,40 @@ public class OptionsBindingGeneratorTests
         Assert.Equal(1, overload4Count);
     }
 
+    [Fact]
+    public void Generator_Should_Not_Generate_Empty_If_Statement_When_No_Referenced_Assemblies()
+    {
+        // Arrange
+        const string source = """
+                              using Atc.SourceGenerators.Annotations;
+
+                              namespace TestApp.Options;
+
+                              [OptionsBinding("TestSection")]
+                              public partial class TestOptions
+                              {
+                                  public string Value { get; set; } = string.Empty;
+                              }
+                              """;
+
+        // Act
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        // Assert
+        Assert.Empty(diagnostics);
+
+        var generatedCode = GetGeneratedExtensionMethod(output);
+        Assert.NotNull(generatedCode);
+
+        // Verify that the overload with includeReferencedAssemblies parameter exists
+        Assert.Contains("bool includeReferencedAssemblies", generatedCode, StringComparison.Ordinal);
+
+        // Verify that there is NO empty if-statement in the generated code
+        // The pattern we're looking for is an if-statement with only whitespace between the braces
+        var emptyIfPattern = new Regex(@"if\s*\(\s*includeReferencedAssemblies\s*\)\s*\{\s*\}", RegexOptions.Multiline);
+        Assert.False(emptyIfPattern.IsMatch(generatedCode), "Generated code should not contain an empty if-statement when there are no referenced assemblies");
+    }
+
     private static (ImmutableArray<Diagnostic> Diagnostics, Dictionary<string, string> GeneratedSources) GetGeneratedOutput(
         string source)
     {
