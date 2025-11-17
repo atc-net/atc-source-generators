@@ -166,6 +166,7 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
             object? key = null;
             string? factoryMethodName = null;
             var tryAdd = false;
+            var decorator = false;
 
             // Constructor argument (lifetime)
             if (attributeData.ConstructorArguments.Length > 0)
@@ -205,6 +206,13 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
                         }
 
                         break;
+                    case "Decorator":
+                        if (namedArg.Value.Value is bool decoratorValue)
+                        {
+                            decorator = decoratorValue;
+                        }
+
+                        break;
                 }
             }
 
@@ -238,6 +246,7 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
                 key,
                 factoryMethodName,
                 tryAdd,
+                decorator,
                 classDeclaration.GetLocation());
         }
 
@@ -807,6 +816,110 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
         sb.AppendLineLf("            global::System.TimeSpan.FromSeconds(1));");
         sb.AppendLineLf("    }");
         sb.AppendLineLf();
+        sb.AppendLineLf("    /// <summary>");
+        sb.AppendLineLf("    /// Decorates a registered service with a decorator implementation.");
+        sb.AppendLineLf("    /// </summary>");
+        sb.AppendLineLf("    private static IServiceCollection Decorate<TService>(");
+        sb.AppendLineLf("        this IServiceCollection services,");
+        sb.AppendLineLf("        global::System.Func<global::System.IServiceProvider, TService, TService> decorator)");
+        sb.AppendLineLf("        where TService : class");
+        sb.AppendLineLf("    {");
+        sb.AppendLineLf("        // Find existing service descriptor");
+        sb.AppendLineLf("        var descriptor = services.LastOrDefault(d => d.ServiceType == typeof(TService));");
+        sb.AppendLineLf("        if (descriptor == null)");
+        sb.AppendLineLf("        {");
+        sb.AppendLineLf("            throw new global::System.InvalidOperationException(");
+        sb.AppendLineLf("                $\"No service of type {typeof(TService).Name} is registered. Decorators must be registered after the base service.\");");
+        sb.AppendLineLf("        }");
+        sb.AppendLineLf();
+        sb.AppendLineLf("        // Remove existing descriptor");
+        sb.AppendLineLf("        services.Remove(descriptor);");
+        sb.AppendLineLf();
+        sb.AppendLineLf("        // Create new descriptor that wraps the original");
+        sb.AppendLineLf("        var lifetime = descriptor.Lifetime;");
+        sb.AppendLineLf("        services.Add(new ServiceDescriptor(");
+        sb.AppendLineLf("            typeof(TService),");
+        sb.AppendLineLf("            provider =>");
+        sb.AppendLineLf("            {");
+        sb.AppendLineLf("                // Resolve the inner service");
+        sb.AppendLineLf("                TService inner;");
+        sb.AppendLineLf("                if (descriptor.ImplementationInstance != null)");
+        sb.AppendLineLf("                {");
+        sb.AppendLineLf("                    inner = (TService)descriptor.ImplementationInstance;");
+        sb.AppendLineLf("                }");
+        sb.AppendLineLf("                else if (descriptor.ImplementationFactory != null)");
+        sb.AppendLineLf("                {");
+        sb.AppendLineLf("                    inner = (TService)descriptor.ImplementationFactory(provider);");
+        sb.AppendLineLf("                }");
+        sb.AppendLineLf("                else if (descriptor.ImplementationType != null)");
+        sb.AppendLineLf("                {");
+        sb.AppendLineLf("                    inner = (TService)ActivatorUtilities.CreateInstance(provider, descriptor.ImplementationType);");
+        sb.AppendLineLf("                }");
+        sb.AppendLineLf("                else");
+        sb.AppendLineLf("                {");
+        sb.AppendLineLf("                    throw new global::System.InvalidOperationException(\"Invalid service descriptor\");");
+        sb.AppendLineLf("                }");
+        sb.AppendLineLf();
+        sb.AppendLineLf("                // Apply decorator");
+        sb.AppendLineLf("                return decorator(provider, inner);");
+        sb.AppendLineLf("            },");
+        sb.AppendLineLf("            lifetime));");
+        sb.AppendLineLf();
+        sb.AppendLineLf("        return services;");
+        sb.AppendLineLf("    }");
+        sb.AppendLineLf();
+        sb.AppendLineLf("    /// <summary>");
+        sb.AppendLineLf("    /// Decorates a registered open generic service with a decorator implementation.");
+        sb.AppendLineLf("    /// </summary>");
+        sb.AppendLineLf("    private static IServiceCollection Decorate(");
+        sb.AppendLineLf("        this IServiceCollection services,");
+        sb.AppendLineLf("        global::System.Type serviceType,");
+        sb.AppendLineLf("        global::System.Func<global::System.IServiceProvider, object, object> decorator)");
+        sb.AppendLineLf("    {");
+        sb.AppendLineLf("        // Find existing service descriptor");
+        sb.AppendLineLf("        var descriptor = services.LastOrDefault(d => d.ServiceType == serviceType);");
+        sb.AppendLineLf("        if (descriptor == null)");
+        sb.AppendLineLf("        {");
+        sb.AppendLineLf("            throw new global::System.InvalidOperationException(");
+        sb.AppendLineLf("                $\"No service of type {serviceType.Name} is registered. Decorators must be registered after the base service.\");");
+        sb.AppendLineLf("        }");
+        sb.AppendLineLf();
+        sb.AppendLineLf("        // Remove existing descriptor");
+        sb.AppendLineLf("        services.Remove(descriptor);");
+        sb.AppendLineLf();
+        sb.AppendLineLf("        // Create new descriptor that wraps the original");
+        sb.AppendLineLf("        var lifetime = descriptor.Lifetime;");
+        sb.AppendLineLf("        services.Add(new ServiceDescriptor(");
+        sb.AppendLineLf("            serviceType,");
+        sb.AppendLineLf("            provider =>");
+        sb.AppendLineLf("            {");
+        sb.AppendLineLf("                // Resolve the inner service");
+        sb.AppendLineLf("                object inner;");
+        sb.AppendLineLf("                if (descriptor.ImplementationInstance != null)");
+        sb.AppendLineLf("                {");
+        sb.AppendLineLf("                    inner = descriptor.ImplementationInstance;");
+        sb.AppendLineLf("                }");
+        sb.AppendLineLf("                else if (descriptor.ImplementationFactory != null)");
+        sb.AppendLineLf("                {");
+        sb.AppendLineLf("                    inner = descriptor.ImplementationFactory(provider);");
+        sb.AppendLineLf("                }");
+        sb.AppendLineLf("                else if (descriptor.ImplementationType != null)");
+        sb.AppendLineLf("                {");
+        sb.AppendLineLf("                    inner = ActivatorUtilities.CreateInstance(provider, descriptor.ImplementationType);");
+        sb.AppendLineLf("                }");
+        sb.AppendLineLf("                else");
+        sb.AppendLineLf("                {");
+        sb.AppendLineLf("                    throw new global::System.InvalidOperationException(\"Invalid service descriptor\");");
+        sb.AppendLineLf("                }");
+        sb.AppendLineLf();
+        sb.AppendLineLf("                // Apply decorator");
+        sb.AppendLineLf("                return decorator(provider, inner);");
+        sb.AppendLineLf("            },");
+        sb.AppendLineLf("            lifetime));");
+        sb.AppendLineLf();
+        sb.AppendLineLf("        return services;");
+        sb.AppendLineLf("    }");
+        sb.AppendLineLf();
     }
 
     private static void GenerateDefaultOverload(
@@ -1009,7 +1122,12 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
         List<ServiceRegistrationInfo> services,
         bool includeRuntimeFiltering = false)
     {
-        foreach (var service in services)
+        // Separate decorators from base services
+        var baseServices = services.Where(s => !s.Decorator).ToList();
+        var decorators = services.Where(s => s.Decorator).ToList();
+
+        // Register base services first
+        foreach (var service in baseServices)
         {
             var isGeneric = service.ClassSymbol.IsGenericType;
             var implementationType = service.ClassSymbol.ToDisplayString();
@@ -1205,6 +1323,78 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
                             sb.AppendLineLf($"        services.{lifetimeMethod}<{implementationType}>();");
                         }
                     }
+                }
+            }
+
+            // Close runtime filtering check if enabled
+            if (includeRuntimeFiltering)
+            {
+                sb.AppendLineLf("        }");
+            }
+        }
+
+        // Register decorators after base services
+        foreach (var decorator in decorators)
+        {
+            var isGeneric = decorator.ClassSymbol.IsGenericType;
+            var decoratorType = decorator.ClassSymbol.ToDisplayString();
+            var hasKey = decorator.Key is not null;
+
+            // Decorators require an explicit As type
+            if (decorator.AsTypes.Length == 0)
+            {
+                continue; // Skip decorators without explicit interface
+            }
+
+            // Generate runtime filtering check if enabled
+            if (includeRuntimeFiltering)
+            {
+                var typeForExclusion = isGeneric
+                    ? $"typeof({GetOpenGenericTypeName(decorator.ClassSymbol)})"
+                    : $"typeof({decoratorType})";
+
+                sb.AppendLineLf();
+                sb.AppendLineLf($"        // Check runtime exclusions for decorator {decorator.ClassSymbol.Name}");
+                sb.AppendLineLf($"        if (!ShouldExcludeService({typeForExclusion}, excludedNamespaces, excludedPatterns, excludedTypes))");
+                sb.AppendLineLf("        {");
+            }
+
+            // Generate decorator registration for each interface
+            foreach (var asType in decorator.AsTypes)
+            {
+                var serviceType = asType.ToDisplayString();
+                var isInterfaceGeneric = asType is INamedTypeSymbol namedType && namedType.IsGenericType;
+
+                var lifetimeMethod = decorator.Lifetime switch
+                {
+                    ServiceLifetime.Singleton => "Decorate",
+                    ServiceLifetime.Scoped => "Decorate",
+                    ServiceLifetime.Transient => "Decorate",
+                    _ => "Decorate",
+                };
+
+                sb.AppendLineLf();
+                sb.AppendLineLf($"        // Decorator: {decorator.ClassSymbol.Name}");
+
+                if (isGeneric && isInterfaceGeneric)
+                {
+                    // Open generic decorator
+                    var openGenericServiceType = GetOpenGenericTypeName(asType);
+                    var openGenericDecoratorType = GetOpenGenericTypeName(decorator.ClassSymbol);
+
+                    sb.AppendLineLf($"        services.{lifetimeMethod}(typeof({openGenericServiceType}), (provider, inner) =>");
+                    sb.AppendLineLf("        {");
+                    sb.AppendLineLf($"            var decoratorInstance = ActivatorUtilities.CreateInstance(provider, typeof({openGenericDecoratorType}), inner);");
+                    sb.AppendLineLf($"            return decoratorInstance;");
+                    sb.AppendLineLf("        });");
+                }
+                else
+                {
+                    // Regular decorator
+                    sb.AppendLineLf($"        services.{lifetimeMethod}<{serviceType}>((provider, inner) =>");
+                    sb.AppendLineLf("        {");
+                    sb.AppendLineLf($"            return ActivatorUtilities.CreateInstance<{decoratorType}>(provider, inner);");
+                    sb.AppendLineLf("        });");
                 }
             }
 
@@ -1419,6 +1609,38 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
                  /// </code>
                  /// </example>
                  public bool TryAdd { get; set; }
+
+                 /// <summary>
+                 /// Gets or sets a value indicating whether this service is a decorator.
+                 /// When true, this service wraps the previous registration of the same interface.
+                 /// </summary>
+                 /// <remarks>
+                 /// Decorators are useful for implementing cross-cutting concerns like logging, caching,
+                 /// validation, or retry logic without modifying the original service implementation.
+                 /// The decorator's constructor must accept the interface it decorates as the first parameter.
+                 /// </remarks>
+                 /// <example>
+                 /// <code>
+                 /// // Base service
+                 /// [Registration(As = typeof(IOrderService))]
+                 /// public class OrderService : IOrderService { }
+                 ///
+                 /// // Decorator that adds logging
+                 /// [Registration(As = typeof(IOrderService), Decorator = true)]
+                 /// public class LoggingOrderServiceDecorator : IOrderService
+                 /// {
+                 ///     private readonly IOrderService _inner;
+                 ///     private readonly ILogger _logger;
+                 ///
+                 ///     public LoggingOrderServiceDecorator(IOrderService inner, ILogger logger)
+                 ///     {
+                 ///         _inner = inner;
+                 ///         _logger = logger;
+                 ///     }
+                 /// }
+                 /// </code>
+                 /// </example>
+                 public bool Decorator { get; set; }
              }
 
              /// <summary>

@@ -95,6 +95,7 @@ builder.Services.AddDependencyRegistrationsFromDataAccess();
 - **🔑 Keyed Services**: Multiple implementations of the same interface with different keys (.NET 8+)
 - **🏭 Factory Methods**: Custom initialization logic via static factory methods
 - **🔄 TryAdd Registration**: Conditional registration for default implementations (library pattern)
+- **🎨 Decorator Pattern**: Wrap services with cross-cutting concerns (logging, caching, validation) using `Decorator = true`
 - **🚫 Assembly Scanning Filters**: Exclude types by namespace, pattern (wildcards), or interface implementation
 - **🎯 Runtime Filtering**: Exclude services when calling registration methods (different apps, different service subsets)
 - **🧹 Smart Filtering**: System interfaces (IDisposable, etc.) are excluded automatically
@@ -145,6 +146,27 @@ public class EmailSender : IEmailSender
 public class DefaultLogger : ILogger
 {
     public void Log(string message) => Console.WriteLine(message);
+}
+
+// Decorator pattern - wrap services with cross-cutting concerns
+[Registration(Lifetime.Scoped, As = typeof(IOrderService), Decorator = true)]
+public class LoggingOrderServiceDecorator : IOrderService
+{
+    private readonly IOrderService inner;
+    private readonly ILogger logger;
+
+    public LoggingOrderServiceDecorator(IOrderService inner, ILogger logger)
+    {
+        this.inner = inner;
+        this.logger = logger;
+    }
+
+    public async Task PlaceOrderAsync(string orderId)
+    {
+        logger.Log($"Before placing order {orderId}");
+        await inner.PlaceOrderAsync(orderId);
+        logger.Log($"After placing order {orderId}");
+    }
 }
 ```
 

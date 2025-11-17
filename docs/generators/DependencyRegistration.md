@@ -49,6 +49,7 @@ Automatically register services in the dependency injection container using attr
 - [🔄 TryAdd* Registration](#-tryadd-registration)
 - [🚫 Assembly Scanning Filters](#-assembly-scanning-filters)
 - [🎯 Runtime Filtering](#-runtime-filtering)
+- [🎨 Decorator Pattern](#-decorator-pattern)
 - [📚 Additional Examples](#-additional-examples)
 
 ---
@@ -1041,6 +1042,7 @@ var app = builder.Build();
 | `Key` | `object?` | `null` | Service key for keyed service registration (.NET 8+) |
 | `Factory` | `string?` | `null` | Name of static factory method for custom initialization |
 | `TryAdd` | `bool` | `false` | Use TryAdd* methods for conditional registration (library pattern) |
+| `Decorator` | `bool` | `false` | Mark this service as a decorator that wraps the previous registration of the same interface |
 
 ### 📝 Examples
 
@@ -1068,6 +1070,9 @@ var app = builder.Build();
 
 // TryAdd registration
 [Registration(TryAdd = true)]
+
+// Decorator pattern
+[Registration(Lifetime.Scoped, As = typeof(IOrderService), Decorator = true)]
 
 // All parameters
 [Registration(Lifetime.Scoped, As = typeof(IService), AsSelf = true, TryAdd = true)]
@@ -2176,6 +2181,230 @@ services.AddDependencyRegistrationsFromDomain(
 var emailService = serviceProvider.GetService<IEmailService>();
 Console.WriteLine($"EmailService registered: {emailService != null}"); // False
 ```
+
+---
+
+## 🎨 Decorator Pattern
+
+The decorator pattern allows you to wrap existing services with additional functionality (logging, caching, validation, etc.) without modifying the original implementation. This is perfect for implementing cross-cutting concerns in a clean, maintainable way.
+
+### ✨ How It Works
+
+1. **Register the base service** normally with `[Registration]`
+2. **Create a decorator class** that implements the same interface and wraps the base service
+3. **Mark the decorator** with `[Registration(Decorator = true)]`
+4. The generator automatically:
+   - Registers base services first
+   - Then registers decorators that wrap them
+   - Preserves the service lifetime
+
+### 📝 Basic Example
+
+```csharp
+// Interface
+public interface IOrderService
+{
+    Task PlaceOrderAsync(string orderId);
+}
+
+// Base service - registered first
+[Registration(Lifetime.Scoped, As = typeof(IOrderService))]
+public class OrderService : IOrderService
+{
+    public Task PlaceOrderAsync(string orderId)
+    {
+        Console.WriteLine($"[OrderService] Processing order {orderId}");
+        return Task.CompletedTask;
+    }
+}
+
+// Decorator - wraps the base service
+[Registration(Lifetime.Scoped, As = typeof(IOrderService), Decorator = true)]
+public class LoggingOrderServiceDecorator : IOrderService
+{
+    private readonly IOrderService inner;
+    private readonly ILogger<LoggingOrderServiceDecorator> logger;
+
+    // First parameter MUST be the interface being decorated
+    public LoggingOrderServiceDecorator(
+        IOrderService inner,
+        ILogger<LoggingOrderServiceDecorator> logger)
+    {
+        this.inner = inner;
+        this.logger = logger;
+    }
+
+    public async Task PlaceOrderAsync(string orderId)
+    {
+        logger.LogInformation("Before placing order {OrderId}", orderId);
+        await inner.PlaceOrderAsync(orderId);
+        logger.LogInformation("After placing order {OrderId}", orderId);
+    }
+}
+```
+
+**Usage:**
+```csharp
+services.AddDependencyRegistrationsFromDomain();
+
+var orderService = serviceProvider.GetRequiredService<IOrderService>();
+await orderService.PlaceOrderAsync("ORDER-123");
+
+// Output:
+// [LoggingDecorator] Before placing order ORDER-123
+// [OrderService] Processing order ORDER-123
+// [LoggingDecorator] After placing order ORDER-123
+```
+
+### Generated Code
+
+The generator creates special `Decorate` extension methods that:
+1. Find the existing service registration
+2. Remove it from the service collection
+3. Create a new registration that resolves the original and wraps it
+
+```csharp
+// Generated registration code
+services.AddScoped<IOrderService, OrderService>();  // Base service
+services.Decorate<IOrderService>((provider, inner) =>  // Decorator
+{
+    return ActivatorUtilities.CreateInstance<LoggingOrderServiceDecorator>(provider, inner);
+});
+```
+
+### 🔄 Multiple Decorators
+
+You can stack multiple decorators - they are applied in the order they are discovered:
+
+```csharp
+[Registration(Lifetime.Scoped, As = typeof(IOrderService))]
+public class OrderService : IOrderService { }
+
+[Registration(Lifetime.Scoped, As = typeof(IOrderService), Decorator = true)]
+public class LoggingDecorator : IOrderService { }
+
+[Registration(Lifetime.Scoped, As = typeof(IOrderService), Decorator = true)]
+public class ValidationDecorator : IOrderService { }
+
+[Registration(Lifetime.Scoped, As = typeof(IOrderService), Decorator = true)]
+public class CachingDecorator : IOrderService { }
+```
+
+**Result:** `CachingDecorator → ValidationDecorator → LoggingDecorator → OrderService`
+
+### 🎯 Common Use Cases
+
+#### 1. Logging/Auditing
+```csharp
+[Registration(Decorator = true)]
+public class AuditingDecorator : IPetService
+{
+    private readonly IPetService inner;
+    private readonly IAuditLog auditLog;
+
+    public Pet CreatePet(CreatePetRequest request)
+    {
+        var result = inner.CreatePet(request);
+        auditLog.Log($"Created pet {result.Id} by {currentUser}");
+        return result;
+    }
+}
+```
+
+#### 2. Caching
+```csharp
+[Registration(Decorator = true)]
+public class CachingPetServiceDecorator : IPetService
+{
+    private readonly IPetService inner;
+    private readonly IMemoryCache cache;
+
+    public Pet? GetById(Guid id)
+    {
+        return cache.GetOrCreate($"pet:{id}", entry =>
+        {
+            entry.SlidingExpiration = TimeSpan.FromMinutes(5);
+            return inner.GetById(id);
+        });
+    }
+}
+```
+
+#### 3. Validation
+```csharp
+[Registration(Decorator = true)]
+public class ValidationDecorator : IPetService
+{
+    private readonly IPetService inner;
+    private readonly IValidator<CreatePetRequest> validator;
+
+    public Pet CreatePet(CreatePetRequest request)
+    {
+        var validationResult = validator.Validate(request);
+        if (!validationResult.IsValid)
+        {
+            throw new ValidationException(validationResult.Errors);
+        }
+        return inner.CreatePet(request);
+    }
+}
+```
+
+#### 4. Retry Logic
+```csharp
+[Registration(Decorator = true)]
+public class RetryDecorator : IExternalApiService
+{
+    private readonly IExternalApiService inner;
+
+    public async Task<Result> CallApiAsync()
+    {
+        for (int i = 0; i < 3; i++)
+        {
+            try
+            {
+                return await inner.CallApiAsync();
+            }
+            catch (HttpRequestException) when (i < 2)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(Math.Pow(2, i)));
+            }
+        }
+    }
+}
+```
+
+### ⚠️ Important Notes
+
+1. **Explicit `As` Required**: Decorators MUST specify the `As` parameter to indicate which interface they decorate
+   ```csharp
+   // ❌ Won't work - missing As parameter
+   [Registration(Decorator = true)]
+   public class MyDecorator : IService { }
+
+   // ✅ Correct
+   [Registration(As = typeof(IService), Decorator = true)]
+   public class MyDecorator : IService { }
+   ```
+
+2. **Constructor First Parameter**: The decorator's constructor must accept the interface as the first parameter
+   ```csharp
+   // ✅ Correct - interface is first parameter
+   public MyDecorator(IService inner, ILogger logger) { }
+
+   // ✅ Also correct - only parameter
+   public MyDecorator(IService inner) { }
+   ```
+
+3. **Matching Lifetime**: Decorators inherit the lifetime of the base service registration
+
+4. **Registration Order**: Base services are always registered before decorators, regardless of file order
+
+### 🔍 Complete Example
+
+See the **PetStore.Domain** sample for a complete working example:
+- Base service: [PetService.cs](../../sample/PetStore.Domain/Services/PetService.cs)
+- Decorator: [LoggingPetServiceDecorator.cs](../../sample/PetStore.Domain/Services/LoggingPetServiceDecorator.cs)
 
 ---
 

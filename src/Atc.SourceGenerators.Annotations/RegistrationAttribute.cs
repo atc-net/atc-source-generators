@@ -36,4 +36,15 @@ public sealed class RegistrationAttribute : Attribute
     /// and as its concrete type, allowing resolution of both.
     /// </remarks>
     public bool AsSelf { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether this service is a decorator.
+    /// When true, this service wraps the previous registration of the same interface.
+    /// </summary>
+    /// <remarks>
+    /// Decorators are useful for implementing cross-cutting concerns like logging, caching,
+    /// validation, or retry logic without modifying the original service implementation.
+    /// The decorator's constructor must accept the interface it decorates as the first parameter.
+    /// </remarks>
+    public bool Decorator { get; set; }
 }
