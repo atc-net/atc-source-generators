@@ -147,4 +147,61 @@ catch
     Console.WriteLine("  MockEmailService: Not registered (as expected)");
 }
 
+Console.WriteLine("\n10. Runtime Filtering:");
+Console.WriteLine("Runtime filtering allows excluding specific services when calling the registration methods.");
+Console.WriteLine("This is useful when different applications need different subsets of services from a shared library.\n");
+
+// Example 1: Exclude by type
+Console.WriteLine("Example - Creating a new service collection with runtime type exclusion:");
+var filteredServices = new ServiceCollection();
+filteredServices.AddDependencyRegistrationsFromDependencyRegistration(
+    excludedTypes: new[] { typeof(CacheService) });
+var filteredProvider = filteredServices.BuildServiceProvider();
+
+try
+{
+    var cache = filteredProvider.GetRequiredService<CacheService>();
+    Console.WriteLine("  ERROR: CacheService should have been excluded!");
+}
+catch (InvalidOperationException)
+{
+    Console.WriteLine("  ✓ CacheService successfully excluded by runtime type filter");
+}
+
+// Example 2: Exclude by namespace
+var filteredServices2 = new ServiceCollection();
+filteredServices2.AddDependencyRegistrationsFromDependencyRegistration(
+    excludedNamespaces: new[] { "Atc.SourceGenerators.DependencyRegistration.Services.Internal" });
+var filteredProvider2 = filteredServices2.BuildServiceProvider();
+
+try
+{
+    var internalService = filteredProvider2.GetService<IInternalUtility>();
+    Console.WriteLine($"  ✓ InternalUtility excluded by runtime namespace filter: {internalService == null}");
+}
+catch
+{
+    Console.WriteLine("  ✓ InternalUtility excluded by runtime namespace filter");
+}
+
+// Example 3: Exclude by pattern
+var filteredServices3 = new ServiceCollection();
+filteredServices3.AddDependencyRegistrationsFromDependencyRegistration(
+    excludedPatterns: new[] { "*Logger*" });
+var filteredProvider3 = filteredServices3.BuildServiceProvider();
+
+try
+{
+    var logger = filteredProvider3.GetRequiredService<LoggerService>();
+    Console.WriteLine("  ERROR: LoggerService should have been excluded!");
+}
+catch (InvalidOperationException)
+{
+    Console.WriteLine("  ✓ LoggerService successfully excluded by runtime pattern filter (*Logger*)");
+}
+
+Console.WriteLine("\nRuntime filtering complements compile-time filtering:");
+Console.WriteLine("  - Compile-time (assembly-level) filters exclude from ALL registrations");
+Console.WriteLine("  - Runtime filters allow selective exclusion per application/scenario");
+
 Console.WriteLine("\n=== All tests completed successfully! ===");

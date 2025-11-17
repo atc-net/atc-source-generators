@@ -2,4 +2,5 @@ global using Atc.DependencyInjection;
 global using Atc.SourceGenerators.DependencyRegistration.Domain.Abstractions;
 global using Atc.SourceGenerators.DependencyRegistration.Domain.Services;
 global using Atc.SourceGenerators.DependencyRegistration.Services;
+global using Atc.SourceGenerators.DependencyRegistration.Services.Internal;
 global using Microsoft.Extensions.DependencyInjection;

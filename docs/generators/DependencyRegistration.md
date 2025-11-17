@@ -48,6 +48,7 @@ Automatically register services in the dependency injection container using attr
 - [🏭 Factory Method Registration](#-factory-method-registration)
 - [🔄 TryAdd* Registration](#-tryadd-registration)
 - [🚫 Assembly Scanning Filters](#-assembly-scanning-filters)
+- [🎯 Runtime Filtering](#-runtime-filtering)
 - [📚 Additional Examples](#-additional-examples)
 
 ---
@@ -616,6 +617,7 @@ builder.Services.AddDependencyRegistrationsFromApi();
 - **Factory Method Registration**: Custom initialization logic via static factory methods 🆕
 - **TryAdd* Registration**: Conditional registration for default implementations (library pattern) 🆕
 - **Assembly Scanning Filters**: Exclude types by namespace, pattern (wildcards), or interface implementation 🆕
+- **Runtime Filtering**: Exclude services at registration time with method parameters (different apps, different service subsets) 🆕
 - **Hosted Service Support**: Automatically detects `BackgroundService` and `IHostedService` implementations and uses `AddHostedService<T>()`
 - **Interface Auto-Detection**: Automatically registers against all implemented interfaces (no `As` parameter needed!)
 - **Smart Filtering**: System interfaces (IDisposable, etc.) are automatically excluded
@@ -1945,6 +1947,234 @@ Console.WriteLine($"EmailService registered: {emailService != null}"); // True
 
 // ❌ Avoid: Filters as primary registration control
 // Instead of filtering, just don't add [Registration] attribute
+```
+
+---
+
+## 🎯 Runtime Filtering
+
+Runtime filtering allows you to exclude specific services **when calling** the registration methods, rather than at compile time. This is extremely useful when:
+
+- Different applications need different subsets of services from a shared library
+- You want to exclude services conditionally based on runtime configuration
+- Testing scenarios require specific services to be excluded
+- Multiple applications share the same domain library but have different infrastructure needs
+
+### Basic Usage
+
+All generated `AddDependencyRegistrationsFrom*()` methods support three optional filter parameters:
+
+```csharp
+services.AddDependencyRegistrationsFromDomain(
+    excludedNamespaces: new[] { "MyApp.Domain.Internal" },
+    excludedPatterns: new[] { "*Test*", "*Mock*" },
+    excludedTypes: new[] { typeof(EmailService), typeof(SmsService) });
+```
+
+### 🔹 Filter by Type
+
+Exclude specific types explicitly:
+
+```csharp
+// Exclude specific services by type
+services.AddDependencyRegistrationsFromDomain(
+    excludedTypes: new[] { typeof(EmailService), typeof(NotificationService) });
+```
+
+**Example Scenario**: PetStore.Api uses email services, but PetStore.WpfApp doesn't need them:
+
+```csharp
+// PetStore.Api - includes all services
+services.AddDependencyRegistrationsFromDomain();
+
+// PetStore.WpfApp - excludes email/notification services
+services.AddDependencyRegistrationsFromDomain(
+    excludedTypes: new[] { typeof(EmailService), typeof(INotificationService) });
+```
+
+### 🔹 Filter by Namespace
+
+Exclude entire namespaces (including sub-namespaces):
+
+```csharp
+// Exclude all services in the Internal namespace
+services.AddDependencyRegistrationsFromDomain(
+    excludedNamespaces: new[] { "MyApp.Domain.Internal" });
+
+// Also excludes MyApp.Domain.Internal.Utils, MyApp.Domain.Internal.Deep, etc.
+```
+
+**Example Scenario**: Different deployment environments need different services:
+
+```csharp
+#if PRODUCTION
+    // Production: exclude development/debug services
+    services.AddDependencyRegistrationsFromDomain(
+        excludedNamespaces: new[] { "MyApp.Domain.Development", "MyApp.Domain.Debug" });
+#else
+    // Development: include all services
+    services.AddDependencyRegistrationsFromDomain();
+#endif
+```
+
+### 🔹 Filter by Pattern
+
+Exclude services using wildcard patterns (`*` = any characters, `?` = single character):
+
+```csharp
+// Exclude all mock, test, and fake services
+services.AddDependencyRegistrationsFromDomain(
+    excludedPatterns: new[] { "*Mock*", "*Test*", "*Fake*", "*Stub*" });
+
+// Exclude all services ending with "Helper" or "Utility"
+services.AddDependencyRegistrationsFromDomain(
+    excludedPatterns: new[] { "*Helper", "*Utility" });
+```
+
+**Example Scenario**: Exclude all logging services in a minimal deployment:
+
+```csharp
+// Minimal deployment - no logging services
+services.AddDependencyRegistrationsFromDomain(
+    excludedPatterns: new[] { "*Logger*", "*Logging*", "*Log*" });
+```
+
+### 🔹 Combining Filters
+
+All three filter types can be used together:
+
+```csharp
+services.AddDependencyRegistrationsFromDomain(
+    excludedNamespaces: new[] { "MyApp.Domain.Internal" },
+    excludedPatterns: new[] { "*Test*", "*Development*" },
+    excludedTypes: new[] { typeof(LegacyService), typeof(DeprecatedFeature) });
+```
+
+### 🔹 Filters with Transitive Registration
+
+Runtime filters are automatically propagated to referenced assemblies:
+
+```csharp
+// Filters apply to Domain AND all referenced assemblies (DataAccess, Infrastructure, etc.)
+services.AddDependencyRegistrationsFromDomain(
+    includeReferencedAssemblies: true,
+    excludedNamespaces: new[] { "*.Internal" },
+    excludedPatterns: new[] { "*Test*" },
+    excludedTypes: new[] { typeof(EmailService) });
+```
+
+All referenced assemblies will also exclude:
+- Any namespace ending with `.Internal`
+- Any type matching `*Test*` pattern
+- The `EmailService` type
+
+### Runtime vs. Compile-Time Filtering
+
+| Feature | Compile-Time (Assembly) | Runtime (Method Parameters) |
+|---------|------------------------|----------------------------|
+| **Applied When** | During source generation | During service registration |
+| **Scope** | All registrations from assembly | Specific registration call |
+| **Use Case** | Global exclusions (test/mock services) | Application-specific exclusions |
+| **Configured In** | `AssemblyInfo.cs` with `[RegistrationFilter]` | Method call parameters |
+| **Flexibility** | Fixed at compile time | Can vary per application/scenario |
+
+### Complete Example: Multi-Application Scenario
+
+**Shared Domain Library** (PetStore.Domain):
+
+```csharp
+namespace PetStore.Domain.Services;
+
+[Registration]
+public class PetService : IPetService { } // Core service - needed by all apps
+
+[Registration]
+public class EmailService : IEmailService { } // Email - only needed by API
+
+[Registration]
+public class ReportService : IReportService { } // Reports - only needed by Admin
+
+[Registration]
+public class NotificationService : INotificationService { } // Notifications - only API
+```
+
+**PetStore.Api** (Web API - needs email + notifications):
+
+```csharp
+// Include all services
+services.AddDependencyRegistrationsFromDomain();
+```
+
+**PetStore.WpfApp** (Desktop app - needs reports, not email):
+
+```csharp
+// Exclude email and notification services
+services.AddDependencyRegistrationsFromDomain(
+    excludedTypes: new[] { typeof(EmailService), typeof(NotificationService) });
+```
+
+**PetStore.AdminPortal** (Admin - needs reports, not notifications):
+
+```csharp
+// Exclude notification services
+services.AddDependencyRegistrationsFromDomain(
+    excludedTypes: new[] { typeof(NotificationService) });
+```
+
+**PetStore.MobileApp** (Minimal deployment):
+
+```csharp
+// Exclude email, notifications, and reports
+services.AddDependencyRegistrationsFromDomain(
+    excludedTypes: new[]
+    {
+        typeof(EmailService),
+        typeof(NotificationService),
+        typeof(ReportService)
+    });
+```
+
+### Best Practices
+
+✅ **Do:**
+- Use runtime filtering when different applications need different service subsets
+- Use type exclusion for specific services you know by name
+- Use pattern exclusion for groups of services (e.g., all `*Mock*` services)
+- Use namespace exclusion for entire feature areas
+- Combine with compile-time filters for maximum control
+
+```csharp
+// Good: Application-specific exclusions
+services.AddDependencyRegistrationsFromDomain(
+    excludedTypes: new[] { typeof(EmailService) }); // This app doesn't send emails
+```
+
+❌ **Avoid:**
+- Using overly broad patterns that might accidentally exclude needed services
+- Runtime filtering as a replacement for proper service design
+- Filtering when you should just not add `[Registration]` attribute
+
+```csharp
+// Bad: Overly broad pattern
+services.AddDependencyRegistrationsFromDomain(
+    excludedPatterns: new[] { "*Service*" }); // Excludes almost everything!
+
+// Bad: Should use compile-time filtering instead
+services.AddDependencyRegistrationsFromDomain(
+    excludedPatterns: new[] { "*Test*" }); // Tests should be excluded at compile time
+```
+
+### Verification
+
+You can verify which services are excluded by inspecting the service collection:
+
+```csharp
+services.AddDependencyRegistrationsFromDomain(
+    excludedTypes: new[] { typeof(EmailService) });
+
+// Verify EmailService is not registered
+var emailService = serviceProvider.GetService<IEmailService>();
+Console.WriteLine($"EmailService registered: {emailService != null}"); // False
 ```
 
 ---

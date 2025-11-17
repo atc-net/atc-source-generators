@@ -96,6 +96,7 @@ builder.Services.AddDependencyRegistrationsFromDataAccess();
 - **🏭 Factory Methods**: Custom initialization logic via static factory methods
 - **🔄 TryAdd Registration**: Conditional registration for default implementations (library pattern)
 - **🚫 Assembly Scanning Filters**: Exclude types by namespace, pattern (wildcards), or interface implementation
+- **🎯 Runtime Filtering**: Exclude services when calling registration methods (different apps, different service subsets)
 - **🧹 Smart Filtering**: System interfaces (IDisposable, etc.) are excluded automatically
 - **🔍 Multi-Interface**: Implementing multiple interfaces? Registers against all of them
 - **🏃 Hosted Service Support**: Automatically detects BackgroundService and IHostedService implementations and uses AddHostedService<T>()
