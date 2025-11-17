@@ -357,8 +357,27 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
             }
 
             // Check if the class implements the interface
-            var implementsInterface = service.ClassSymbol.AllInterfaces.Any(i =>
-                SymbolEqualityComparer.Default.Equals(i, asType));
+            var implementsInterface = false;
+
+            // For generic types, we need to compare the original definitions
+            if (asType is INamedTypeSymbol asNamedType && asNamedType.IsGenericType)
+            {
+                var asTypeOriginal = asNamedType.OriginalDefinition;
+                implementsInterface = service.ClassSymbol.AllInterfaces.Any(i =>
+                {
+                    if (i is INamedTypeSymbol iNamedType && iNamedType.IsGenericType)
+                    {
+                        return SymbolEqualityComparer.Default.Equals(iNamedType.OriginalDefinition, asTypeOriginal);
+                    }
+
+                    return SymbolEqualityComparer.Default.Equals(i, asType);
+                });
+            }
+            else
+            {
+                implementsInterface = service.ClassSymbol.AllInterfaces.Any(i =>
+                    SymbolEqualityComparer.Default.Equals(i, asType));
+            }
 
             if (!implementsInterface)
             {
@@ -714,12 +733,21 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
     {
         foreach (var service in services)
         {
+            var isGeneric = service.ClassSymbol.IsGenericType;
             var implementationType = service.ClassSymbol.ToDisplayString();
 
             // Hosted services use AddHostedService instead of regular lifetime methods
             if (service.IsHostedService)
             {
-                sb.AppendLineLf($"        services.AddHostedService<{implementationType}>();");
+                if (isGeneric)
+                {
+                    var openGenericImplementationType = GetOpenGenericTypeName(service.ClassSymbol);
+                    sb.AppendLineLf($"        services.AddHostedService(typeof({openGenericImplementationType}));");
+                }
+                else
+                {
+                    sb.AppendLineLf($"        services.AddHostedService<{implementationType}>();");
+                }
             }
             else
             {
@@ -737,22 +765,87 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
                     foreach (var asType in service.AsTypes)
                     {
                         var serviceType = asType.ToDisplayString();
-                        sb.AppendLineLf($"        services.{lifetimeMethod}<{serviceType}, {implementationType}>();");
+
+                        // Check if the interface is generic
+                        var isInterfaceGeneric = asType is INamedTypeSymbol namedType && namedType.IsGenericType;
+
+                        if (isGeneric && isInterfaceGeneric)
+                        {
+                            // Both service and interface are generic - use typeof() syntax
+                            var openGenericServiceType = GetOpenGenericTypeName(asType);
+                            var openGenericImplementationType = GetOpenGenericTypeName(service.ClassSymbol);
+                            sb.AppendLineLf($"        services.{lifetimeMethod}(typeof({openGenericServiceType}), typeof({openGenericImplementationType}));");
+                        }
+                        else
+                        {
+                            // Regular non-generic registration
+                            sb.AppendLineLf($"        services.{lifetimeMethod}<{serviceType}, {implementationType}>();");
+                        }
                     }
 
                     // Also register as self if requested
                     if (service.AsSelf)
                     {
-                        sb.AppendLineLf($"        services.{lifetimeMethod}<{implementationType}>();");
+                        if (isGeneric)
+                        {
+                            var openGenericImplementationType = GetOpenGenericTypeName(service.ClassSymbol);
+                            sb.AppendLineLf($"        services.{lifetimeMethod}(typeof({openGenericImplementationType}));");
+                        }
+                        else
+                        {
+                            sb.AppendLineLf($"        services.{lifetimeMethod}<{implementationType}>();");
+                        }
                     }
                 }
                 else
                 {
                     // No interfaces - register as concrete type
-                    sb.AppendLineLf($"        services.{lifetimeMethod}<{implementationType}>();");
+                    if (isGeneric)
+                    {
+                        var openGenericImplementationType = GetOpenGenericTypeName(service.ClassSymbol);
+                        sb.AppendLineLf($"        services.{lifetimeMethod}(typeof({openGenericImplementationType}));");
+                    }
+                    else
+                    {
+                        sb.AppendLineLf($"        services.{lifetimeMethod}<{implementationType}>();");
+                    }
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// Gets the open generic type name for a generic type symbol.
+    /// Examples: "IRepository&lt;&gt;" for one parameter, "IHandler&lt;,&gt;" for two parameters.
+    /// </summary>
+    private static string GetOpenGenericTypeName(ITypeSymbol typeSymbol)
+    {
+        if (typeSymbol is not INamedTypeSymbol namedTypeSymbol)
+        {
+            return typeSymbol.ToDisplayString();
+        }
+
+        // Get the full namespace and type name
+        var namespaceName = namedTypeSymbol.ContainingNamespace?.ToDisplayString();
+        var typeName = namedTypeSymbol.Name;
+
+        // Build the open generic type name (e.g., "IRepository<>" or "IHandler<,>")
+        var typeParameterCount = namedTypeSymbol.TypeParameters.Length;
+        var openGenericMarkers = typeParameterCount switch
+        {
+            0 => string.Empty,
+            1 => "<>",
+            2 => "<,>",
+            3 => "<,,>",
+            _ => "<" + new string(',', typeParameterCount - 1) + ">",
+        };
+
+        if (string.IsNullOrEmpty(namespaceName))
+        {
+            return $"{typeName}{openGenericMarkers}";
+        }
+
+        return $"{namespaceName}.{typeName}{openGenericMarkers}";
     }
 
     private static string GenerateAttributeCode()

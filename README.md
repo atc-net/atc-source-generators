@@ -91,6 +91,7 @@ builder.Services.AddDependencyRegistrationsFromDataAccess();
 #### ✨ Key Features
 
 - **🎯 Auto-Detection**: Automatically registers against all implemented interfaces - no more `As = typeof(IService)`
+- **🔷 Generic Types**: Full support for open generics like `IRepository<T>` and `IHandler<TRequest, TResponse>` 🆕
 - **🧹 Smart Filtering**: System interfaces (IDisposable, etc.) are excluded automatically
 - **🔍 Multi-Interface**: Implementing multiple interfaces? Registers against all of them
 - **🏃 Hosted Service Support**: Automatically detects BackgroundService and IHostedService implementations and uses AddHostedService<T>()
