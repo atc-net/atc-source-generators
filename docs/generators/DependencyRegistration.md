@@ -1309,6 +1309,138 @@ services.AddKeyedScoped(typeof(IRepository<>), "ReadOnly", typeof(ReadOnlyReposi
 
 ---
 
+## 🏭 Factory Method Registration
+
+Factory methods allow custom initialization logic for services that require configuration values, conditional setup, or complex dependencies.
+
+### Basic Factory Method
+
+```csharp
+[Registration(Lifetime.Scoped, As = typeof(IEmailSender), Factory = nameof(CreateEmailSender))]
+public class EmailSender : IEmailSender
+{
+    private readonly string smtpHost;
+    private readonly int smtpPort;
+
+    private EmailSender(string smtpHost, int smtpPort)
+    {
+        this.smtpHost = smtpHost;
+        this.smtpPort = smtpPort;
+    }
+
+    public Task SendEmailAsync(string to, string subject, string body)
+    {
+        // Implementation...
+    }
+
+    /// <summary>
+    /// Factory method for creating EmailSender instances.
+    /// Must be static and accept IServiceProvider as parameter.
+    /// </summary>
+    public static IEmailSender CreateEmailSender(IServiceProvider serviceProvider)
+    {
+        // Resolve configuration from DI container
+        var config = serviceProvider.GetRequiredService<IConfiguration>();
+        var smtpHost = config["Email:SmtpHost"] ?? "smtp.example.com";
+        var smtpPort = int.Parse(config["Email:SmtpPort"] ?? "587");
+
+        return new EmailSender(smtpHost, smtpPort);
+    }
+}
+```
+
+**Generated Code:**
+```csharp
+services.AddScoped<IEmailSender>(sp => EmailSender.CreateEmailSender(sp));
+```
+
+### Factory Method Requirements
+
+- ✅ Must be `static`
+- ✅ Must accept `IServiceProvider` as the single parameter
+- ✅ Must return the service type (interface specified in `As` parameter, or class type if no `As` specified)
+- ✅ Can be `public`, `internal`, or `private`
+
+### Factory Method with Multiple Interfaces
+
+```csharp
+[Registration(Lifetime.Singleton, Factory = nameof(CreateService))]
+public class CacheService : ICacheService, IHealthCheck
+{
+    private readonly string connectionString;
+
+    private CacheService(string connectionString)
+    {
+        this.connectionString = connectionString;
+    }
+
+    public static ICacheService CreateService(IServiceProvider sp)
+    {
+        var config = sp.GetRequiredService<IConfiguration>();
+        var connString = config.GetConnectionString("Redis");
+        return new CacheService(connString);
+    }
+
+    // ICacheService members...
+    // IHealthCheck members...
+}
+```
+
+**Generated Code:**
+```csharp
+// Registers against both interfaces using the same factory
+services.AddSingleton<ICacheService>(sp => CacheService.CreateService(sp));
+services.AddSingleton<IHealthCheck>(sp => CacheService.CreateService(sp));
+```
+
+### Factory Method Best Practices
+
+**When to Use Factory Methods:**
+- ✅ Service requires configuration values from `IConfiguration`
+- ✅ Conditional initialization based on runtime environment
+- ✅ Complex dependency resolution beyond constructor injection
+- ✅ Services with private constructors that require initialization
+
+**When NOT to Use Factory Methods:**
+- ❌ Simple services with no special initialization - use regular constructor injection
+- ❌ Services that can use `IOptions<T>` pattern instead
+- ❌ When factory logic is overly complex - consider using a dedicated factory class
+
+### Factory Method Diagnostics
+
+The generator provides compile-time validation:
+
+**ATCDIR005: Factory method not found**
+```csharp
+// ❌ Error: Factory method doesn't exist
+[Registration(Factory = "NonExistentMethod")]
+public class MyService : IMyService { }
+```
+
+**ATCDIR006: Invalid factory method signature**
+```csharp
+// ❌ Error: Factory method must be static
+[Registration(Factory = nameof(Create))]
+public class MyService : IMyService
+{
+    public IMyService Create(IServiceProvider sp) => this;  // Not static!
+}
+
+// ❌ Error: Wrong parameter type
+public static IMyService Create(string config) => new MyService();
+
+// ❌ Error: Wrong return type
+public static string Create(IServiceProvider sp) => "wrong";
+```
+
+**Correct signature:**
+```csharp
+// ✅ Correct: static, accepts IServiceProvider, returns service type
+public static IMyService Create(IServiceProvider sp) => new MyService();
+```
+
+---
+
 ## 📚 Additional Examples
 
 See the [sample projects](../sample) for complete working examples:

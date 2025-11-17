@@ -8,20 +8,24 @@ public class PetService : IPetService
 {
     private readonly IPetRepository repository;
     private readonly PetStoreOptions options;
+    private readonly INotificationService? notificationService;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="PetService"/> class.
     /// </summary>
     /// <param name="repository">The pet repository.</param>
     /// <param name="options">The pet store options.</param>
+    /// <param name="notificationService">Optional notification service (created via factory method).</param>
     public PetService(
         IPetRepository repository,
-        IOptions<PetStoreOptions> options)
+        IOptions<PetStoreOptions> options,
+        INotificationService? notificationService = null)
     {
         ArgumentNullException.ThrowIfNull(options);
 
         this.repository = repository;
         this.options = options.Value;
+        this.notificationService = notificationService;
     }
 
     /// <summary>
@@ -77,6 +81,12 @@ public class PetService : IPetService
 
         var entity = pet.MapToPetEntity();
         var createdEntity = repository.Create(entity);
+
+        // Send notification (fire-and-forget - if notification service is available via factory method)
+        _ = notificationService?.SendNotificationAsync(
+            $"New pet '{pet.Name}' ({pet.Species}) has been added to the store!",
+            CancellationToken.None);
+
         return createdEntity.MapToPet();
     }
 }

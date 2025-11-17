@@ -50,6 +50,22 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 
+    private static readonly DiagnosticDescriptor FactoryMethodNotFoundDescriptor = new(
+        id: RuleIdentifierConstants.DependencyInjection.FactoryMethodNotFound,
+        title: "Factory method not found",
+        messageFormat: "Factory method '{0}' not found in class '{1}'. Factory method must be static and return the service type.",
+        category: RuleCategoryConstants.DependencyInjection,
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    private static readonly DiagnosticDescriptor FactoryMethodInvalidSignatureDescriptor = new(
+        id: RuleIdentifierConstants.DependencyInjection.FactoryMethodInvalidSignature,
+        title: "Factory method has invalid signature",
+        messageFormat: "Factory method '{0}' must be static, accept IServiceProvider as parameter, and return '{1}'",
+        category: RuleCategoryConstants.DependencyInjection,
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         // Generate attribute fallback for projects that don't reference Atc.SourceGenerators.Annotations
@@ -146,6 +162,7 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
             ITypeSymbol? explicitAsType = null;
             var asSelf = false;
             object? key = null;
+            string? factoryMethodName = null;
 
             // Constructor argument (lifetime)
             if (attributeData.ConstructorArguments.Length > 0)
@@ -157,7 +174,7 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
                 }
             }
 
-            // Named arguments (As, AsSelf, Key)
+            // Named arguments (As, AsSelf, Key, Factory)
             foreach (var namedArg in attributeData.NamedArguments)
             {
                 switch (namedArg.Key)
@@ -174,6 +191,9 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
                         break;
                     case "Key":
                         key = namedArg.Value.Value;
+                        break;
+                    case "Factory":
+                        factoryMethodName = namedArg.Value.Value as string;
                         break;
                 }
             }
@@ -206,6 +226,7 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
                 asSelf,
                 isHostedService,
                 key,
+                factoryMethodName,
                 classDeclaration.GetLocation());
         }
 
@@ -392,6 +413,51 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
                         service.Location,
                         service.ClassSymbol.Name,
                         asType.Name));
+
+                return false;
+            }
+        }
+
+        // Validate factory method if specified
+        if (!string.IsNullOrEmpty(service.FactoryMethodName))
+        {
+            var factoryMethod = service.ClassSymbol
+                .GetMembers(service.FactoryMethodName!)
+                .OfType<IMethodSymbol>()
+                .FirstOrDefault();
+
+            if (factoryMethod is null)
+            {
+                context.ReportDiagnostic(
+                    Diagnostic.Create(
+                        FactoryMethodNotFoundDescriptor,
+                        service.Location,
+                        service.FactoryMethodName,
+                        service.ClassSymbol.Name));
+
+                return false;
+            }
+
+            // Determine the expected return type (first AsType if specified, otherwise the class itself)
+            var expectedReturnType = service.AsTypes.Length > 0
+                ? service.AsTypes[0]
+                : (ITypeSymbol)service.ClassSymbol;
+
+            // Validate factory method signature
+            var hasValidSignature =
+                factoryMethod.IsStatic &&
+                factoryMethod.Parameters.Length == 1 &&
+                factoryMethod.Parameters[0].Type.ToDisplayString() == "System.IServiceProvider" &&
+                SymbolEqualityComparer.Default.Equals(factoryMethod.ReturnType, expectedReturnType);
+
+            if (!hasValidSignature)
+            {
+                context.ReportDiagnostic(
+                    Diagnostic.Create(
+                        FactoryMethodInvalidSignatureDescriptor,
+                        service.Location,
+                        service.FactoryMethodName,
+                        expectedReturnType.ToDisplayString()));
 
                 return false;
             }
@@ -743,6 +809,8 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
             var hasKey = service.Key is not null;
             var keyString = FormatKeyValue(service.Key);
 
+            var hasFactory = !string.IsNullOrEmpty(service.FactoryMethodName);
+
             // Hosted services use AddHostedService instead of regular lifetime methods
             if (service.IsHostedService)
             {
@@ -754,6 +822,38 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
                 else
                 {
                     sb.AppendLineLf($"        services.AddHostedService<{implementationType}>();");
+                }
+            }
+            else if (hasFactory)
+            {
+                // Factory method registration
+                var lifetimeMethod = service.Lifetime switch
+                {
+                    ServiceLifetime.Singleton => "AddSingleton",
+                    ServiceLifetime.Scoped => "AddScoped",
+                    ServiceLifetime.Transient => "AddTransient",
+                    _ => "AddSingleton",
+                };
+
+                // Register against each interface using factory
+                if (service.AsTypes.Length > 0)
+                {
+                    foreach (var asType in service.AsTypes)
+                    {
+                        var serviceType = asType.ToDisplayString();
+                        sb.AppendLineLf($"        services.{lifetimeMethod}<{serviceType}>(sp => {implementationType}.{service.FactoryMethodName}(sp));");
+                    }
+
+                    // Also register as self if requested
+                    if (service.AsSelf)
+                    {
+                        sb.AppendLineLf($"        services.{lifetimeMethod}<{implementationType}>(sp => {implementationType}.{service.FactoryMethodName}(sp));");
+                    }
+                }
+                else
+                {
+                    // No interfaces - register as concrete type with factory
+                    sb.AppendLineLf($"        services.{lifetimeMethod}<{implementationType}>(sp => {implementationType}.{service.FactoryMethodName}(sp));");
                 }
             }
             else
@@ -1032,6 +1132,29 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
                  /// </code>
                  /// </example>
                  public object? Key { get; set; }
+
+                 /// <summary>
+                 /// Gets or sets the factory method name for custom service instantiation.
+                 /// The factory method must be static and accept IServiceProvider as a parameter.
+                 /// </summary>
+                 /// <remarks>
+                 /// When specified, the service will be registered using a factory delegate instead of direct instantiation.
+                 /// Useful for services requiring complex initialization logic or configuration-based setup.
+                 /// </remarks>
+                 /// <example>
+                 /// <code>
+                 /// [Registration(As = typeof(IEmailSender), Factory = nameof(CreateEmailSender))]
+                 /// public class EmailSender : IEmailSender
+                 /// {
+                 ///     private static EmailSender CreateEmailSender(IServiceProvider provider)
+                 ///     {
+                 ///         var config = provider.GetRequiredService&lt;IConfiguration&gt;();
+                 ///         return new EmailSender(config["ApiKey"]);
+                 ///     }
+                 /// }
+                 /// </code>
+                 /// </example>
+                 public string? Factory { get; set; }
              }
              """;
 }

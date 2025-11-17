@@ -97,4 +97,19 @@ using (var scope = serviceProvider.CreateScope())
     Console.WriteLine($"  PayPal != Square: {paypalProcessor.GetType() != squareProcessor.GetType()}");
 }
 
+Console.WriteLine("\n7. Testing Factory Method Registration (IEmailSender -> EmailSender):");
+using (var scope = serviceProvider.CreateScope())
+{
+    // Resolve email sender - this will call the factory method
+    var emailSender = scope.ServiceProvider.GetRequiredService<IEmailSender>();
+
+    // Send test email
+    await emailSender.SendEmailAsync(
+        "user@example.com",
+        "Welcome to Factory Method Registration!",
+        "This email was sent using a service created via factory method.");
+
+    Console.WriteLine("\nFactory method registration allows custom initialization logic and dependency resolution.");
+}
+
 Console.WriteLine("\n=== All tests completed successfully! ===");

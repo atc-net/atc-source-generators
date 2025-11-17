@@ -104,6 +104,7 @@ Both generators follow the **Incremental Generator** pattern (IIncrementalGenera
 - Auto-detects all implemented interfaces (excluding System.* and Microsoft.* namespaces)
 - **Generic interface registration** - Full support for open generic types like `IRepository<T>` and `IHandler<TRequest, TResponse>`
 - **Keyed service registration** - Multiple implementations of the same interface with different keys (.NET 8+)
+- **Factory method registration** - Custom initialization logic via static factory methods
 - Supports explicit `As` parameter to override auto-detection
 - Generates `AddDependencyRegistrationsFrom{SmartSuffix}()` extension methods with 4 overloads
 - **Smart naming** - uses short suffix if unique, full name if conflicts exist
@@ -121,6 +122,10 @@ Both generators follow the **Incremental Generator** pattern (IIncrementalGenera
 
 // Keyed Input: [Registration(Lifetime.Scoped, As = typeof(IPaymentProcessor), Key = "Stripe")]
 // Keyed Output: services.AddKeyedScoped<IPaymentProcessor, StripePaymentProcessor>("Stripe");
+
+// Factory Input: [Registration(Lifetime.Scoped, As = typeof(IEmailSender), Factory = nameof(Create))]
+//                public static IEmailSender Create(IServiceProvider sp) => new EmailSender();
+// Factory Output: services.AddScoped<IEmailSender>(sp => EmailSender.Create(sp));
 
 // Hosted Service Input: [Registration] public class MaintenanceService : BackgroundService { }
 // Hosted Service Output: services.AddHostedService<MaintenanceService>();
@@ -162,6 +167,8 @@ services.AddDependencyRegistrationsFromDomain("DataAccess", "Infrastructure");
 - `ATCDIR002` - Class does not implement specified interface (Error)
 - `ATCDIR003` - Duplicate registration with different lifetimes (Warning)
 - `ATCDIR004` - Hosted services must use Singleton lifetime (Error)
+- `ATCDIR005` - Factory method not found (Error)
+- `ATCDIR006` - Factory method has invalid signature (Error)
 
 ### OptionsBindingGenerator
 

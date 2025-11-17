@@ -30,6 +30,16 @@ internal static class RuleIdentifierConstants
         /// ATCDIR004: Hosted services must use Singleton lifetime.
         /// </summary>
         internal const string HostedServiceMustBeSingleton = "ATCDIR004";
+
+        /// <summary>
+        /// ATCDIR005: Factory method not found.
+        /// </summary>
+        internal const string FactoryMethodNotFound = "ATCDIR005";
+
+        /// <summary>
+        /// ATCDIR006: Factory method has invalid signature.
+        /// </summary>
+        internal const string FactoryMethodInvalidSignature = "ATCDIR006";
     }
 
     /// <summary>
