@@ -44,6 +44,7 @@ Automatically register services in the dependency injection container using attr
   - [⚠️ ATCDIR003: Duplicate Registration with Different Lifetime](#️-ATCDIR003-duplicate-registration-with-different-lifetime)
   - [❌ ATCDIR004: Hosted Services Must Use Singleton Lifetime](#-ATCDIR004-hosted-services-must-use-singleton-lifetime)
 - [🔷 Generic Interface Registration](#-generic-interface-registration)
+- [🔑 Keyed Service Registration](#-keyed-service-registration)
 - [📚 Additional Examples](#-additional-examples)
 
 ---
@@ -608,6 +609,7 @@ builder.Services.AddDependencyRegistrationsFromApi();
 
 - **Automatic Service Registration**: Decorate classes with `[Registration]` attribute for automatic DI registration
 - **Generic Interface Registration**: Full support for open generic types like `IRepository<T>` and `IHandler<TRequest, TResponse>` 🆕
+- **Keyed Service Registration**: Multiple implementations of the same interface with different keys (.NET 8+) 🆕
 - **Hosted Service Support**: Automatically detects `BackgroundService` and `IHostedService` implementations and uses `AddHostedService<T>()`
 - **Interface Auto-Detection**: Automatically registers against all implemented interfaces (no `As` parameter needed!)
 - **Smart Filtering**: System interfaces (IDisposable, etc.) are automatically excluded
@@ -1236,6 +1238,73 @@ public class Repository<T> : IRepository<T> where T : class
 {
     // Implementation
 }
+```
+
+---
+
+## 🔑 Keyed Service Registration
+
+Register multiple implementations of the same interface and resolve them by key (.NET 8+).
+
+### String Keys
+
+```csharp
+[Registration(Lifetime.Scoped, As = typeof(IPaymentProcessor), Key = "Stripe")]
+public class StripePaymentProcessor : IPaymentProcessor
+{
+    public Task ProcessPaymentAsync(decimal amount) { /* Stripe implementation */ }
+}
+
+[Registration(Lifetime.Scoped, As = typeof(IPaymentProcessor), Key = "PayPal")]
+public class PayPalPaymentProcessor : IPaymentProcessor
+{
+    public Task ProcessPaymentAsync(decimal amount) { /* PayPal implementation */ }
+}
+```
+
+**Generated Code:**
+```csharp
+services.AddKeyedScoped<IPaymentProcessor, StripePaymentProcessor>("Stripe");
+services.AddKeyedScoped<IPaymentProcessor, PayPalPaymentProcessor>("PayPal");
+```
+
+**Usage:**
+```csharp
+// Constructor injection with [FromKeyedServices]
+public class CheckoutService(
+    [FromKeyedServices("Stripe")] IPaymentProcessor stripeProcessor,
+    [FromKeyedServices("PayPal")] IPaymentProcessor paypalProcessor)
+{
+    // Use specific implementations
+}
+
+// Manual resolution
+var stripeProcessor = serviceProvider.GetRequiredKeyedService<IPaymentProcessor>("Stripe");
+var paypalProcessor = serviceProvider.GetRequiredKeyedService<IPaymentProcessor>("PayPal");
+```
+
+### Generic Keyed Services
+
+Keyed services work with generic types:
+
+```csharp
+[Registration(Lifetime.Scoped, As = typeof(IRepository<>), Key = "Primary")]
+public class PrimaryRepository<T> : IRepository<T> where T : class
+{
+    public T? GetById(int id) => /* Primary database */;
+}
+
+[Registration(Lifetime.Scoped, As = typeof(IRepository<>), Key = "ReadOnly")]
+public class ReadOnlyRepository<T> : IRepository<T> where T : class
+{
+    public T? GetById(int id) => /* Read-only replica */;
+}
+```
+
+**Generated Code:**
+```csharp
+services.AddKeyedScoped(typeof(IRepository<>), "Primary", typeof(PrimaryRepository<>));
+services.AddKeyedScoped(typeof(IRepository<>), "ReadOnly", typeof(ReadOnlyRepository<>));
 ```
 
 ---

@@ -123,7 +123,7 @@ services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
 ### 2. Keyed Service Registration
 
 **Priority**: 🔴 **High**
-**Status**: ❌ Not Implemented
+**Status**: ✅ **Implemented** (v1.1)
 **Inspiration**: .NET 8+ keyed services, Scrutor's named registrations
 
 **Description**: Support keyed service registration for multiple implementations of the same interface.
@@ -162,10 +162,10 @@ public class CheckoutService
 
 **Implementation Notes**:
 
-- Add `Key` parameter to `[Registration]` attribute
-- Generate `AddKeyed{Lifetime}()` calls
-- Support both string and type keys
-- Diagnostic if multiple services use same key for same interface
+- ✅ Added `Key` parameter to `[Registration]` attribute
+- ✅ Generates `AddKeyed{Lifetime}()` calls
+- ✅ Supports both string and type keys
+- ✅ Works with generic types (AddKeyedScoped(typeof(IRepository<>), "Key", typeof(Repository<>)))
 
 ---
 

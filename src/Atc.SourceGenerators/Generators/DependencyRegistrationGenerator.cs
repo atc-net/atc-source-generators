@@ -145,6 +145,7 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
             var lifetime = ServiceLifetime.Singleton; // default
             ITypeSymbol? explicitAsType = null;
             var asSelf = false;
+            object? key = null;
 
             // Constructor argument (lifetime)
             if (attributeData.ConstructorArguments.Length > 0)
@@ -156,7 +157,7 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
                 }
             }
 
-            // Named arguments (As, AsSelf)
+            // Named arguments (As, AsSelf, Key)
             foreach (var namedArg in attributeData.NamedArguments)
             {
                 switch (namedArg.Key)
@@ -170,6 +171,9 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
                             asSelf = selfValue;
                         }
 
+                        break;
+                    case "Key":
+                        key = namedArg.Value.Value;
                         break;
                 }
             }
@@ -201,6 +205,7 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
                 asTypes,
                 asSelf,
                 isHostedService,
+                key,
                 classDeclaration.GetLocation());
         }
 
@@ -735,6 +740,8 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
         {
             var isGeneric = service.ClassSymbol.IsGenericType;
             var implementationType = service.ClassSymbol.ToDisplayString();
+            var hasKey = service.Key is not null;
+            var keyString = FormatKeyValue(service.Key);
 
             // Hosted services use AddHostedService instead of regular lifetime methods
             if (service.IsHostedService)
@@ -751,13 +758,21 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
             }
             else
             {
-                var lifetimeMethod = service.Lifetime switch
-                {
-                    ServiceLifetime.Singleton => "AddSingleton",
-                    ServiceLifetime.Scoped => "AddScoped",
-                    ServiceLifetime.Transient => "AddTransient",
-                    _ => "AddSingleton",
-                };
+                var lifetimeMethod = hasKey
+                    ? service.Lifetime switch
+                    {
+                        ServiceLifetime.Singleton => "AddKeyedSingleton",
+                        ServiceLifetime.Scoped => "AddKeyedScoped",
+                        ServiceLifetime.Transient => "AddKeyedTransient",
+                        _ => "AddKeyedSingleton",
+                    }
+                    : service.Lifetime switch
+                    {
+                        ServiceLifetime.Singleton => "AddSingleton",
+                        ServiceLifetime.Scoped => "AddScoped",
+                        ServiceLifetime.Transient => "AddTransient",
+                        _ => "AddSingleton",
+                    };
 
                 // Register against each interface
                 if (service.AsTypes.Length > 0)
@@ -774,12 +789,27 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
                             // Both service and interface are generic - use typeof() syntax
                             var openGenericServiceType = GetOpenGenericTypeName(asType);
                             var openGenericImplementationType = GetOpenGenericTypeName(service.ClassSymbol);
-                            sb.AppendLineLf($"        services.{lifetimeMethod}(typeof({openGenericServiceType}), typeof({openGenericImplementationType}));");
+
+                            if (hasKey)
+                            {
+                                sb.AppendLineLf($"        services.{lifetimeMethod}(typeof({openGenericServiceType}), {keyString}, typeof({openGenericImplementationType}));");
+                            }
+                            else
+                            {
+                                sb.AppendLineLf($"        services.{lifetimeMethod}(typeof({openGenericServiceType}), typeof({openGenericImplementationType}));");
+                            }
                         }
                         else
                         {
                             // Regular non-generic registration
-                            sb.AppendLineLf($"        services.{lifetimeMethod}<{serviceType}, {implementationType}>();");
+                            if (hasKey)
+                            {
+                                sb.AppendLineLf($"        services.{lifetimeMethod}<{serviceType}, {implementationType}>({keyString});");
+                            }
+                            else
+                            {
+                                sb.AppendLineLf($"        services.{lifetimeMethod}<{serviceType}, {implementationType}>();");
+                            }
                         }
                     }
 
@@ -789,11 +819,26 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
                         if (isGeneric)
                         {
                             var openGenericImplementationType = GetOpenGenericTypeName(service.ClassSymbol);
-                            sb.AppendLineLf($"        services.{lifetimeMethod}(typeof({openGenericImplementationType}));");
+
+                            if (hasKey)
+                            {
+                                sb.AppendLineLf($"        services.{lifetimeMethod}(typeof({openGenericImplementationType}), {keyString});");
+                            }
+                            else
+                            {
+                                sb.AppendLineLf($"        services.{lifetimeMethod}(typeof({openGenericImplementationType}));");
+                            }
                         }
                         else
                         {
-                            sb.AppendLineLf($"        services.{lifetimeMethod}<{implementationType}>();");
+                            if (hasKey)
+                            {
+                                sb.AppendLineLf($"        services.{lifetimeMethod}<{implementationType}>({keyString});");
+                            }
+                            else
+                            {
+                                sb.AppendLineLf($"        services.{lifetimeMethod}<{implementationType}>();");
+                            }
                         }
                     }
                 }
@@ -803,16 +848,44 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
                     if (isGeneric)
                     {
                         var openGenericImplementationType = GetOpenGenericTypeName(service.ClassSymbol);
-                        sb.AppendLineLf($"        services.{lifetimeMethod}(typeof({openGenericImplementationType}));");
+
+                        if (hasKey)
+                        {
+                            sb.AppendLineLf($"        services.{lifetimeMethod}(typeof({openGenericImplementationType}), {keyString});");
+                        }
+                        else
+                        {
+                            sb.AppendLineLf($"        services.{lifetimeMethod}(typeof({openGenericImplementationType}));");
+                        }
                     }
                     else
                     {
-                        sb.AppendLineLf($"        services.{lifetimeMethod}<{implementationType}>();");
+                        if (hasKey)
+                        {
+                            sb.AppendLineLf($"        services.{lifetimeMethod}<{implementationType}>({keyString});");
+                        }
+                        else
+                        {
+                            sb.AppendLineLf($"        services.{lifetimeMethod}<{implementationType}>();");
+                        }
                     }
                 }
             }
         }
     }
+
+    /// <summary>
+    /// Formats a key value for code generation.
+    /// String keys are wrapped in quotes, type keys use typeof() syntax.
+    /// </summary>
+    private static string FormatKeyValue(object? key)
+        => key switch
+        {
+            null => "null",
+            string stringKey => $"\"{stringKey}\"",
+            ITypeSymbol typeKey => $"typeof({typeKey.ToDisplayString()})",
+            _ => key.ToString() ?? "null",
+        };
 
     /// <summary>
     /// Gets the open generic type name for a generic type symbol.
@@ -940,6 +1013,25 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
                  /// and as its concrete type, allowing resolution of both.
                  /// </remarks>
                  public bool AsSelf { get; set; }
+
+                 /// <summary>
+                 /// Gets or sets the service key for keyed service registration.
+                 /// Enables multiple implementations of the same interface to be registered and resolved by key.
+                 /// </summary>
+                 /// <remarks>
+                 /// When specified, uses AddKeyed{Lifetime}() methods for registration (.NET 8+).
+                 /// Can be a string or type used to distinguish between multiple implementations.
+                 /// </remarks>
+                 /// <example>
+                 /// <code>
+                 /// [Registration(As = typeof(IPaymentProcessor), Key = "Stripe")]
+                 /// public class StripePaymentProcessor : IPaymentProcessor { }
+                 ///
+                 /// [Registration(As = typeof(IPaymentProcessor), Key = "PayPal")]
+                 /// public class PayPalPaymentProcessor : IPaymentProcessor { }
+                 /// </code>
+                 /// </example>
+                 public object? Key { get; set; }
              }
              """;
 }

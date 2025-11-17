@@ -6,4 +6,5 @@ internal sealed record ServiceRegistrationInfo(
     ImmutableArray<ITypeSymbol> AsTypes,
     bool AsSelf,
     bool IsHostedService,
+    object? Key,
     Location Location);
