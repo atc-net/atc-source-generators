@@ -1,3 +1,5 @@
+#pragma warning disable CA1031
+
 Console.WriteLine("=== Atc.SourceGenerators Sample ===\n");
 
 // Create service collection
@@ -110,6 +112,39 @@ using (var scope = serviceProvider.CreateScope())
         "This email was sent using a service created via factory method.");
 
     Console.WriteLine("\nFactory method registration allows custom initialization logic and dependency resolution.");
+}
+
+Console.WriteLine("\n8. Testing TryAdd Registration (ILogger -> DefaultLogger):");
+using (var scope = serviceProvider.CreateScope())
+{
+    // The DefaultLogger is registered with TryAdd = true
+    // This means it only registers if no other ILogger is already registered
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger>();
+    logger.Log("This message is logged using the default logger.");
+    logger.Log("TryAdd allows library authors to provide default implementations that can be overridden.");
+
+    Console.WriteLine("\nNote: DefaultLogger uses TryAdd registration.");
+    Console.WriteLine("If you register a custom ILogger BEFORE calling AddDependencyRegistrations,");
+    Console.WriteLine("your implementation will be used instead of the default.");
+}
+
+Console.WriteLine("\n9. Assembly Scanning Filters:");
+Console.WriteLine("This assembly uses [RegistrationFilter] attributes to exclude certain services:");
+Console.WriteLine("  - ExcludeNamespaces: 'Atc.SourceGenerators.DependencyRegistration.Services.Internal'");
+Console.WriteLine("  - ExcludePatterns: '*Mock*', '*Test*'");
+Console.WriteLine("\nThe following services are excluded from automatic registration:");
+Console.WriteLine("  - InternalUtility (excluded by namespace filter)");
+Console.WriteLine("  - MockEmailService (excluded by pattern filter *Mock*)");
+Console.WriteLine("\nTry resolving these services - they will NOT be available:");
+
+try
+{
+    var mockService = serviceProvider.GetService<IMockEmailService>();
+    Console.WriteLine($"  MockEmailService resolved: {mockService != null}");
+}
+catch
+{
+    Console.WriteLine("  MockEmailService: Not registered (as expected)");
 }
 
 Console.WriteLine("\n=== All tests completed successfully! ===");
