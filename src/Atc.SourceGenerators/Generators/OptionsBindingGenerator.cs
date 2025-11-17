@@ -437,19 +437,25 @@ public static class OptionsBindingExtensions
         bool includeReferencedAssemblies)
     {
         services.AddOptionsFrom{{methodSuffix}}(configuration);
-
-        if (includeReferencedAssemblies)
-        {
 """);
 
-        foreach (var refAssembly in referencedAssemblies)
+        // Only generate the if-statement if there are referenced assemblies
+        if (referencedAssemblies.Length > 0)
         {
-            var refSmartSuffix = GetSmartMethodSuffixFromContext(refAssembly.AssemblyName, allAssemblies);
-            sb.AppendLine($"            AddOptionsFrom{refSmartSuffix}(services, configuration, includeReferencedAssemblies: true);");
+            sb.AppendLine();
+            sb.AppendLine("        if (includeReferencedAssemblies)");
+            sb.AppendLine("        {");
+
+            foreach (var refAssembly in referencedAssemblies)
+            {
+                var refSmartSuffix = GetSmartMethodSuffixFromContext(refAssembly.AssemblyName, allAssemblies);
+                sb.AppendLine($"            AddOptionsFrom{refSmartSuffix}(services, configuration, includeReferencedAssemblies: true);");
+            }
+
+            sb.AppendLine("        }");
         }
 
         sb.AppendLine("""
-        }
 
         return services;
     }
