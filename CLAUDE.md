@@ -106,12 +106,16 @@ Both generators follow the **Incremental Generator** pattern (IIncrementalGenera
 - Generates `AddDependencyRegistrationsFrom{SmartSuffix}()` extension methods with 4 overloads
 - **Smart naming** - uses short suffix if unique, full name if conflicts exist
 - **Transitive dependency registration** - automatically registers services from referenced assemblies
+- **Hosted service detection** - automatically uses `AddHostedService<T>()` for `BackgroundService` or `IHostedService` implementations
 - Default lifetime: Singleton (can specify Scoped or Transient)
 
 **Generated Code Pattern:**
 ```csharp
 // Input: [Registration] public class UserService : IUserService { }
 // Output: services.AddSingleton<IUserService, UserService>();
+
+// Hosted Service Input: [Registration] public class MaintenanceService : BackgroundService { }
+// Hosted Service Output: services.AddHostedService<MaintenanceService>();
 ```
 
 **Smart Naming:**
@@ -149,6 +153,7 @@ services.AddDependencyRegistrationsFromDomain("DataAccess", "Infrastructure");
 - `ATCDIR001` - Service 'As' type must be an interface (Error)
 - `ATCDIR002` - Class does not implement specified interface (Error)
 - `ATCDIR003` - Duplicate registration with different lifetimes (Warning)
+- `ATCDIR004` - Hosted services must use Singleton lifetime (Error)
 
 ### OptionsBindingGenerator
 
@@ -374,7 +379,8 @@ The `PetStore.Api` sample demonstrates all four generators working together in a
 ┌─────────────────────────────────────────────────────────────┐
 │ PetStore.Domain                                             │
 │ - [Registration] PetService, ValidationService              │
-│ - [OptionsBinding] PetStoreOptions                          │
+│ - [Registration] PetMaintenanceService (BackgroundService)  │
+│ - [OptionsBinding] PetStoreOptions, PetMaintenanceOptions   │
 │ - [MapTo] Pet → PetDto, Pet → PetEntity                    │
 │ - GenerateDocumentationFile=false                           │
 └─────────────────────────────────────────────────────────────┘
@@ -437,7 +443,8 @@ Return PetDto to client
 
 ### Key Features Demonstrated
 
-- **Zero boilerplate DI registration**: All services auto-registered
+- **Zero boilerplate DI registration**: All services auto-registered, including hosted services
+- **Background service support**: `PetMaintenanceService` automatically registered with `AddHostedService<T>()`
 - **Type-safe configuration**: Options validated and bound automatically
 - **Automatic mapping chains**: Entity ↔ Domain ↔ DTO conversions
 - **OpenAPI integration**: Full API documentation with Scalar UI

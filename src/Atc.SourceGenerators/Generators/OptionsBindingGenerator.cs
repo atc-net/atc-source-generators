@@ -726,18 +726,4 @@ public static class OptionsBindingExtensions
                }
            }
            """;
-
-    private sealed record OptionsInfo(
-        string ClassName,
-        string Namespace,
-        string AssemblyName,
-        string SectionName,
-        bool ValidateOnStart,
-        bool ValidateDataAnnotations,
-        int Lifetime);
-
-    private sealed record ReferencedAssemblyInfo(
-        string AssemblyName,
-        string SanitizedName,
-        string ShortName);
 }

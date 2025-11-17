@@ -93,6 +93,7 @@ builder.Services.AddDependencyRegistrationsFromDataAccess();
 - **🎯 Auto-Detection**: Automatically registers against all implemented interfaces - no more `As = typeof(IService)`
 - **🧹 Smart Filtering**: System interfaces (IDisposable, etc.) are excluded automatically
 - **🔍 Multi-Interface**: Implementing multiple interfaces? Registers against all of them
+- **🏃 Hosted Service Support**: Automatically detects BackgroundService and IHostedService implementations and uses AddHostedService<T>()
 - **✨ Smart Naming**: Generates clean method names using suffixes when unique, full names when conflicts exist
 - **⚡ Zero Runtime Cost**: All code generated at compile time
 - **🚀 Native AOT Compatible**: No reflection or runtime code generation - fully trimming-safe
@@ -139,6 +140,7 @@ Get errors at compile time, not runtime:
 | ATCDIR001 | `As` parameter must be an interface type |
 | ATCDIR002 | Class must implement the specified interface |
 | ATCDIR003 | Duplicate registration with different lifetimes |
+| ATCDIR004 | Hosted services must use Singleton lifetime |
 
 ---
 

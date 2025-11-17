@@ -41,4 +41,14 @@ public partial class Pet
     /// Gets or sets when the pet was added to the system.
     /// </summary>
     public DateTimeOffset CreatedAt { get; set; }
+
+    /// <summary>
+    /// Gets or sets when the pet was last modified.
+    /// </summary>
+    public DateTimeOffset? ModifiedAt { get; set; }
+
+    /// <summary>
+    /// Gets or sets who last modified the pet.
+    /// </summary>
+    public string? ModifiedBy { get; set; }
 }

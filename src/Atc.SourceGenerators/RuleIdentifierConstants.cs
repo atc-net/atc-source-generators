@@ -25,6 +25,11 @@ internal static class RuleIdentifierConstants
         /// ATCDIR003: Duplicate service registration with different lifetime.
         /// </summary>
         internal const string DuplicateRegistration = "ATCDIR003";
+
+        /// <summary>
+        /// ATCDIR004: Hosted services must use Singleton lifetime.
+        /// </summary>
+        internal const string HostedServiceMustBeSingleton = "ATCDIR004";
     }
 
     /// <summary>

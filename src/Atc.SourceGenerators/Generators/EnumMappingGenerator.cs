@@ -281,10 +281,4 @@ public class EnumMappingGenerator : IIncrementalGenerator
         sb.AppendLineLf("    }");
         sb.AppendLineLf();
     }
-
-    private sealed record EnumMappingInfo(
-        INamedTypeSymbol SourceEnum,
-        INamedTypeSymbol TargetEnum,
-        List<EnumMappingHelper.EnumValueMapping> ValueMappings,
-        bool Bidirectional);
 }

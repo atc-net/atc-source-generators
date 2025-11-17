@@ -11,7 +11,7 @@ builder.Services.AddDependencyRegistrationsFromDomain(
     includeReferencedAssemblies: true);
 
 // ✨ Register configuration options automatically via [OptionsBinding] attribute
-// This single call registers options from PetStore.Domain (PetStoreOptions)
+// This single call registers options from PetStore.Domain (PetStoreOptions + PetMaintenanceServiceOptions)
 builder.Services.AddOptionsFromDomain(
     builder.Configuration,
     includeReferencedAssemblies: true);

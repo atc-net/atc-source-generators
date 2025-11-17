@@ -37,7 +37,9 @@ graph TB
     subgraph "PetStore.Domain"
         PS["PetService - @Registration"]
         VS["ValidationService - @Registration"]
+        BG["PetMaintenanceService - @Registration (BackgroundService)"]
         OPT["PetStoreOptions - @OptionsBinding"]
+        OPT2["PetMaintenanceServiceOptions - @OptionsBinding"]
         PET["Pet - @MapTo(PetResponse)"]
         PET2["Pet - @MapTo(PetEntity, Bidirectional=true)"]
         DOMENUM["PetStatus (Domain)"]
@@ -86,8 +88,10 @@ graph TB
 
     style PS fill:#0969da
     style VS fill:#0969da
+    style BG fill:#0969da
     style PR fill:#0969da
     style OPT fill:#0969da
+    style OPT2 fill:#0969da
     style DI1 fill:#2ea44f
     style DI2 fill:#2ea44f
     style DI3 fill:#2ea44f
@@ -566,11 +570,12 @@ app.Run();
 
 ### DependencyRegistration Generator
 
-Creates 2 extension methods with transitive registration:
+Creates extension methods with transitive registration:
 
 ```csharp
 // From PetStore.Domain (with includeReferencedAssemblies: true)
 services.AddSingleton<IPetService, PetService>();
+services.AddHostedService<PetMaintenanceService>();  // ✨ Automatic BackgroundService registration
 services.AddSingleton<IPetRepository, PetRepository>();  // From referenced PetStore.DataAccess
 ```
 
@@ -582,6 +587,11 @@ Creates configuration binding:
 // From PetStore.Domain
 services.AddOptions<PetStoreOptions>()
     .Bind(configuration.GetSection("PetStore"))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+
+services.AddOptions<PetMaintenanceServiceOptions>()
+    .Bind(configuration.GetSection("PetMaintenanceService"))
     .ValidateDataAnnotations()
     .ValidateOnStart();
 ```
@@ -644,6 +654,7 @@ public static Pet MapToPet(this PetEntity source)
 ### 1. **Complete Integration**
 All three generators work seamlessly together:
 - Services auto-registered via `[Registration]`
+- Background services auto-registered with `AddHostedService<T>()` via `[Registration]`
 - Configuration auto-bound via `[OptionsBinding]`
 - Objects auto-mapped via `[MapTo]` with bidirectional support
 

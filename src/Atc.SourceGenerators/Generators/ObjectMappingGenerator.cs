@@ -497,17 +497,4 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                }
            }
            """;
-
-    private sealed record MappingInfo(
-        INamedTypeSymbol SourceType,
-        INamedTypeSymbol TargetType,
-        List<PropertyMapping> PropertyMappings,
-        bool Bidirectional);
-
-    private sealed record PropertyMapping(
-        IPropertySymbol SourceProperty,
-        IPropertySymbol TargetProperty,
-        bool RequiresConversion,
-        bool IsNested,
-        bool HasEnumMapping);
 }
