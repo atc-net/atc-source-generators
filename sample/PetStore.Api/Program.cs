@@ -103,4 +103,26 @@ app
     .WithName("CreatePet")
     .Produces<PetResponse>(StatusCodes.Status201Created);
 
+// Demonstrate instance registration
+app
+    .MapGet("/config", (IApiConfiguration config) =>
+    {
+        // The IApiConfiguration is registered using instance registration
+        // It uses ApiConfiguration.DefaultInstance property to provide a pre-created singleton
+        var configInfo = new
+        {
+            config.ApiVersion,
+            config.MaxPageSize,
+            config.EnableApiDocumentation,
+            config.BaseUrl,
+            RateLimitPerMinute = config.GetConfigValue("RateLimitPerMinute"),
+            CacheDurationSeconds = config.GetConfigValue("CacheDurationSeconds"),
+            EnableLogging = config.GetConfigValue("EnableLogging"),
+        };
+
+        return Results.Ok(configInfo);
+    })
+    .WithName("GetApiConfiguration")
+    .Produces<object>(StatusCodes.Status200OK);
+
 await app.RunAsync();

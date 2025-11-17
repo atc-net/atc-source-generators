@@ -217,4 +217,28 @@ using (var scope = serviceProvider.CreateScope())
     Console.WriteLine("  The LoggingOrderServiceDecorator wraps OrderService, adding logging before/after the operation.");
 }
 
+Console.WriteLine("\n12. Testing Instance Registration (IAppConfiguration -> AppConfiguration):");
+Console.WriteLine("Instance registration allows registering pre-created singleton instances.");
+Console.WriteLine("This is useful for configuration objects that are initialized at startup.\n");
+
+using (var scope = serviceProvider.CreateScope())
+{
+    var config1 = scope.ServiceProvider.GetRequiredService<IAppConfiguration>();
+    var config2 = serviceProvider.GetRequiredService<IAppConfiguration>();
+
+    Console.WriteLine($"Application Name: {config1.ApplicationName}");
+    Console.WriteLine($"Environment: {config1.Environment}");
+    Console.WriteLine($"Max Connections: {config1.MaxConnections}");
+    Console.WriteLine($"Debug Mode: {config1.IsDebugMode}");
+
+    var connectionString = config1.GetValue("ConnectionString");
+    Console.WriteLine($"Connection String: {connectionString}");
+
+    Console.WriteLine($"\nSame instance (singleton): {ReferenceEquals(config1, config2)}");
+    Console.WriteLine($"Instance is AppConfiguration.DefaultInstance: {ReferenceEquals(config1, AppConfiguration.DefaultInstance)}");
+
+    Console.WriteLine("\n✓ Instance registration ensures a pre-created instance is used by all consumers.");
+    Console.WriteLine("  This pattern is ideal for immutable configuration objects.");
+}
+
 Console.WriteLine("\n=== All tests completed successfully! ===");

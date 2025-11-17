@@ -10,4 +10,5 @@ internal sealed record ServiceRegistrationInfo(
     string? FactoryMethodName,
     bool TryAdd,
     bool Decorator,
+    string? InstanceMemberName,
     Location Location);

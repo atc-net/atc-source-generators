@@ -105,6 +105,7 @@ Both generators follow the **Incremental Generator** pattern (IIncrementalGenera
 - **Generic interface registration** - Full support for open generic types like `IRepository<T>` and `IHandler<TRequest, TResponse>`
 - **Keyed service registration** - Multiple implementations of the same interface with different keys (.NET 8+)
 - **Factory method registration** - Custom initialization logic via static factory methods
+- **Instance registration** - Register pre-created singleton instances via static fields, properties, or methods
 - **TryAdd registration** - Conditional registration for default implementations (library pattern)
 - **Decorator pattern support** - Wrap services with cross-cutting concerns (logging, caching, validation) using `Decorator = true`
 - **Assembly scanning filters** - Exclude types by namespace, pattern (wildcards), or interface implementation
@@ -130,6 +131,10 @@ Both generators follow the **Incremental Generator** pattern (IIncrementalGenera
 // Factory Input: [Registration(Lifetime.Scoped, As = typeof(IEmailSender), Factory = nameof(Create))]
 //                public static IEmailSender Create(IServiceProvider sp) => new EmailSender();
 // Factory Output: services.AddScoped<IEmailSender>(sp => EmailSender.Create(sp));
+
+// Instance Input: [Registration(As = typeof(IAppConfiguration), Instance = nameof(DefaultInstance))]
+//                 public static readonly AppConfiguration DefaultInstance = new();
+// Instance Output: services.AddSingleton<IAppConfiguration>(AppConfiguration.DefaultInstance);
 
 // TryAdd Input: [Registration(As = typeof(ILogger), TryAdd = true)]
 // TryAdd Output: services.TryAddSingleton<ILogger, DefaultLogger>();
@@ -248,6 +253,10 @@ services.AddDependencyRegistrationsFromDomain(
 - `ATCDIR004` - Hosted services must use Singleton lifetime (Error)
 - `ATCDIR005` - Factory method not found (Error)
 - `ATCDIR006` - Factory method has invalid signature (Error)
+- `ATCDIR007` - Instance member not found (Error)
+- `ATCDIR008` - Instance member must be static (Error)
+- `ATCDIR009` - Instance and Factory are mutually exclusive (Error)
+- `ATCDIR010` - Instance registration requires Singleton lifetime (Error)
 
 ### OptionsBindingGenerator
 

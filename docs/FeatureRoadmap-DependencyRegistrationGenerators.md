@@ -64,12 +64,13 @@ This roadmap is based on comprehensive analysis of:
 - **Generic interface registration** - Support open generic types like `IRepository<T>`, `IHandler<TRequest, TResponse>`
 - **Keyed service registration** - Multiple implementations with keys (.NET 8+)
 - **Factory method registration** - Custom initialization logic via static factory methods
+- **Instance registration** - Register pre-created singleton instances via static fields, properties, or methods
 - **TryAdd* registration** - Conditional registration for default implementations (library pattern)
 - **Decorator pattern support** - Wrap services with cross-cutting concerns (logging, caching, validation)
 - **Assembly scanning filters** - Exclude types by namespace, pattern, or interface (supports wildcards)
 - **Lifetime support** - Singleton (default), Scoped, Transient
 - **Multi-project support** - Assembly-specific extension methods
-- **Compile-time validation** - Diagnostics for invalid configurations (ATCDIR001-006)
+- **Compile-time validation** - Diagnostics for invalid configurations (ATCDIR001-010)
 - **Native AOT compatible** - Zero reflection, compile-time generation
 
 ---
@@ -375,18 +376,66 @@ services.Decorate<IOrderService, LoggingOrderServiceDecorator>();  // Wraps exis
 ### 7. Implementation Instance Registration
 
 **Priority**: 🟢 **Low**
-**Status**: ❌ Not Implemented
+**Status**: ✅ **Implemented** (v1.4 - January 2025)
 
-**Description**: Register pre-created instances as singletons.
+**Description**: Register pre-created singleton instances via static fields, properties, or methods.
+
+**User Story**:
+> "As a developer, I want to register pre-configured singleton instances (like immutable configuration objects) without requiring factory methods or runtime initialization."
 
 **Example**:
 
 ```csharp
-var myService = new MyService("config");
-services.AddSingleton<IMyService>(myService);
+[Registration(As = typeof(IConfiguration), Instance = nameof(DefaultInstance))]
+public class AppConfiguration : IConfiguration
+{
+    // Static field providing pre-created instance
+    public static readonly AppConfiguration DefaultInstance = new()
+    {
+        Setting1 = "default",
+        Setting2 = 42
+    };
+
+    private AppConfiguration() { }  // Private constructor enforces singleton
+
+    public string Setting1 { get; init; } = string.Empty;
+    public int Setting2 { get; init; }
+}
+
+// Generated code:
+services.AddSingleton<IConfiguration>(AppConfiguration.DefaultInstance);
 ```
 
-**Note**: This is difficult to support with source generators since instances are created at runtime. May be out of scope.
+**Alternative patterns supported**:
+
+```csharp
+// Static property
+[Registration(As = typeof(ICache), Instance = nameof(Instance))]
+public class MemoryCache : ICache
+{
+    public static MemoryCache Instance { get; } = new();
+}
+
+// Static method
+[Registration(As = typeof(ILogger), Instance = nameof(GetDefault))]
+public class DefaultLogger : ILogger
+{
+    public static DefaultLogger GetDefault() => new();
+}
+```
+
+**Implementation Notes**:
+
+- ✅ Added `Instance` property to `[Registration]` attribute
+- ✅ Supports static fields, properties, and parameterless methods
+- ✅ Generates `services.AddSingleton<T>(ClassName.MemberName)` or `services.AddSingleton<T>(ClassName.Method())`
+- ✅ **Constraint**: Instance registration requires Singleton lifetime (enforced at compile-time)
+- ✅ **Constraint**: Instance and Factory parameters are mutually exclusive
+- ✅ Validates member exists and is static at compile-time
+- ✅ Diagnostics: ATCDIR007 (member not found), ATCDIR008 (not static), ATCDIR009 (mutually exclusive), ATCDIR010 (requires Singleton)
+- ✅ Works with TryAdd: `services.TryAddSingleton<T>(ClassName.Instance)`
+- ✅ Complete test coverage with 8 unit tests
+- ✅ Demonstrated in both DependencyRegistration and PetStore samples
 
 ---
 
@@ -576,24 +625,35 @@ Based on priority, user demand, and implementation complexity:
 
 ---
 
-### Phase 3: Advanced Scenarios (v1.4 - Q2 2025)
+### Phase 3: Advanced Scenarios (v1.4 - Q1 2025) ✅ COMPLETED
+
+**Goal**: Instance registration for pre-created singletons
+
+7. ✅ **Implementation Instance Registration** 🟢 Low - Pre-created singleton instances
+
+**Status**: ✅ COMPLETED (January 2025)
+**Impact**: Support immutable configuration objects and pre-initialized singletons
+
+---
+
+### Phase 4: Advanced Scenarios (v1.5 - Q2 2025)
 
 **Goal**: Validation and diagnostics
 
-7. **Multi-Interface Registration** 🟢 Low - Selective interface registration
-8. **Registration Validation Diagnostics** 🟡 Medium - Compile-time warnings for missing dependencies
-9. **Conditional Registration** 🟢 Low-Medium - Feature flag-based registration
+8. **Multi-Interface Registration** 🟢 Low - Selective interface registration
+9. **Registration Validation Diagnostics** 🟡 Medium - Compile-time warnings for missing dependencies
+10. **Conditional Registration** 🟢 Low-Medium - Feature flag-based registration
 
 **Estimated effort**: 3-4 weeks
 **Impact**: Catch DI mistakes at compile time, support feature toggles
 
 ---
 
-### Phase 4: Enterprise Features (v2.0 - Q3 2025)
+### Phase 5: Enterprise Features (v2.0 - Q3 2025)
 
 **Goal**: Convention-based patterns
 
-10. **Auto-Discovery by Convention** 🟢 Low-Medium - Optional convention-based registration
+11. **Auto-Discovery by Convention** 🟢 Low-Medium - Optional convention-based registration
 
 **Estimated effort**: 2-3 weeks
 **Impact**: Reduce boilerplate further with conventions
@@ -609,10 +669,11 @@ Based on priority, user demand, and implementation complexity:
 | Factory Method Registration | 🟡 Med-High | ⭐⭐ | Medium | 1.1 | ✅ Done |
 | TryAdd* Registration | 🟡 Medium | ⭐⭐ | Low | 1.2 | ✅ Done |
 | Assembly Scanning Filters | 🟡 Medium | ⭐⭐ | Medium | 1.2 | ✅ Done |
-| Multi-Interface Registration | 🟢 Low | ⭐ | Low | 1.2 | 📋 Planned |
 | Decorator Pattern | 🟢 Low-Med | ⭐⭐⭐ | Very High | 1.3 | ✅ Done |
-| Registration Validation | 🟡 Medium | ⭐⭐ | High | 1.3 | 📋 Planned |
-| Conditional Registration | 🟢 Low-Med | ⭐ | Medium | 1.3 | 📋 Planned |
+| Implementation Instance Registration | 🟢 Low | ⭐ | Medium | 1.4 | ✅ Done |
+| Multi-Interface Registration | 🟢 Low | ⭐ | Low | 1.5 | 📋 Planned |
+| Registration Validation | 🟡 Medium | ⭐⭐ | High | 1.5 | 📋 Planned |
+| Conditional Registration | 🟢 Low-Med | ⭐ | Medium | 1.5 | 📋 Planned |
 | Convention-Based Discovery | 🟢 Low-Med | ⭐⭐ | Medium | 2.0 | 📋 Planned |
 
 ---
@@ -685,7 +746,7 @@ To determine if these features are meeting user needs:
 
 ---
 
-**Last Updated**: 2025-01-17 (Decorator Pattern implemented)
-**Version**: 1.3
+**Last Updated**: 2025-01-17 (Implementation Instance Registration completed)
+**Version**: 1.4
 **Research Date**: January 2025 (Scrutor v6.1.0)
 **Maintained By**: Atc.SourceGenerators Team
