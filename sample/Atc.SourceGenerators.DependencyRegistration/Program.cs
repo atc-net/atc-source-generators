@@ -74,4 +74,27 @@ using (var scope = serviceProvider.CreateScope())
     Console.WriteLine($"\nDifferent repository types: {userRepository.GetType() != productRepository.GetType()}");
 }
 
+Console.WriteLine("\n6. Testing Keyed Services (IPaymentProcessor with different keys):");
+using (var scope = serviceProvider.CreateScope())
+{
+    // Resolve payment processors by key
+    var stripeProcessor = scope.ServiceProvider.GetRequiredKeyedService<IPaymentProcessor>("Stripe");
+    var paypalProcessor = scope.ServiceProvider.GetRequiredKeyedService<IPaymentProcessor>("PayPal");
+    var squareProcessor = scope.ServiceProvider.GetRequiredKeyedService<IPaymentProcessor>("Square");
+
+    Console.WriteLine($"Resolved {stripeProcessor.ProviderName} processor");
+    await stripeProcessor.ProcessPaymentAsync(100.50m, "USD");
+
+    Console.WriteLine($"Resolved {paypalProcessor.ProviderName} processor");
+    await paypalProcessor.ProcessPaymentAsync(75.25m, "EUR");
+
+    Console.WriteLine($"Resolved {squareProcessor.ProviderName} processor");
+    await squareProcessor.ProcessPaymentAsync(50.00m, "GBP");
+
+    // Verify different instances
+    Console.WriteLine($"\nDifferent processor types:");
+    Console.WriteLine($"  Stripe != PayPal: {stripeProcessor.GetType() != paypalProcessor.GetType()}");
+    Console.WriteLine($"  PayPal != Square: {paypalProcessor.GetType() != squareProcessor.GetType()}");
+}
+
 Console.WriteLine("\n=== All tests completed successfully! ===");
