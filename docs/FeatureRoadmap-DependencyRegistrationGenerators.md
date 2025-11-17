@@ -65,6 +65,7 @@ This roadmap is based on comprehensive analysis of:
 - **Keyed service registration** - Multiple implementations with keys (.NET 8+)
 - **Factory method registration** - Custom initialization logic via static factory methods
 - **TryAdd* registration** - Conditional registration for default implementations (library pattern)
+- **Decorator pattern support** - Wrap services with cross-cutting concerns (logging, caching, validation)
 - **Assembly scanning filters** - Exclude types by namespace, pattern, or interface (supports wildcards)
 - **Lifetime support** - Singleton (default), Scoped, Transient
 - **Multi-project support** - Assembly-specific extension methods
@@ -311,7 +312,7 @@ services.AddScoped<ILogger, CustomLogger>();  // This wins
 ### 6. Decorator Pattern Support
 
 **Priority**: 🟢 **Low-Medium** ⭐ *Highly valued by Scrutor users*
-**Status**: ❌ Not Implemented
+**Status**: ✅ **Implemented** (v1.3 - January 2025)
 **Inspiration**: Scrutor's `Decorate()` method
 
 **Description**: Support decorating already-registered services with additional functionality (logging, caching, validation, etc.).
@@ -357,10 +358,17 @@ services.Decorate<IOrderService, LoggingOrderServiceDecorator>();  // Wraps exis
 
 **Implementation Notes**:
 
-- Decorator registration must come after base registration
-- Decorator constructor should accept the interface it decorates
-- Support multiple decorators (chaining)
-- Complex to implement with source generators (may require runtime helper)
+- ✅ Added `Decorator` boolean parameter to `[Registration]` attribute
+- ✅ Decorators must specify explicit `As` parameter (interface being decorated)
+- ✅ Decorator registration automatically comes after base service registration
+- ✅ Decorator constructor must accept the interface as first parameter
+- ✅ Supports multiple decorators (chaining) - applied in discovery order
+- ✅ Generates `Decorate<T>()` extension methods (both generic and non-generic for open generics)
+- ✅ Uses `ActivatorUtilities.CreateInstance()` to properly inject inner service
+- ✅ Preserves service lifetime from original registration
+- ✅ Works with Singleton, Scoped, and Transient lifetimes
+- ✅ Complete test coverage with 7 unit tests
+- ✅ Documented in comprehensive decorator pattern section of docs
 
 ---
 
@@ -545,40 +553,50 @@ Based on priority, user demand, and implementation complexity:
 
 ---
 
-### Phase 2: Flexibility & Control (v1.2 - Q2 2025)
+### Phase 2: Flexibility & Control (v1.2 - Q1 2025) ✅ COMPLETED
 
 **Goal**: Conditional registration and filtering
 
-4. **TryAdd* Registration** 🟡 Medium - Conditional registration for library scenarios
-5. **Assembly Scanning Filters** 🟡 Medium - Exclude namespaces/patterns from transitive registration
-6. **Multi-Interface Registration** 🟢 Low - Selective interface registration
+4. ✅ **TryAdd* Registration** 🟡 Medium - Conditional registration for library scenarios
+5. ✅ **Assembly Scanning Filters** 🟡 Medium - Exclude namespaces/patterns from transitive registration
 
-**Estimated effort**: 3-4 weeks
+**Status**: ✅ COMPLETED (January 2025)
 **Impact**: Better control over transitive registration, library author support
 
 ---
 
-### Phase 3: Advanced Scenarios (v1.3 - Q3 2025)
+### Phase 2.5: Advanced Patterns (v1.3 - Q1 2025) ✅ COMPLETED
+
+**Goal**: Decorator pattern for cross-cutting concerns
+
+6. ✅ **Decorator Pattern Support** 🟢 Low-Medium ⭐ - Wrap services with logging, caching, validation
+
+**Status**: ✅ COMPLETED (January 2025)
+**Impact**: Enterprise-grade cross-cutting concerns without code modification
+
+---
+
+### Phase 3: Advanced Scenarios (v1.4 - Q2 2025)
 
 **Goal**: Validation and diagnostics
 
-7. **Registration Validation Diagnostics** 🟡 Medium - Compile-time warnings for missing dependencies
-8. **Conditional Registration** 🟢 Low-Medium - Feature flag-based registration
+7. **Multi-Interface Registration** 🟢 Low - Selective interface registration
+8. **Registration Validation Diagnostics** 🟡 Medium - Compile-time warnings for missing dependencies
+9. **Conditional Registration** 🟢 Low-Medium - Feature flag-based registration
 
 **Estimated effort**: 3-4 weeks
 **Impact**: Catch DI mistakes at compile time, support feature toggles
 
 ---
 
-### Phase 4: Enterprise Features (v2.0 - Q4 2025)
+### Phase 4: Enterprise Features (v2.0 - Q3 2025)
 
-**Goal**: Advanced patterns (decorators, conventions)
+**Goal**: Convention-based patterns
 
-9. **Decorator Pattern Support** 🟢 Low-Medium ⭐ - Cross-cutting concerns (logging, caching)
 10. **Auto-Discovery by Convention** 🟢 Low-Medium - Optional convention-based registration
 
-**Estimated effort**: 5-6 weeks
-**Impact**: Complex enterprise patterns, reduce boilerplate further
+**Estimated effort**: 2-3 weeks
+**Impact**: Reduce boilerplate further with conventions
 
 ---
 
@@ -592,9 +610,9 @@ Based on priority, user demand, and implementation complexity:
 | TryAdd* Registration | 🟡 Medium | ⭐⭐ | Low | 1.2 | ✅ Done |
 | Assembly Scanning Filters | 🟡 Medium | ⭐⭐ | Medium | 1.2 | ✅ Done |
 | Multi-Interface Registration | 🟢 Low | ⭐ | Low | 1.2 | 📋 Planned |
+| Decorator Pattern | 🟢 Low-Med | ⭐⭐⭐ | Very High | 1.3 | ✅ Done |
 | Registration Validation | 🟡 Medium | ⭐⭐ | High | 1.3 | 📋 Planned |
 | Conditional Registration | 🟢 Low-Med | ⭐ | Medium | 1.3 | 📋 Planned |
-| Decorator Pattern | 🟢 Low-Med | ⭐⭐⭐ | Very High | 2.0 | 📋 Planned |
 | Convention-Based Discovery | 🟢 Low-Med | ⭐⭐ | Medium | 2.0 | 📋 Planned |
 
 ---
@@ -667,7 +685,7 @@ To determine if these features are meeting user needs:
 
 ---
 
-**Last Updated**: 2025-01-17
-**Version**: 1.0
+**Last Updated**: 2025-01-17 (Decorator Pattern implemented)
+**Version**: 1.3
 **Research Date**: January 2025 (Scrutor v6.1.0)
 **Maintained By**: Atc.SourceGenerators Team

@@ -106,6 +106,7 @@ Both generators follow the **Incremental Generator** pattern (IIncrementalGenera
 - **Keyed service registration** - Multiple implementations of the same interface with different keys (.NET 8+)
 - **Factory method registration** - Custom initialization logic via static factory methods
 - **TryAdd registration** - Conditional registration for default implementations (library pattern)
+- **Decorator pattern support** - Wrap services with cross-cutting concerns (logging, caching, validation) using `Decorator = true`
 - **Assembly scanning filters** - Exclude types by namespace, pattern (wildcards), or interface implementation
 - **Runtime filtering** - Exclude services when calling registration methods via optional parameters (different apps, different service subsets)
 - Supports explicit `As` parameter to override auto-detection
@@ -135,6 +136,11 @@ Both generators follow the **Incremental Generator** pattern (IIncrementalGenera
 
 // Hosted Service Input: [Registration] public class MaintenanceService : BackgroundService { }
 // Hosted Service Output: services.AddHostedService<MaintenanceService>();
+
+// Decorator Input: [Registration(Lifetime.Scoped, As = typeof(IOrderService), Decorator = true)]
+//                   public class LoggingOrderServiceDecorator : IOrderService { }
+// Decorator Output: services.Decorate<IOrderService>((provider, inner) =>
+//                       ActivatorUtilities.CreateInstance<LoggingOrderServiceDecorator>(provider, inner));
 ```
 
 **Smart Naming:**

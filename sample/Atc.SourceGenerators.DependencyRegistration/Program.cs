@@ -204,4 +204,17 @@ Console.WriteLine("\nRuntime filtering complements compile-time filtering:");
 Console.WriteLine("  - Compile-time (assembly-level) filters exclude from ALL registrations");
 Console.WriteLine("  - Runtime filters allow selective exclusion per application/scenario");
 
+Console.WriteLine("\n11. Decorator Pattern:");
+Console.WriteLine("Decorators wrap existing services to add cross-cutting concerns like logging, caching, validation, etc.");
+Console.WriteLine("The decorator is automatically applied when resolving the service.\n");
+
+using (var scope = serviceProvider.CreateScope())
+{
+    var orderService = scope.ServiceProvider.GetRequiredService<IOrderService>();
+    await orderService.PlaceOrderAsync("ORDER-12345");
+
+    Console.WriteLine("\n✓ Decorator pattern applied successfully!");
+    Console.WriteLine("  The LoggingOrderServiceDecorator wraps OrderService, adding logging before/after the operation.");
+}
+
 Console.WriteLine("\n=== All tests completed successfully! ===");

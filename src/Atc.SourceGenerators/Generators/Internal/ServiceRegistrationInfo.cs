@@ -9,4 +9,5 @@ internal sealed record ServiceRegistrationInfo(
     object? Key,
     string? FactoryMethodName,
     bool TryAdd,
+    bool Decorator,
     Location Location);
