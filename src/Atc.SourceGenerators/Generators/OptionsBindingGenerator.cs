@@ -555,19 +555,21 @@ public static class OptionsBindingExtensions
         sb.AppendLineLf(">()");
         sb.Append("            .Bind(configuration.GetSection(\"");
         sb.Append(sectionName);
-        sb.AppendLineLf("\"))");
+        sb.Append("\"))");
 
         if (option.ValidateDataAnnotations)
         {
-            sb.AppendLineLf("            .ValidateDataAnnotations()");
+            sb.AppendLineLf();
+            sb.Append("            .ValidateDataAnnotations()");
         }
 
         if (option.ValidateOnStart)
         {
-            sb.AppendLineLf("            .ValidateOnStart()");
+            sb.AppendLineLf();
+            sb.Append("            .ValidateOnStart()");
         }
 
-        sb.AppendLineLf("            ;");
+        sb.AppendLineLf(";");
         sb.AppendLineLf();
     }
 
