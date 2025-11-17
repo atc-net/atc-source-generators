@@ -42,6 +42,7 @@ Automatically register services in the dependency injection container using attr
   - [❌ ATCDIR001: As Type Must Be Interface](#-ATCDIR001-as-type-must-be-interface)
   - [❌ ATCDIR002: Class Does Not Implement Interface](#-ATCDIR002-class-does-not-implement-interface)
   - [⚠️ ATCDIR003: Duplicate Registration with Different Lifetime](#️-ATCDIR003-duplicate-registration-with-different-lifetime)
+  - [❌ ATCDIR004: Hosted Services Must Use Singleton Lifetime](#-ATCDIR004-hosted-services-must-use-singleton-lifetime)
 - [📚 Additional Examples](#-additional-examples)
 
 ---
@@ -605,13 +606,14 @@ builder.Services.AddDependencyRegistrationsFromApi();
 ## ✨ Features
 
 - **Automatic Service Registration**: Decorate classes with `[Registration]` attribute for automatic DI registration
+- **Hosted Service Support**: Automatically detects `BackgroundService` and `IHostedService` implementations and uses `AddHostedService<T>()`
 - **Interface Auto-Detection**: Automatically registers against all implemented interfaces (no `As` parameter needed!)
 - **Smart Filtering**: System interfaces (IDisposable, etc.) are automatically excluded
 - **Multiple Interface Support**: Services implementing multiple interfaces are registered against all of them
 - **Flexible Lifetimes**: Support for Singleton, Scoped, and Transient service lifetimes
 - **Explicit Override**: Optional `As` parameter to override auto-detection when needed
 - **Dual Registration**: Register services as both interface and concrete type with `AsSelf`
-- **Compile-time Validation**: Diagnostics for common errors (invalid interface types, missing implementations)
+- **Compile-time Validation**: Diagnostics for common errors (invalid interface types, missing implementations, incorrect hosted service lifetimes)
 - **Zero Runtime Overhead**: All code is generated at compile time
 - **Native AOT Compatible**: No reflection or runtime code generation - fully trimming-safe and AOT-ready
 - **Multi-Project Support**: Each project generates its own registration method
@@ -1101,6 +1103,41 @@ public class UserServiceScoped : IUserService { }
 ```
 
 **Fix:** Ensure consistent lifetimes or use different interfaces.
+
+### ❌ ATCDIR004: Hosted Services Must Use Singleton Lifetime
+
+**Severity:** Error
+
+**Description:** Hosted services (BackgroundService or IHostedService implementations) must use Singleton lifetime.
+
+```csharp
+// ❌ Error: Hosted services cannot use Scoped or Transient lifetime
+[Registration(Lifetime.Scoped)]
+public class MyBackgroundService : BackgroundService
+{
+    protected override Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        return Task.CompletedTask;
+    }
+}
+```
+
+**Fix:** Use Singleton lifetime (or default [Registration]) for hosted services:
+
+```csharp
+// ✅ Correct: Singleton lifetime (explicit)
+[Registration(Lifetime.Singleton)]
+public class MyBackgroundService : BackgroundService { }
+
+// ✅ Correct: Default lifetime is Singleton
+[Registration]
+public class MyBackgroundService : BackgroundService { }
+```
+
+**Generated Registration:**
+```csharp
+services.AddHostedService<MyBackgroundService>();
+```
 
 ---
 

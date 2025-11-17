@@ -2,6 +2,8 @@
 // ReSharper disable ForeachCanBePartlyConvertedToQueryUsingAnotherGetEnumerator
 // ReSharper disable ForeachCanBeConvertedToQueryUsingAnotherGetEnumerator
 // ReSharper disable InvertIf
+// ReSharper disable NotAccessedPositionalProperty.Local
+// ReSharper disable MemberHidesStaticFromOuterClass
 namespace Atc.SourceGenerators.Generators;
 
 /// <summary>
@@ -38,6 +40,14 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
         messageFormat: "Service '{0}' is registered multiple times with different lifetimes ({1} and {2})",
         category: RuleCategoryConstants.DependencyInjection,
         DiagnosticSeverity.Warning,
+        isEnabledByDefault: true);
+
+    private static readonly DiagnosticDescriptor HostedServiceMustBeSingletonDescriptor = new(
+        id: RuleIdentifierConstants.DependencyInjection.HostedServiceMustBeSingleton,
+        title: "Hosted services must use Singleton lifetime",
+        messageFormat: "Hosted service '{0}' must use Singleton lifetime (or default [Registration]), but is registered with {1} lifetime",
+        category: RuleCategoryConstants.DependencyInjection,
+        DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 
     public void Initialize(IncrementalGeneratorInitializationContext context)
@@ -77,6 +87,36 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
             namespaceName.StartsWith("Microsoft", StringComparison.Ordinal))
         {
             return true;
+        }
+
+        return false;
+    }
+
+    private static bool IsHostedService(INamedTypeSymbol classSymbol)
+    {
+        // Check if the class implements IHostedService or inherits from BackgroundService
+        const string iHostedServiceFullName = "Microsoft.Extensions.Hosting.IHostedService";
+        const string backgroundServiceFullName = "Microsoft.Extensions.Hosting.BackgroundService";
+
+        // Check for IHostedService interface
+        foreach (var iface in classSymbol.AllInterfaces)
+        {
+            if (iface.ToDisplayString() == iHostedServiceFullName)
+            {
+                return true;
+            }
+        }
+
+        // Check for BackgroundService base class
+        var baseType = classSymbol.BaseType;
+        while (baseType is not null)
+        {
+            if (baseType.ToDisplayString() == backgroundServiceFullName)
+            {
+                return true;
+            }
+
+            baseType = baseType.BaseType;
         }
 
         return false;
@@ -152,11 +192,15 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
                 asTypes = interfaces;
             }
 
+            // Check if this is a hosted service
+            var isHostedService = IsHostedService(classSymbol);
+
             return new ServiceRegistrationInfo(
                 classSymbol,
                 lifetime,
                 asTypes,
                 asSelf,
+                isHostedService,
                 classDeclaration.GetLocation());
         }
 
@@ -279,6 +323,20 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
         ServiceRegistrationInfo service,
         SourceProductionContext context)
     {
+        // Check if hosted service has non-Singleton lifetime
+        if (service.IsHostedService &&
+            service.Lifetime != ServiceLifetime.Singleton)
+        {
+            context.ReportDiagnostic(
+                Diagnostic.Create(
+                    HostedServiceMustBeSingletonDescriptor,
+                    service.Location,
+                    service.ClassSymbol.Name,
+                    service.Lifetime));
+
+            return false;
+        }
+
         // Validate each interface type
         foreach (var asType in service.AsTypes)
         {
@@ -658,33 +716,41 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
         {
             var implementationType = service.ClassSymbol.ToDisplayString();
 
-            var lifetimeMethod = service.Lifetime switch
+            // Hosted services use AddHostedService instead of regular lifetime methods
+            if (service.IsHostedService)
             {
-                ServiceLifetime.Singleton => "AddSingleton",
-                ServiceLifetime.Scoped => "AddScoped",
-                ServiceLifetime.Transient => "AddTransient",
-                _ => "AddSingleton",
-            };
-
-            // Register against each interface
-            if (service.AsTypes.Length > 0)
-            {
-                foreach (var asType in service.AsTypes)
-                {
-                    var serviceType = asType.ToDisplayString();
-                    sb.AppendLineLf($"        services.{lifetimeMethod}<{serviceType}, {implementationType}>();");
-                }
-
-                // Also register as self if requested
-                if (service.AsSelf)
-                {
-                    sb.AppendLineLf($"        services.{lifetimeMethod}<{implementationType}>();");
-                }
+                sb.AppendLineLf($"        services.AddHostedService<{implementationType}>();");
             }
             else
             {
-                // No interfaces - register as concrete type
-                sb.AppendLineLf($"        services.{lifetimeMethod}<{implementationType}>();");
+                var lifetimeMethod = service.Lifetime switch
+                {
+                    ServiceLifetime.Singleton => "AddSingleton",
+                    ServiceLifetime.Scoped => "AddScoped",
+                    ServiceLifetime.Transient => "AddTransient",
+                    _ => "AddSingleton",
+                };
+
+                // Register against each interface
+                if (service.AsTypes.Length > 0)
+                {
+                    foreach (var asType in service.AsTypes)
+                    {
+                        var serviceType = asType.ToDisplayString();
+                        sb.AppendLineLf($"        services.{lifetimeMethod}<{serviceType}, {implementationType}>();");
+                    }
+
+                    // Also register as self if requested
+                    if (service.AsSelf)
+                    {
+                        sb.AppendLineLf($"        services.{lifetimeMethod}<{implementationType}>();");
+                    }
+                }
+                else
+                {
+                    // No interfaces - register as concrete type
+                    sb.AppendLineLf($"        services.{lifetimeMethod}<{implementationType}>();");
+                }
             }
         }
     }
@@ -783,27 +849,4 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
                  public bool AsSelf { get; set; }
              }
              """;
-
-    private sealed record ServiceRegistrationInfo(
-        INamedTypeSymbol ClassSymbol,
-        ServiceLifetime Lifetime,
-        ImmutableArray<ITypeSymbol> AsTypes,
-        bool AsSelf,
-        Location Location);
-
-    private sealed record ReferencedAssemblyInfo(
-        string AssemblyName,
-        string SanitizedName,
-        string ShortName);
-
-    /// <summary>
-    /// Internal enum matching Microsoft.Extensions.DependencyInjection.ServiceLifetime.
-    /// Used by the generator to avoid taking a dependency on Microsoft.Extensions.DependencyInjection.
-    /// </summary>
-    private enum ServiceLifetime
-    {
-        Singleton = 0,
-        Scoped = 1,
-        Transient = 2,
-    }
 }

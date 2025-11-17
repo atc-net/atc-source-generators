@@ -10,6 +10,7 @@ Rule ID | Category | Severity | Notes
 ATCDIR001 | DependencyInjection | Error | Service 'As' type must be an interface
 ATCDIR002 | DependencyInjection | Error | Class does not implement specified interface
 ATCDIR003 | DependencyInjection | Warning | Duplicate service registration with different lifetime
+ATCDIR004 | DependencyInjection | Error | Hosted services must use Singleton lifetime
 ATCOPT001 | OptionsBinding | Error | Options class must be partial
 ATCOPT002 | OptionsBinding | Error | Section name cannot be null or empty
 ATCOPT003 | OptionsBinding | Error | Const section name cannot be null or empty
