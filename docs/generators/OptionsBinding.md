@@ -4,41 +4,78 @@ Automatically bind configuration sections to strongly-typed options classes with
 
 ## 📑 Table of Contents
 
-- [📖 Overview](#-overview)
-- [🚀 Quick Start](#-quick-start)
-  - [1️⃣ Install the Package](#️-1-install-the-package)
-  - [2️⃣ Create Your Options Class](#️-2-create-your-options-class)
-  - [3️⃣ Configure Your appsettings.json](#️-3-configure-your-appsettingsjson)
-  - [4️⃣ Register Options in Program.cs](#️-4-register-options-in-programcs)
-- [✨ Features](#-features)
-- [📦 Installation](#-installation)
-- [💡 Usage](#-usage)
-  - [🔰 Basic Options Binding](#-basic-options-binding)
-  - [📍 Explicit Section Names](#-explicit-section-names)
-  - [✅ Validation](#-validation)
-  - [⏱️ Options Lifetimes](#️-options-lifetimes)
-- [🔧 How It Works](#-how-it-works)
-  - [1️⃣ Attribute Detection](#️-attribute-detection)
-  - [2️⃣ Section Name Resolution](#️-section-name-resolution)
-  - [3️⃣ Code Generation](#️-code-generation)
-  - [4️⃣ Compile-Time Safety](#️-compile-time-safety)
-- [🎯 Advanced Scenarios](#-advanced-scenarios)
-  - [🏢 Multiple Assemblies](#-multiple-assemblies)
-  - [✨ Smart Naming](#-smart-naming)
-  - [📂 Nested Configuration](#-nested-configuration)
-  - [🌍 Environment-Specific Configuration](#-environment-specific-configuration)
-- [🛡️ Diagnostics](#️-diagnostics)
-  - [❌ ATCOPT001: Options class must be partial](#-atcopt001-options-class-must-be-partial)
-  - [❌ ATCOPT002: Section name cannot be null or empty](#-atcopt002-section-name-cannot-be-null-or-empty)
-  - [⚠️ ATCOPT003: Invalid options binding configuration](#️-atcopt003-invalid-options-binding-configuration)
-  - [❌ ATCOPT003: Const section name cannot be null or empty](#-ATCOPT003-const-section-name-cannot-be-null-or-empty)
-- [📚 Examples](#-examples)
-  - [📝 Example 1: Simple Configuration](#-example-1-simple-configuration)
-  - [🔒 Example 2: Validated Database Options](#-example-2-validated-database-options)
-  - [🏗️ Example 3: Multi-Layer Application](#️-example-3-multi-layer-application)
-- [🔗 Additional Resources](#-additional-resources)
-- [❓ FAQ](#-faq)
-- [📄 License](#-license)
+- [⚙️ Options Binding Source Generator](#️-options-binding-source-generator)
+  - [📑 Table of Contents](#-table-of-contents)
+  - [📖 Overview](#-overview)
+    - [😫 Before (Manual Approach)](#-before-manual-approach)
+    - [✨ After (With Source Generator)](#-after-with-source-generator)
+  - [🚀 Quick Start](#-quick-start)
+    - [1️⃣ Install the Package](#1️⃣-install-the-package)
+    - [2️⃣ Create Your Options Class](#2️⃣-create-your-options-class)
+    - [3️⃣ Configure Your appsettings.json](#3️⃣-configure-your-appsettingsjson)
+    - [4️⃣ Register Options in Program.cs](#4️⃣-register-options-in-programcs)
+  - [📋 Configuration Examples](#-configuration-examples)
+    - [🎯 Base JSON Configuration](#-base-json-configuration)
+    - [📚 All Configuration Patterns](#-all-configuration-patterns)
+      - [1️⃣ Explicit Section Name (Highest Priority)](#1️⃣-explicit-section-name-highest-priority)
+      - [2️⃣ Using `const string SectionName` (2nd Priority)](#2️⃣-using-const-string-sectionname-2nd-priority)
+      - [3️⃣ Using `const string NameTitle` (3rd Priority)](#3️⃣-using-const-string-nametitle-3rd-priority)
+      - [4️⃣ Using `const string Name` (4th Priority)](#4️⃣-using-const-string-name-4th-priority)
+      - [5️⃣ Auto-Inferred from Class Name (Lowest Priority)](#5️⃣-auto-inferred-from-class-name-lowest-priority)
+    - [🔒 Validation Examples](#-validation-examples)
+      - [With Data Annotations Only](#with-data-annotations-only)
+      - [With Validation On Start](#with-validation-on-start)
+      - [With Both Validations (Recommended)](#with-both-validations-recommended)
+    - [⏱️ Lifetime Examples](#️-lifetime-examples)
+      - [Singleton (Default - IOptions)](#singleton-default---ioptions)
+      - [Scoped (IOptionsSnapshot)](#scoped-ioptionssnapshot)
+      - [Monitor (IOptionsMonitor)](#monitor-ioptionsmonitor)
+    - [🎯 Complete Example - All Features Combined](#-complete-example---all-features-combined)
+    - [📊 Priority Summary Table](#-priority-summary-table)
+    - [🔄 Mapping Both Base JSON Examples](#-mapping-both-base-json-examples)
+  - [✨ Features](#-features)
+    - [✨ Automatic Section Name Inference](#-automatic-section-name-inference)
+    - [🔒 Built-in Validation](#-built-in-validation)
+    - [🎯 Explicit Section Paths](#-explicit-section-paths)
+    - [📦 Multiple Options Classes](#-multiple-options-classes)
+    - [📦 Multi-Project Support](#-multi-project-support)
+    - [🔗 Transitive Options Registration](#-transitive-options-registration)
+      - [**Scenario A: Manual Registration (Explicit Control)**](#scenario-a-manual-registration-explicit-control)
+      - [**Scenario B: Transitive Registration (Automatic Discovery)**](#scenario-b-transitive-registration-automatic-discovery)
+      - [**All Available Overloads:**](#all-available-overloads)
+    - [🚀 Native AOT Compatible](#-native-aot-compatible)
+  - [📦 Installation](#-installation)
+    - [📋 Package Reference](#-package-reference)
+  - [💡 Usage](#-usage)
+    - [🔰 Basic Options Binding](#-basic-options-binding)
+    - [📍 Explicit Section Names](#-explicit-section-names)
+    - [✅ Validation](#-validation)
+      - [🏷️ Data Annotations Validation](#️-data-annotations-validation)
+      - [🚀 Validate on Startup](#-validate-on-startup)
+      - [🔗 Combined Validation](#-combined-validation)
+    - [⏱️ Options Lifetimes](#️-options-lifetimes)
+  - [🔧 How It Works](#-how-it-works)
+    - [1️⃣ Attribute Detection](#1️⃣-attribute-detection)
+    - [2️⃣ Section Name Resolution](#2️⃣-section-name-resolution)
+    - [3️⃣ Code Generation](#3️⃣-code-generation)
+    - [4️⃣ Compile-Time Safety](#4️⃣-compile-time-safety)
+  - [🎯 Advanced Scenarios](#-advanced-scenarios)
+    - [🏢 Multiple Assemblies](#-multiple-assemblies)
+    - [✨ Smart Naming](#-smart-naming)
+    - [📂 Nested Configuration](#-nested-configuration)
+    - [🌍 Environment-Specific Configuration](#-environment-specific-configuration)
+  - [🛡️ Diagnostics](#️-diagnostics)
+    - [❌ ATCOPT001: Options class must be partial](#-atcopt001-options-class-must-be-partial)
+    - [❌ ATCOPT002: Section name cannot be null or empty](#-atcopt002-section-name-cannot-be-null-or-empty)
+    - [⚠️ ATCOPT003: Invalid options binding configuration](#️-atcopt003-invalid-options-binding-configuration)
+    - [❌ ATCOPT003: Const section name cannot be null or empty](#-atcopt003-const-section-name-cannot-be-null-or-empty)
+  - [📚 Examples](#-examples)
+    - [📝 Example 1: Simple Configuration](#-example-1-simple-configuration)
+    - [🔒 Example 2: Validated Database Options](#-example-2-validated-database-options)
+    - [🏗️ Example 3: Multi-Layer Application](#️-example-3-multi-layer-application)
+  - [🔗 Additional Resources](#-additional-resources)
+  - [❓ FAQ](#-faq)
+  - [📄 License](#-license)
 
 ---
 
@@ -146,6 +183,509 @@ var serviceProvider = services.BuildServiceProvider();
 // Access your options
 var dbOptions = serviceProvider.GetRequiredService<IOptions<DatabaseOptions>>();
 Console.WriteLine(dbOptions.Value.ConnectionString);
+```
+
+---
+
+## 📋 Configuration Examples
+
+This section demonstrates all possible ways to create options classes and map them to `appsettings.json` sections.
+
+### 🎯 Base JSON Configuration
+
+We'll use these two JSON sections throughout the examples:
+
+**appsettings.json:**
+
+```json
+{
+  "PetMaintenanceService": {
+    "RepeatIntervalInSeconds": 10,
+    "EnableAutoCleanup": true,
+    "MaxPetsPerBatch": 50
+  },
+
+  "PetOtherServiceOptions": {
+    "RepeatIntervalInSeconds": 10,
+    "EnableAutoCleanup": true,
+    "MaxPetsPerBatch": 50
+  }
+}
+```
+
+**Two different scenarios:**
+
+- **`"PetMaintenanceService"`** - Section name that doesn't match any class name (requires explicit mapping)
+- **`"PetOtherServiceOptions"`** - Section name that exactly matches a class name (can use auto-inference)
+
+### 📚 All Configuration Patterns
+
+#### 1️⃣ Explicit Section Name (Highest Priority)
+
+Use when you want full control over the section name:
+
+```csharp
+// Maps to "PetMaintenanceService" section
+[OptionsBinding("PetMaintenanceService")]
+public partial class PetMaintenanceServiceOptions
+{
+    public int RepeatIntervalInSeconds { get; set; }
+    public bool EnableAutoCleanup { get; set; }
+    public int MaxPetsPerBatch { get; set; }
+}
+```
+
+**When to use:**
+- ✅ When section name doesn't match class name
+- ✅ When using nested configuration paths (e.g., `"App:Services:Database"`)
+- ✅ When you want explicit, readable code
+
+#### 2️⃣ Using `const string SectionName` (2nd Priority)
+
+Use when you want the section name defined as a constant in the class:
+
+```csharp
+// Maps to "PetMaintenanceService" section
+[OptionsBinding]
+public partial class PetMaintenanceServiceOptions
+{
+    public const string SectionName = "PetMaintenanceService";
+
+    public int RepeatIntervalInSeconds { get; set; }
+    public bool EnableAutoCleanup { get; set; }
+    public int MaxPetsPerBatch { get; set; }
+}
+```
+
+**When to use:**
+- ✅ When you want the section name accessible as a constant
+- ✅ When other code needs to reference the same section name
+- ✅ When building configuration paths dynamically
+
+#### 3️⃣ Using `const string NameTitle` (3rd Priority)
+
+Use as an alternative to `SectionName`:
+
+```csharp
+// Maps to "PetMaintenanceService" section
+[OptionsBinding]
+public partial class PetMaintenanceServiceOptions
+{
+    public const string NameTitle = "PetMaintenanceService";
+
+    public int RepeatIntervalInSeconds { get; set; }
+    public bool EnableAutoCleanup { get; set; }
+    public int MaxPetsPerBatch { get; set; }
+}
+```
+
+**When to use:**
+- ✅ When following specific naming conventions
+- ✅ When `SectionName` is not preferred in your codebase
+
+#### 4️⃣ Using `const string Name` (4th Priority)
+
+Another alternative for section name definition:
+
+```csharp
+// Maps to "PetMaintenanceService" section
+[OptionsBinding]
+public partial class PetMaintenanceServiceOptions
+{
+    public const string Name = "PetMaintenanceService";
+
+    public int RepeatIntervalInSeconds { get; set; }
+    public bool EnableAutoCleanup { get; set; }
+    public int MaxPetsPerBatch { get; set; }
+}
+```
+
+**When to use:**
+- ✅ When following specific naming conventions
+- ✅ When `Name` fits your code style better
+
+#### 5️⃣ Auto-Inferred from Class Name (Lowest Priority)
+
+The generator uses the full class name as-is:
+
+```csharp
+// Maps to "PetOtherServiceOptions" section (full class name)
+[OptionsBinding]
+public partial class PetOtherServiceOptions
+{
+    public int RepeatIntervalInSeconds { get; set; }
+    public bool EnableAutoCleanup { get; set; }
+    public int MaxPetsPerBatch { get; set; }
+}
+```
+
+**When to use:**
+- ✅ When section name matches class name exactly
+- ✅ When you want minimal code
+- ✅ When following convention-over-configuration
+
+**Important:** The class name is used **as-is** - no suffix removal or transformation:
+- `DatabaseOptions` → `"DatabaseOptions"` (NOT `"Database"`)
+- `ApiSettings` → `"ApiSettings"` (NOT `"Api"`)
+- `CacheConfig` → `"CacheConfig"` (NOT `"Cache"`)
+- `PetOtherServiceOptions` → `"PetOtherServiceOptions"` ✅ (Matches our JSON section!)
+
+### 🔒 Validation Examples
+
+#### With Data Annotations Only
+
+```csharp
+using System.ComponentModel.DataAnnotations;
+
+// Maps to "PetMaintenanceService" section
+[OptionsBinding("PetMaintenanceService", ValidateDataAnnotations = true)]
+public partial class PetMaintenanceServiceOptions
+{
+    [Range(1, 3600)]
+    public int RepeatIntervalInSeconds { get; set; }
+
+    public bool EnableAutoCleanup { get; set; }
+
+    [Range(1, 1000)]
+    public int MaxPetsPerBatch { get; set; }
+}
+```
+
+**Generated code includes:**
+```csharp
+services.AddOptions<PetMaintenanceServiceOptions>()
+    .Bind(configuration.GetSection("PetMaintenanceService"))
+    .ValidateDataAnnotations();
+```
+
+#### With Validation On Start
+
+```csharp
+// Maps to "PetMaintenanceService" section
+[OptionsBinding("PetMaintenanceService", ValidateOnStart = true)]
+public partial class PetMaintenanceServiceOptions
+{
+    public int RepeatIntervalInSeconds { get; set; }
+    public bool EnableAutoCleanup { get; set; }
+    public int MaxPetsPerBatch { get; set; }
+}
+```
+
+**Generated code includes:**
+```csharp
+services.AddOptions<PetMaintenanceServiceOptions>()
+    .Bind(configuration.GetSection("PetMaintenanceService"))
+    .ValidateOnStart();
+```
+
+#### With Both Validations (Recommended)
+
+```csharp
+using System.ComponentModel.DataAnnotations;
+
+// Maps to "PetMaintenanceService" section
+[OptionsBinding("PetMaintenanceService",
+    ValidateDataAnnotations = true,
+    ValidateOnStart = true)]
+public partial class PetMaintenanceServiceOptions
+{
+    [Required]
+    [Range(1, 3600, ErrorMessage = "Interval must be between 1 and 3600 seconds")]
+    public int RepeatIntervalInSeconds { get; set; }
+
+    public bool EnableAutoCleanup { get; set; }
+
+    [Range(1, 1000)]
+    public int MaxPetsPerBatch { get; set; }
+}
+```
+
+**Generated code includes:**
+```csharp
+services.AddOptions<PetMaintenanceServiceOptions>()
+    .Bind(configuration.GetSection("PetMaintenanceService"))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+```
+
+### ⏱️ Lifetime Examples
+
+#### Singleton (Default - IOptions<T>)
+
+Best for options that don't change during application lifetime:
+
+```csharp
+// Default: Lifetime = OptionsLifetime.Singleton
+[OptionsBinding("PetMaintenanceService")]
+public partial class PetMaintenanceServiceOptions
+{
+    public int RepeatIntervalInSeconds { get; set; }
+}
+
+// Usage:
+public class PetMaintenanceService
+{
+    public PetMaintenanceService(IOptions<PetMaintenanceServiceOptions> options)
+    {
+        var config = options.Value; // Cached singleton value
+    }
+}
+```
+
+**Generated code comment:**
+```csharp
+// Configure PetMaintenanceServiceOptions - Inject using IOptions<T>
+```
+
+#### Scoped (IOptionsSnapshot<T>)
+
+Best for options that may change per request/scope:
+
+```csharp
+[OptionsBinding("PetMaintenanceService", Lifetime = OptionsLifetime.Scoped)]
+public partial class PetMaintenanceServiceOptions
+{
+    public int RepeatIntervalInSeconds { get; set; }
+}
+
+// Usage:
+public class PetRequestHandler
+{
+    public PetRequestHandler(IOptionsSnapshot<PetMaintenanceServiceOptions> options)
+    {
+        var config = options.Value; // Fresh value per scope/request
+    }
+}
+```
+
+**Generated code comment:**
+```csharp
+// Configure PetMaintenanceServiceOptions - Inject using IOptionsSnapshot<T>
+```
+
+#### Monitor (IOptionsMonitor<T>)
+
+Best for options that need change notifications and hot-reload:
+
+```csharp
+[OptionsBinding("PetMaintenanceService", Lifetime = OptionsLifetime.Monitor)]
+public partial class PetMaintenanceServiceOptions
+{
+    public int RepeatIntervalInSeconds { get; set; }
+}
+
+// Usage:
+public class PetMaintenanceService
+{
+    public PetMaintenanceService(IOptionsMonitor<PetMaintenanceServiceOptions> options)
+    {
+        var config = options.CurrentValue; // Always current value
+
+        // Subscribe to configuration changes
+        options.OnChange(newConfig =>
+        {
+            Console.WriteLine($"Configuration changed! New interval: {newConfig.RepeatIntervalInSeconds}");
+        });
+    }
+}
+```
+
+**Generated code comment:**
+```csharp
+// Configure PetMaintenanceServiceOptions - Inject using IOptionsMonitor<T>
+```
+
+### 🎯 Complete Example - All Features Combined
+
+Here's an example using all features together:
+
+**appsettings.json:**
+```json
+{
+  "PetMaintenanceService": {
+    "RepeatIntervalInSeconds": 10,
+    "EnableAutoCleanup": true,
+    "MaxPetsPerBatch": 50,
+    "NotificationEmail": "admin@petstore.com"
+  }
+}
+```
+
+**Options class:**
+```csharp
+using System.ComponentModel.DataAnnotations;
+using Atc.SourceGenerators.Annotations;
+
+namespace PetStore.Domain.Options;
+
+/// <summary>
+/// Configuration options for the pet maintenance service.
+/// </summary>
+[OptionsBinding("PetMaintenanceService",
+    ValidateDataAnnotations = true,
+    ValidateOnStart = true,
+    Lifetime = OptionsLifetime.Monitor)]
+public partial class PetMaintenanceServiceOptions
+{
+    /// <summary>
+    /// The interval in seconds between maintenance runs.
+    /// </summary>
+    [Required]
+    [Range(1, 3600, ErrorMessage = "Interval must be between 1 and 3600 seconds")]
+    public int RepeatIntervalInSeconds { get; set; }
+
+    /// <summary>
+    /// Whether to enable automatic cleanup of old records.
+    /// </summary>
+    public bool EnableAutoCleanup { get; set; }
+
+    /// <summary>
+    /// Maximum number of pets to process in a single batch.
+    /// </summary>
+    [Range(1, 1000)]
+    public int MaxPetsPerBatch { get; set; } = 50;
+
+    /// <summary>
+    /// Email address for maintenance notifications.
+    /// </summary>
+    [Required]
+    [EmailAddress]
+    public string NotificationEmail { get; set; } = string.Empty;
+}
+```
+
+**Program.cs:**
+```csharp
+var builder = WebApplication.CreateBuilder(args);
+
+// Register all options from Domain assembly
+builder.Services.AddOptionsFromDomain(builder.Configuration);
+
+var app = builder.Build();
+app.Run();
+```
+
+**Usage in service:**
+```csharp
+public class PetMaintenanceService : BackgroundService
+{
+    private readonly IOptionsMonitor<PetMaintenanceServiceOptions> _options;
+    private readonly ILogger<PetMaintenanceService> _logger;
+
+    public PetMaintenanceService(
+        IOptionsMonitor<PetMaintenanceServiceOptions> options,
+        ILogger<PetMaintenanceService> logger)
+    {
+        _options = options;
+        _logger = logger;
+
+        // React to configuration changes
+        _options.OnChange(newOptions =>
+        {
+            _logger.LogInformation(
+                "Configuration updated! New interval: {Interval}s",
+                newOptions.RepeatIntervalInSeconds);
+        });
+    }
+
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            var config = _options.CurrentValue;
+
+            _logger.LogInformation(
+                "Running maintenance with interval {Interval}s, batch size {BatchSize}",
+                config.RepeatIntervalInSeconds,
+                config.MaxPetsPerBatch);
+
+            // Perform maintenance...
+
+            await Task.Delay(
+                TimeSpan.FromSeconds(config.RepeatIntervalInSeconds),
+                stoppingToken);
+        }
+    }
+}
+```
+
+### 📊 Priority Summary Table
+
+When multiple section name sources are present, the generator uses this priority:
+
+| Priority | Source | Example |
+|----------|--------|---------|
+| 1️⃣ **Highest** | Attribute parameter | `[OptionsBinding("Database")]` |
+| 2️⃣ | `const string SectionName` | `public const string SectionName = "DB";` |
+| 3️⃣ | `const string NameTitle` | `public const string NameTitle = "DB";` |
+| 4️⃣ | `const string Name` | `public const string Name = "DB";` |
+| 5️⃣ **Lowest** | Auto-inferred from class name | Class `DatabaseOptions` → `"DatabaseOptions"` |
+
+**Example showing priority:**
+```csharp
+// This maps to "ExplicitSection" (priority 1 wins)
+[OptionsBinding("ExplicitSection")]
+public partial class MyOptions
+{
+    public const string SectionName = "SectionNameConst";  // Ignored (priority 2)
+    public const string NameTitle = "NameTitleConst";      // Ignored (priority 3)
+    public const string Name = "NameConst";                // Ignored (priority 4)
+    // Class name "MyOptions" would be used if no explicit section (priority 5)
+}
+```
+
+### 🔄 Mapping Both Base JSON Examples
+
+Here's how to map both JSON sections from our base configuration:
+
+**appsettings.json:**
+```json
+{
+  "PetMaintenanceService": {
+    "RepeatIntervalInSeconds": 10,
+    "EnableAutoCleanup": true,
+    "MaxPetsPerBatch": 50
+  },
+  "PetOtherServiceOptions": {
+    "RepeatIntervalInSeconds": 10,
+    "EnableAutoCleanup": true,
+    "MaxPetsPerBatch": 50
+  }
+}
+```
+
+**Options classes:**
+```csharp
+// Case 1: Section name doesn't match class name - Use explicit mapping
+[OptionsBinding("PetMaintenanceService")]  // ✅ Explicit section name required
+public partial class PetMaintenanceServiceOptions
+{
+    public int RepeatIntervalInSeconds { get; set; }
+    public bool EnableAutoCleanup { get; set; }
+    public int MaxPetsPerBatch { get; set; }
+}
+
+// Case 2: Section name matches class name exactly - Auto-inference works!
+[OptionsBinding]  // ✅ No section name needed - infers "PetOtherServiceOptions"
+public partial class PetOtherServiceOptions
+{
+    public int RepeatIntervalInSeconds { get; set; }
+    public bool EnableAutoCleanup { get; set; }
+    public int MaxPetsPerBatch { get; set; }
+}
+```
+
+**Program.cs:**
+```csharp
+// Both registered with a single call
+services.AddOptionsFromYourProject(configuration);
+
+// Use the options
+var maintenanceOptions = provider.GetRequiredService<IOptions<PetMaintenanceServiceOptions>>();
+var otherOptions = provider.GetRequiredService<IOptions<PetOtherServiceOptions>>();
+
+Console.WriteLine($"Maintenance interval: {maintenanceOptions.Value.RepeatIntervalInSeconds}s");
+Console.WriteLine($"Other interval: {otherOptions.Value.RepeatIntervalInSeconds}s");
 ```
 
 ---
