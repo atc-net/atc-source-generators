@@ -40,6 +40,26 @@ internal static class RuleIdentifierConstants
         /// ATCDIR006: Factory method has invalid signature.
         /// </summary>
         internal const string FactoryMethodInvalidSignature = "ATCDIR006";
+
+        /// <summary>
+        /// ATCDIR007: Instance member not found.
+        /// </summary>
+        internal const string InstanceMemberNotFound = "ATCDIR007";
+
+        /// <summary>
+        /// ATCDIR008: Instance member must be static.
+        /// </summary>
+        internal const string InstanceMemberMustBeStatic = "ATCDIR008";
+
+        /// <summary>
+        /// ATCDIR009: Instance and Factory are mutually exclusive.
+        /// </summary>
+        internal const string InstanceAndFactoryMutuallyExclusive = "ATCDIR009";
+
+        /// <summary>
+        /// ATCDIR010: Instance registration requires Singleton lifetime.
+        /// </summary>
+        internal const string InstanceRequiresSingletonLifetime = "ATCDIR010";
     }
 
     /// <summary>

@@ -47,4 +47,33 @@ public sealed class RegistrationAttribute : Attribute
     /// The decorator's constructor must accept the interface it decorates as the first parameter.
     /// </remarks>
     public bool Decorator { get; set; }
+
+    /// <summary>
+    /// Gets or sets the name of a static field, property, or parameterless method that provides a pre-created instance.
+    /// When specified, the instance will be registered as a singleton.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Instance registration is useful when you have a pre-configured singleton instance that should be shared across the application.
+    /// The referenced member must be static and return a compatible type (the class itself or the registered interface).
+    /// </para>
+    /// <para>
+    /// Note: Instance registration only supports Singleton lifetime. Using Instance with Scoped or Transient lifetime will result in a compile error.
+    /// Instance and Factory parameters are mutually exclusive - you cannot use both on the same service.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// [Registration(As = typeof(IConfiguration), Instance = nameof(DefaultInstance))]
+    /// public class AppConfiguration : IConfiguration
+    /// {
+    ///     public static readonly AppConfiguration DefaultInstance = new AppConfiguration
+    ///     {
+    ///         Setting1 = "default",
+    ///         Setting2 = 42
+    ///     };
+    /// }
+    /// </code>
+    /// </example>
+    public string? Instance { get; set; }
 }

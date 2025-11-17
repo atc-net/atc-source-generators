@@ -68,6 +68,38 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 
+    private static readonly DiagnosticDescriptor InstanceMemberNotFoundDescriptor = new(
+        id: RuleIdentifierConstants.DependencyInjection.InstanceMemberNotFound,
+        title: "Instance member not found",
+        messageFormat: "Instance member '{0}' not found in class '{1}'. The member must be a static field, property, or parameterless method.",
+        category: RuleCategoryConstants.DependencyInjection,
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    private static readonly DiagnosticDescriptor InstanceMemberMustBeStaticDescriptor = new(
+        id: RuleIdentifierConstants.DependencyInjection.InstanceMemberMustBeStatic,
+        title: "Instance member must be static",
+        messageFormat: "Instance member '{0}' must be static.",
+        category: RuleCategoryConstants.DependencyInjection,
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    private static readonly DiagnosticDescriptor InstanceAndFactoryMutuallyExclusiveDescriptor = new(
+        id: RuleIdentifierConstants.DependencyInjection.InstanceAndFactoryMutuallyExclusive,
+        title: "Instance and Factory are mutually exclusive",
+        messageFormat: "Cannot use both Instance and Factory parameters on the same service. Use either Instance for pre-created instances or Factory for custom creation logic.",
+        category: RuleCategoryConstants.DependencyInjection,
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    private static readonly DiagnosticDescriptor InstanceRequiresSingletonLifetimeDescriptor = new(
+        id: RuleIdentifierConstants.DependencyInjection.InstanceRequiresSingletonLifetime,
+        title: "Instance registration requires Singleton lifetime",
+        messageFormat: "Instance registration can only be used with Singleton lifetime. Current lifetime is '{0}'.",
+        category: RuleCategoryConstants.DependencyInjection,
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         // Generate attribute fallback for projects that don't reference Atc.SourceGenerators.Annotations
@@ -167,6 +199,7 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
             string? factoryMethodName = null;
             var tryAdd = false;
             var decorator = false;
+            string? instanceMemberName = null;
 
             // Constructor argument (lifetime)
             if (attributeData.ConstructorArguments.Length > 0)
@@ -213,6 +246,9 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
                         }
 
                         break;
+                    case "Instance":
+                        instanceMemberName = namedArg.Value.Value as string;
+                        break;
                 }
             }
 
@@ -247,6 +283,7 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
                 factoryMethodName,
                 tryAdd,
                 decorator,
+                instanceMemberName,
                 classDeclaration.GetLocation());
         }
 
@@ -566,6 +603,80 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
                         service.Location,
                         service.FactoryMethodName,
                         expectedReturnType.ToDisplayString()));
+
+                return false;
+            }
+        }
+
+        // Validate instance registration if specified
+        if (!string.IsNullOrEmpty(service.InstanceMemberName))
+        {
+            // Check mutually exclusive with Factory
+            if (!string.IsNullOrEmpty(service.FactoryMethodName))
+            {
+                context.ReportDiagnostic(
+                    Diagnostic.Create(
+                        InstanceAndFactoryMutuallyExclusiveDescriptor,
+                        service.Location));
+
+                return false;
+            }
+
+            // Check lifetime is Singleton
+            if (service.Lifetime != ServiceLifetime.Singleton)
+            {
+                context.ReportDiagnostic(
+                    Diagnostic.Create(
+                        InstanceRequiresSingletonLifetimeDescriptor,
+                        service.Location,
+                        service.Lifetime.ToString()));
+
+                return false;
+            }
+
+            // Find the instance member (field, property, or method)
+            var members = service.ClassSymbol.GetMembers(service.InstanceMemberName!);
+            ISymbol? instanceMember = null;
+
+            // Try to find as field or property first
+            instanceMember = members.OfType<IFieldSymbol>().FirstOrDefault() as ISymbol
+                ?? members.OfType<IPropertySymbol>().FirstOrDefault();
+
+            // If not found, try as parameterless method
+            if (instanceMember is null)
+            {
+                instanceMember = members.OfType<IMethodSymbol>()
+                    .FirstOrDefault(m => m.Parameters.Length == 0);
+            }
+
+            if (instanceMember is null)
+            {
+                context.ReportDiagnostic(
+                    Diagnostic.Create(
+                        InstanceMemberNotFoundDescriptor,
+                        service.Location,
+                        service.InstanceMemberName,
+                        service.ClassSymbol.Name));
+
+                return false;
+            }
+
+            // Validate member is static
+            var isStatic = instanceMember switch
+            {
+                IFieldSymbol field => field.IsStatic,
+                IPropertySymbol property => property.IsStatic,
+                IMethodSymbol method => method.IsStatic,
+                _ => false,
+            };
+
+            if (!isStatic)
+            {
+                context.ReportDiagnostic(
+                    Diagnostic.Create(
+                        InstanceMemberMustBeStaticDescriptor,
+                        service.Location,
+                        service.InstanceMemberName));
 
                 return false;
             }
@@ -1135,6 +1246,7 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
             var keyString = FormatKeyValue(service.Key);
 
             var hasFactory = !string.IsNullOrEmpty(service.FactoryMethodName);
+            var hasInstance = !string.IsNullOrEmpty(service.InstanceMemberName);
 
             // Generate runtime filtering check if enabled
             if (includeRuntimeFiltering)
@@ -1160,6 +1272,45 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
                 else
                 {
                     sb.AppendLineLf($"        services.AddHostedService<{implementationType}>();");
+                }
+            }
+            else if (hasInstance)
+            {
+                // Instance registration - pre-created singleton instances
+                // Instance registration always uses AddSingleton (validated earlier)
+                var lifetimeMethod = service.TryAdd ? "TryAddSingleton" : "AddSingleton";
+
+                // Determine how to access the instance (field, property, or method call)
+                var instanceAccess = service.InstanceMemberName!;
+
+                // Check if it's a method (simple heuristic - if we stored more info we could be certain)
+                // For now, we'll check if the member is a method when generating
+                var members = service.ClassSymbol.GetMembers(service.InstanceMemberName!);
+                var isMethod = members.OfType<IMethodSymbol>().Any(m => m.Parameters.Length == 0);
+
+                var instanceExpression = isMethod
+                    ? $"{implementationType}.{instanceAccess}()"
+                    : $"{implementationType}.{instanceAccess}";
+
+                // Register against each interface using the instance
+                if (service.AsTypes.Length > 0)
+                {
+                    foreach (var asType in service.AsTypes)
+                    {
+                        var serviceType = asType.ToDisplayString();
+                        sb.AppendLineLf($"        services.{lifetimeMethod}<{serviceType}>({instanceExpression});");
+                    }
+
+                    // Also register as self if requested
+                    if (service.AsSelf)
+                    {
+                        sb.AppendLineLf($"        services.{lifetimeMethod}<{implementationType}>({instanceExpression});");
+                    }
+                }
+                else
+                {
+                    // No interfaces - register as concrete type with instance
+                    sb.AppendLineLf($"        services.{lifetimeMethod}<{implementationType}>({instanceExpression});");
                 }
             }
             else if (hasFactory)
@@ -1641,6 +1792,35 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
                  /// </code>
                  /// </example>
                  public bool Decorator { get; set; }
+
+                 /// <summary>
+                 /// Gets or sets the name of a static field, property, or parameterless method that provides a pre-created instance.
+                 /// When specified, the instance will be registered as a singleton.
+                 /// </summary>
+                 /// <remarks>
+                 /// <para>
+                 /// Instance registration is useful when you have a pre-configured singleton instance that should be shared across the application.
+                 /// The referenced member must be static and return a compatible type (the class itself or the registered interface).
+                 /// </para>
+                 /// <para>
+                 /// Note: Instance registration only supports Singleton lifetime. Using Instance with Scoped or Transient lifetime will result in a compile error.
+                 /// Instance and Factory parameters are mutually exclusive - you cannot use both on the same service.
+                 /// </para>
+                 /// </remarks>
+                 /// <example>
+                 /// <code>
+                 /// [Registration(As = typeof(IConfiguration), Instance = nameof(DefaultInstance))]
+                 /// public class AppConfiguration : IConfiguration
+                 /// {
+                 ///     public static readonly AppConfiguration DefaultInstance = new AppConfiguration
+                 ///     {
+                 ///         Setting1 = "default",
+                 ///         Setting2 = 42
+                 ///     };
+                 /// }
+                 /// </code>
+                 /// </example>
+                 public string? Instance { get; set; }
              }
 
              /// <summary>

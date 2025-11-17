@@ -4,53 +4,120 @@ Automatically register services in the dependency injection container using attr
 
 ## 📑 Table of Contents
 
-- [🚀 Get Started - Quick Guide](#-get-started---quick-guide)
-  - [📂 Project Structure](#-project-structure)
-  - [1️⃣ Setup Projects](#️-setup-projects)
-  - [2️⃣ Data Access Layer](#️-data-access-layer-petstore-dataaccess-)
-  - [3️⃣ Domain Layer](#️-domain-layer-petstore-domain-)
-  - [4️⃣ API Layer](#️-api-layer-petstore-api-)
-  - [5️⃣ Program.cs](#️-programcs-minimal-api-setup-)
-  - [🎨 What Gets Generated](#-what-gets-generated)
-  - [6️⃣ Testing the Application](#️-testing-the-application-)
-  - [🔍 Viewing Generated Code](#-viewing-generated-code-optional)
-  - [🎯 Key Takeaways](#-key-takeaways)
-- [✨ Features](#-features)
-- [📦 Installation](#-installation)
-- [💡 Basic Usage](#-basic-usage)
-  - [1️⃣ Add Using Directives](#️-add-using-directives)
-  - [2️⃣ Decorate Your Services](#️-decorate-your-services)
-  - [3️⃣ Register in DI Container](#️-register-in-di-container)
-- [🏗️ Multi-Project Setup](#️-multi-project-setup)
-  - [📁 Example Structure](#-example-structure)
-  - [⚡ Program.cs Registration](#-programcs-registration)
-  - [🏷️ Method Naming Convention](#️-method-naming-convention)
-  - [✨ Smart Naming](#-smart-naming)
-- [🔍 Auto-Detection](#-auto-detection)
-  - [1️⃣ Single Interface](#️-single-interface)
-  - [🔢 Multiple Interfaces](#-multiple-interfaces)
-  - [🧹 System Interfaces Filtered](#-system-interfaces-filtered)
-  - [🎯 Explicit Override](#-explicit-override)
-  - [🔀 Register As Both Interface and Concrete Type](#-register-as-both-interface-and-concrete-type)
-- [⏱️ Service Lifetimes](#️-service-lifetimes)
-  - [🔒 Singleton (Default)](#-singleton-default)
-  - [🔄 Scoped](#-scoped)
-  - [⚡ Transient](#-transient)
-- [⚙️ RegistrationAttribute Parameters](#️-registrationattribute-parameters)
-  - [📝 Examples](#-examples)
-- [🛡️ Diagnostics](#️-diagnostics)
-  - [❌ ATCDIR001: As Type Must Be Interface](#-ATCDIR001-as-type-must-be-interface)
-  - [❌ ATCDIR002: Class Does Not Implement Interface](#-ATCDIR002-class-does-not-implement-interface)
-  - [⚠️ ATCDIR003: Duplicate Registration with Different Lifetime](#️-ATCDIR003-duplicate-registration-with-different-lifetime)
-  - [❌ ATCDIR004: Hosted Services Must Use Singleton Lifetime](#-ATCDIR004-hosted-services-must-use-singleton-lifetime)
-- [🔷 Generic Interface Registration](#-generic-interface-registration)
-- [🔑 Keyed Service Registration](#-keyed-service-registration)
-- [🏭 Factory Method Registration](#-factory-method-registration)
-- [🔄 TryAdd* Registration](#-tryadd-registration)
-- [🚫 Assembly Scanning Filters](#-assembly-scanning-filters)
-- [🎯 Runtime Filtering](#-runtime-filtering)
-- [🎨 Decorator Pattern](#-decorator-pattern)
-- [📚 Additional Examples](#-additional-examples)
+- [🎯 Dependency Registration Generator](#-dependency-registration-generator)
+  - [📑 Table of Contents](#-table-of-contents)
+  - [🚀 Get Started - Quick Guide](#-get-started---quick-guide)
+    - [📂 Project Structure](#-project-structure)
+    - [1️⃣ Setup Projects](#1️⃣-setup-projects)
+    - [2️⃣ Data Access Layer (PetStore.DataAccess) 💾](#2️⃣-data-access-layer-petstoredataaccess-)
+    - [3️⃣ Domain Layer (PetStore.Domain) 🧠](#3️⃣-domain-layer-petstoredomain-)
+    - [4️⃣ API Layer (PetStore.Api) 🌐](#4️⃣-api-layer-petstoreapi-)
+    - [5️⃣ Program.cs (Minimal API Setup) ⚡](#5️⃣-programcs-minimal-api-setup-)
+    - [🎨 What Gets Generated](#-what-gets-generated)
+    - [6️⃣ Testing the Application 🧪](#6️⃣-testing-the-application-)
+    - [🔍 Viewing Generated Code (Optional)](#-viewing-generated-code-optional)
+    - [🎯 Key Takeaways](#-key-takeaways)
+  - [✨ Features](#-features)
+  - [📦 Installation](#-installation)
+  - [💡 Basic Usage](#-basic-usage)
+    - [1️⃣ Add Using Directives](#1️⃣-add-using-directives)
+    - [2️⃣ Decorate Your Services](#2️⃣-decorate-your-services)
+    - [3️⃣ Register in DI Container](#3️⃣-register-in-di-container)
+  - [🏗️ Multi-Project Setup](#️-multi-project-setup)
+    - [📁 Example Structure](#-example-structure)
+    - [⚡ Program.cs Registration](#-programcs-registration)
+    - [🔄 Transitive Dependency Registration](#-transitive-dependency-registration)
+    - [🏷️ Method Naming Convention](#️-method-naming-convention)
+    - [✨ Smart Naming](#-smart-naming)
+  - [🔍 Auto-Detection](#-auto-detection)
+    - [1️⃣ Single Interface](#1️⃣-single-interface)
+    - [🔢 Multiple Interfaces](#-multiple-interfaces)
+    - [🧹 System Interfaces Filtered](#-system-interfaces-filtered)
+    - [🎯 Explicit Override](#-explicit-override)
+    - [🔀 Register As Both Interface and Concrete Type](#-register-as-both-interface-and-concrete-type)
+  - [⏱️ Service Lifetimes](#️-service-lifetimes)
+    - [🔒 Singleton (Default)](#-singleton-default)
+    - [🔄 Scoped](#-scoped)
+    - [⚡ Transient](#-transient)
+  - [🚀 Native AOT Compatibility](#-native-aot-compatibility)
+    - [✅ Why It Works](#-why-it-works)
+    - [🎯 Key Benefits](#-key-benefits)
+    - [🚀 Native AOT Example](#-native-aot-example)
+  - [⚙️ RegistrationAttribute Parameters](#️-registrationattribute-parameters)
+    - [📝 Examples](#-examples)
+  - [🛡️ Diagnostics](#️-diagnostics)
+    - [❌ ATCDIR001: As Type Must Be Interface](#-atcdir001-as-type-must-be-interface)
+    - [❌ ATCDIR002: Class Does Not Implement Interface](#-atcdir002-class-does-not-implement-interface)
+    - [⚠️ ATCDIR003: Duplicate Registration with Different Lifetime](#️-atcdir003-duplicate-registration-with-different-lifetime)
+    - [❌ ATCDIR004: Hosted Services Must Use Singleton Lifetime](#-atcdir004-hosted-services-must-use-singleton-lifetime)
+  - [🔷 Generic Interface Registration](#-generic-interface-registration)
+    - [Single Type Parameter](#single-type-parameter)
+    - [Multiple Type Parameters](#multiple-type-parameters)
+    - [Complex Constraints](#complex-constraints)
+    - [Explicit Generic Registration](#explicit-generic-registration)
+  - [🔑 Keyed Service Registration](#-keyed-service-registration)
+    - [String Keys](#string-keys)
+    - [Generic Keyed Services](#generic-keyed-services)
+  - [🏭 Factory Method Registration](#-factory-method-registration)
+    - [Basic Factory Method](#basic-factory-method)
+    - [Factory Method Requirements](#factory-method-requirements)
+    - [Factory Method with Multiple Interfaces](#factory-method-with-multiple-interfaces)
+    - [Factory Method Best Practices](#factory-method-best-practices)
+    - [Factory Method Diagnostics](#factory-method-diagnostics)
+  - [📦 Instance Registration](#-instance-registration)
+    - [Basic Instance Registration (Static Field)](#basic-instance-registration-static-field)
+    - [Instance Registration with Static Property](#instance-registration-with-static-property)
+    - [Instance Registration with Static Method](#instance-registration-with-static-method)
+    - [Instance Registration Requirements](#instance-registration-requirements)
+    - [Instance Registration with Multiple Interfaces](#instance-registration-with-multiple-interfaces)
+    - [Instance Registration Best Practices](#instance-registration-best-practices)
+    - [Instance Registration Diagnostics](#instance-registration-diagnostics)
+    - [Instance vs Factory Method](#instance-vs-factory-method)
+  - [🔄 TryAdd\* Registration](#-tryadd-registration)
+    - [Basic TryAdd Registration](#basic-tryadd-registration)
+    - [How TryAdd Works](#how-tryadd-works)
+    - [Library Author Pattern](#library-author-pattern)
+    - [TryAdd with Different Lifetimes](#tryadd-with-different-lifetimes)
+    - [TryAdd with Factory Methods](#tryadd-with-factory-methods)
+    - [TryAdd with Generic Types](#tryadd-with-generic-types)
+    - [TryAdd with Multiple Interfaces](#tryadd-with-multiple-interfaces)
+    - [TryAdd Best Practices](#tryadd-best-practices)
+    - [Important Notes](#important-notes)
+  - [🚫 Assembly Scanning Filters](#-assembly-scanning-filters)
+    - [Basic Filter Usage](#basic-filter-usage)
+    - [Namespace Exclusion](#namespace-exclusion)
+    - [Pattern Exclusion](#pattern-exclusion)
+    - [Interface Exclusion](#interface-exclusion)
+    - [Combining Multiple Filters](#combining-multiple-filters)
+    - [Multiple Filter Attributes](#multiple-filter-attributes)
+    - [Real-World Example](#real-world-example)
+    - [Filter Priority and Behavior](#filter-priority-and-behavior)
+    - [Verification](#verification)
+    - [Best Practices](#best-practices)
+  - [🎯 Runtime Filtering](#-runtime-filtering)
+    - [Basic Usage](#basic-usage)
+    - [🔹 Filter by Type](#-filter-by-type)
+    - [🔹 Filter by Namespace](#-filter-by-namespace)
+    - [🔹 Filter by Pattern](#-filter-by-pattern)
+    - [🔹 Combining Filters](#-combining-filters)
+    - [🔹 Filters with Transitive Registration](#-filters-with-transitive-registration)
+    - [Runtime vs. Compile-Time Filtering](#runtime-vs-compile-time-filtering)
+    - [Complete Example: Multi-Application Scenario](#complete-example-multi-application-scenario)
+    - [Best Practices](#best-practices-1)
+    - [Verification](#verification-1)
+  - [🎨 Decorator Pattern](#-decorator-pattern)
+    - [✨ How It Works](#-how-it-works)
+    - [📝 Basic Example](#-basic-example)
+    - [Generated Code](#generated-code)
+    - [🔄 Multiple Decorators](#-multiple-decorators)
+    - [🎯 Common Use Cases](#-common-use-cases)
+      - [1. Logging/Auditing](#1-loggingauditing)
+      - [2. Caching](#2-caching)
+      - [3. Validation](#3-validation)
+      - [4. Retry Logic](#4-retry-logic)
+    - [⚠️ Important Notes](#️-important-notes)
+    - [🔍 Complete Example](#-complete-example)
+  - [📚 Additional Examples](#-additional-examples)
 
 ---
 
@@ -70,6 +137,7 @@ PetStore.sln
 ### 1️⃣ Setup Projects
 
 **PetStore.DataAccess.csproj** (Base layer):
+
 ```xml
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
@@ -86,6 +154,7 @@ PetStore.sln
 ```
 
 **PetStore.Domain.csproj** (Middle layer):
+
 ```xml
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
@@ -105,6 +174,7 @@ PetStore.sln
 ```
 
 **PetStore.Api.csproj** (Top layer):
+
 ```xml
 <Project Sdk="Microsoft.NET.Sdk.Web">
   <PropertyGroup>
@@ -126,6 +196,7 @@ PetStore.sln
 ### 2️⃣ Data Access Layer (PetStore.DataAccess) 💾
 
 **Models/Pet.cs**:
+
 ```csharp
 namespace PetStore.DataAccess.Models;
 
@@ -139,6 +210,7 @@ public class Pet
 ```
 
 **Repositories/IPetRepository.cs**:
+
 ```csharp
 namespace PetStore.DataAccess.Repositories;
 
@@ -153,6 +225,7 @@ public interface IPetRepository
 ```
 
 **Repositories/PetRepository.cs**:
+
 ```csharp
 using Atc.DependencyInjection;
 using PetStore.DataAccess.Models;
@@ -215,6 +288,7 @@ public class PetRepository : IPetRepository
 ### 3️⃣ Domain Layer (PetStore.Domain) 🧠
 
 **Models/PetDto.cs**:
+
 ```csharp
 namespace PetStore.Domain.Models;
 
@@ -228,6 +302,7 @@ public record ValidationResult(bool IsValid, List<string> Errors);
 ```
 
 **Services/IPetService.cs**:
+
 ```csharp
 namespace PetStore.Domain.Services;
 
@@ -242,6 +317,7 @@ public interface IPetService
 ```
 
 **Services/PetService.cs**:
+
 ```csharp
 using Atc.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -313,6 +389,7 @@ public class PetService : IPetService
 ```
 
 **Validators/IPetValidator.cs**:
+
 ```csharp
 using PetStore.Domain.Models;
 
@@ -325,6 +402,7 @@ public interface IPetValidator
 ```
 
 **Validators/PetValidator.cs**:
+
 ```csharp
 using Atc.DependencyInjection;
 using PetStore.Domain.Models;
@@ -352,6 +430,7 @@ public class PetValidator : IPetValidator
 ### 4️⃣ API Layer (PetStore.Api) 🌐
 
 **Handlers/IPetHandlers.cs**:
+
 ```csharp
 namespace PetStore.Api.Handlers;
 
@@ -362,6 +441,7 @@ public interface IPetHandlers
 ```
 
 **Handlers/PetHandlers.cs**:
+
 ```csharp
 using Atc.DependencyInjection;
 using PetStore.Domain.Models;
@@ -513,17 +593,20 @@ app.Run();
 For each project, the generator creates an assembly-specific extension method (with smart naming):
 
 **PetStore.DataAccess** → `AddDependencyRegistrationsFromDataAccess()` (suffix "DataAccess" is unique)
+
 ```csharp
 services.AddScoped<IPetRepository, PetRepository>();
 ```
 
 **PetStore.Domain** → `AddDependencyRegistrationsFromDomain()` (suffix "Domain" is unique)
+
 ```csharp
 services.AddScoped<IPetService, PetService>();
 services.AddSingleton<IPetValidator, PetValidator>();
 ```
 
 **PetStore.Api** → `AddDependencyRegistrationsFromApi()` (suffix "Api" is unique)
+
 ```csharp
 services.AddSingleton<IPetHandlers, PetHandlers>();
 ```
@@ -531,11 +614,13 @@ services.AddSingleton<IPetHandlers, PetHandlers>();
 ### 6️⃣ Testing the Application 🧪
 
 **Build and run:**
+
 ```bash
 dotnet run --project PetStore.Api
 ```
 
 **Test the endpoints:**
+
 ```bash
 # Get all pets
 curl http://localhost:5265/api/pets/
@@ -563,6 +648,7 @@ curl -X DELETE http://localhost:5265/api/pets/1
 ```
 
 **Expected output:**
+
 - All endpoints work with proper dependency injection
 - Validation errors return structured JSON: `{"errors":["Pet name is required","Pet age must be positive"]}`
 - Logging appears in console for all service operations
@@ -579,6 +665,7 @@ To see what code the generator creates, add this to your `.csproj` files:
 ```
 
 Generated files will appear in `obj/Generated/Atc.SourceGenerators/`:
+
 - `RegistrationAttribute.g.cs` - The `[Registration]` attribute definition
 - `ServiceCollectionExtensions.g.cs` - The `AddDependencyRegistrationsFrom...()` method
 
@@ -594,6 +681,7 @@ This quick guide demonstrated:
 ✅ **Clean architecture** - Clear separation between layers
 
 Compare this to manual registration:
+
 ```csharp
 // ❌ Without Source Generator (manual, error-prone)
 builder.Services.AddScoped<IPetRepository, PetRepository>();
@@ -614,10 +702,10 @@ builder.Services.AddDependencyRegistrationsFromApi();
 
 - **Automatic Service Registration**: Decorate classes with `[Registration]` attribute for automatic DI registration
 - **Generic Interface Registration**: Full support for open generic types like `IRepository<T>` and `IHandler<TRequest, TResponse>` 🆕
-- **Keyed Service Registration**: Multiple implementations of the same interface with different keys (.NET 8+) 🆕
-- **Factory Method Registration**: Custom initialization logic via static factory methods 🆕
-- **TryAdd* Registration**: Conditional registration for default implementations (library pattern) 🆕
-- **Assembly Scanning Filters**: Exclude types by namespace, pattern (wildcards), or interface implementation 🆕
+- **Keyed Service Registration**: Multiple implementations of the same interface with different keys (.NET 8+)
+- **Factory Method Registration**: Custom initialization logic via static factory methods
+- **TryAdd* Registration**: Conditional registration for default implementations (library pattern)
+- **Assembly Scanning Filters**: Exclude types by namespace, pattern (wildcards), or interface implementation
 - **Runtime Filtering**: Exclude services at registration time with method parameters (different apps, different service subsets) 🆕
 - **Hosted Service Support**: Automatically detects `BackgroundService` and `IHostedService` implementations and uses `AddHostedService<T>()`
 - **Interface Auto-Detection**: Automatically registers against all implemented interfaces (no `As` parameter needed!)
@@ -638,11 +726,13 @@ builder.Services.AddDependencyRegistrationsFromApi();
 Add the NuGet package to each project that contains services to register:
 
 **Required:**
+
 ```bash
 dotnet add package Atc.SourceGenerators
 ```
 
 **Optional (recommended for better IntelliSense):**
+
 ```bash
 dotnet add package Atc.SourceGenerators.Annotations
 ```
@@ -824,6 +914,7 @@ Assembly names are sanitized to create valid C# identifiers (dots, dashes, space
 The generator uses **smart suffix-based naming** to create cleaner, more readable method names:
 
 **How it works:**
+
 - ✅ If the assembly suffix (last segment after final dot) is **unique** among all assemblies → use short suffix
 - ⚠️ If multiple assemblies have the **same suffix** → use full sanitized name to avoid conflicts
 
@@ -841,6 +932,7 @@ AnotherApp.Domain   → AddDependencyRegistrationsFromAnotherAppDomain()
 ```
 
 **Benefits:**
+
 - 🎯 **Cleaner API**: Shorter method names when there are no conflicts
 - 🛡️ **Automatic Conflict Prevention**: Fallback to full names prevents naming collisions
 - ⚡ **Zero Configuration**: Works automatically based on compilation context
@@ -862,6 +954,7 @@ public class UserService : IUserService { }
 ```
 
 **Generated:**
+
 ```csharp
 services.AddSingleton<IUserService, UserService>();
 ```
@@ -877,6 +970,7 @@ public class EmailService : IEmailService, INotificationService { }
 ```
 
 **Generated:**
+
 ```csharp
 services.AddSingleton<IEmailService, EmailService>();
 services.AddSingleton<INotificationService, EmailService>();
@@ -895,6 +989,7 @@ public class CacheService : IDisposable
 ```
 
 **Generated:**
+
 ```csharp
 services.AddSingleton<CacheService>(); // IDisposable ignored
 ```
@@ -909,6 +1004,7 @@ public class UserService : IUserService, INotificationService { }
 ```
 
 **Generated:**
+
 ```csharp
 services.AddSingleton<IUserService, UserService>(); // Only IUserService
 ```
@@ -923,6 +1019,7 @@ public class EmailService : IEmailService { }
 ```
 
 **Generated:**
+
 ```csharp
 services.AddSingleton<IEmailService, EmailService>();
 services.AddSingleton<EmailService>();
@@ -1164,6 +1261,7 @@ public class MyBackgroundService : BackgroundService { }
 ```
 
 **Generated Registration:**
+
 ```csharp
 services.AddHostedService<MyBackgroundService>();
 ```
@@ -1196,11 +1294,13 @@ public class Repository<T> : IRepository<T> where T : class
 ```
 
 **Generated Code:**
+
 ```csharp
 services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
 ```
 
 **Usage:**
+
 ```csharp
 // Resolve for specific types
 var userRepository = serviceProvider.GetRequiredService<IRepository<User>>();
@@ -1224,6 +1324,7 @@ public class Handler<TRequest, TResponse> : IHandler<TRequest, TResponse>
 ```
 
 **Generated Code:**
+
 ```csharp
 services.AddTransient(typeof(IHandler<,>), typeof(Handler<,>));
 ```
@@ -1249,6 +1350,7 @@ public class Repository<T> : IRepository<T>
 ```
 
 **Generated Code:**
+
 ```csharp
 services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
 ```
@@ -1288,12 +1390,14 @@ public class PayPalPaymentProcessor : IPaymentProcessor
 ```
 
 **Generated Code:**
+
 ```csharp
 services.AddKeyedScoped<IPaymentProcessor, StripePaymentProcessor>("Stripe");
 services.AddKeyedScoped<IPaymentProcessor, PayPalPaymentProcessor>("PayPal");
 ```
 
 **Usage:**
+
 ```csharp
 // Constructor injection with [FromKeyedServices]
 public class CheckoutService(
@@ -1327,6 +1431,7 @@ public class ReadOnlyRepository<T> : IRepository<T> where T : class
 ```
 
 **Generated Code:**
+
 ```csharp
 services.AddKeyedScoped(typeof(IRepository<>), "Primary", typeof(PrimaryRepository<>));
 services.AddKeyedScoped(typeof(IRepository<>), "ReadOnly", typeof(ReadOnlyRepository<>));
@@ -1375,6 +1480,7 @@ public class EmailSender : IEmailSender
 ```
 
 **Generated Code:**
+
 ```csharp
 services.AddScoped<IEmailSender>(sp => EmailSender.CreateEmailSender(sp));
 ```
@@ -1412,6 +1518,7 @@ public class CacheService : ICacheService, IHealthCheck
 ```
 
 **Generated Code:**
+
 ```csharp
 // Registers against both interfaces using the same factory
 services.AddSingleton<ICacheService>(sp => CacheService.CreateService(sp));
@@ -1421,12 +1528,14 @@ services.AddSingleton<IHealthCheck>(sp => CacheService.CreateService(sp));
 ### Factory Method Best Practices
 
 **When to Use Factory Methods:**
+
 - ✅ Service requires configuration values from `IConfiguration`
 - ✅ Conditional initialization based on runtime environment
 - ✅ Complex dependency resolution beyond constructor injection
 - ✅ Services with private constructors that require initialization
 
 **When NOT to Use Factory Methods:**
+
 - ❌ Simple services with no special initialization - use regular constructor injection
 - ❌ Services that can use `IOptions<T>` pattern instead
 - ❌ When factory logic is overly complex - consider using a dedicated factory class
@@ -1436,6 +1545,7 @@ services.AddSingleton<IHealthCheck>(sp => CacheService.CreateService(sp));
 The generator provides compile-time validation:
 
 **ATCDIR005: Factory method not found**
+
 ```csharp
 // ❌ Error: Factory method doesn't exist
 [Registration(Factory = "NonExistentMethod")]
@@ -1443,6 +1553,7 @@ public class MyService : IMyService { }
 ```
 
 **ATCDIR006: Invalid factory method signature**
+
 ```csharp
 // ❌ Error: Factory method must be static
 [Registration(Factory = nameof(Create))]
@@ -1459,9 +1570,226 @@ public static string Create(IServiceProvider sp) => "wrong";
 ```
 
 **Correct signature:**
+
 ```csharp
 // ✅ Correct: static, accepts IServiceProvider, returns service type
 public static IMyService Create(IServiceProvider sp) => new MyService();
+```
+
+---
+
+## 📦 Instance Registration
+
+Instance registration allows you to register pre-created singleton instances via static fields, properties, or methods. This is ideal for immutable configuration objects or singleton instances that are initialized at startup.
+
+### Basic Instance Registration (Static Field)
+
+```csharp
+[Registration(As = typeof(IAppConfiguration), Instance = nameof(DefaultInstance))]
+public class AppConfiguration : IAppConfiguration
+{
+    // Static field providing the pre-created instance
+    public static readonly AppConfiguration DefaultInstance = new()
+    {
+        ApplicationName = "My Application",
+        Environment = "Production",
+        MaxConnections = 100,
+        IsDebugMode = false,
+    };
+
+    // Private constructor enforces singleton pattern
+    private AppConfiguration() { }
+
+    public string ApplicationName { get; init; } = string.Empty;
+    public string Environment { get; init; } = string.Empty;
+    public int MaxConnections { get; init; }
+    public bool IsDebugMode { get; init; }
+}
+```
+
+**Generated Code:**
+
+```csharp
+services.AddSingleton<IAppConfiguration>(AppConfiguration.DefaultInstance);
+```
+
+### Instance Registration with Static Property
+
+```csharp
+[Registration(As = typeof(ICache), Instance = nameof(Instance))]
+public class MemoryCache : ICache
+{
+    // Static property providing the singleton instance
+    public static MemoryCache Instance { get; } = new MemoryCache();
+
+    private MemoryCache() { }
+
+    public void Set(string key, object value) { /* implementation */ }
+    public object? Get(string key) { /* implementation */ }
+}
+```
+
+**Generated Code:**
+
+```csharp
+services.AddSingleton<ICache>(MemoryCache.Instance);
+```
+
+### Instance Registration with Static Method
+
+```csharp
+[Registration(As = typeof(ILogger), Instance = nameof(GetDefaultLogger))]
+public class DefaultLogger : ILogger
+{
+    private static readonly DefaultLogger instance = new();
+
+    private DefaultLogger() { }
+
+    // Static method returning the singleton instance
+    public static DefaultLogger GetDefaultLogger() => instance;
+
+    public void Log(string message) => Console.WriteLine($"[{DateTime.UtcNow:O}] {message}");
+}
+```
+
+**Generated Code:**
+
+```csharp
+services.AddSingleton<ILogger>(DefaultLogger.GetDefaultLogger());
+```
+
+### Instance Registration Requirements
+
+- ✅ The `Instance` parameter must reference a **static** field, property, or parameterless method
+- ✅ Instance registration **requires Singleton lifetime** (enforced at compile-time)
+- ✅ The member can be `public`, `internal`, or `private`
+- ✅ Works with `TryAdd`: `services.TryAddSingleton<T>(ClassName.Instance)`
+- ❌ **Cannot** be used with `Factory` parameter (mutually exclusive)
+- ❌ **Cannot** be used with Scoped or Transient lifetimes
+
+### Instance Registration with Multiple Interfaces
+
+When a class implements multiple interfaces, the same instance is registered for each interface:
+
+```csharp
+[Registration(Instance = nameof(DefaultInstance))]
+public class ServiceHub : IServiceA, IServiceB, IHealthCheck
+{
+    public static readonly ServiceHub DefaultInstance = new();
+
+    private ServiceHub() { }
+
+    // IServiceA members...
+    // IServiceB members...
+    // IHealthCheck members...
+}
+```
+
+**Generated Code:**
+
+```csharp
+// Same instance registered for all interfaces
+services.AddSingleton<IServiceA>(ServiceHub.DefaultInstance);
+services.AddSingleton<IServiceB>(ServiceHub.DefaultInstance);
+services.AddSingleton<IHealthCheck>(ServiceHub.DefaultInstance);
+```
+
+### Instance Registration Best Practices
+
+**When to Use Instance Registration:**
+
+- ✅ Immutable configuration objects with default values
+- ✅ Pre-initialized singleton services (caches, registries, etc.)
+- ✅ Singleton instances that should be shared across the application
+- ✅ Services with complex initialization that should happen once at startup
+
+**When NOT to Use Instance Registration:**
+
+- ❌ Services that need different instances per scope/request - use factory methods instead
+- ❌ Services requiring runtime configuration - use `IOptions<T>` pattern or factory methods
+- ❌ Services with mutable state that shouldn't be shared
+- ❌ Non-singleton lifetimes - instance registration only supports Singleton
+
+### Instance Registration Diagnostics
+
+The generator provides compile-time validation:
+
+**❌ ATCDIR007: Instance member not found**
+
+```csharp
+[Registration(As = typeof(ICache), Instance = "NonExistentMember")]
+public class CacheService : ICache { }
+// Error: Member 'NonExistentMember' not found. Must be a static field, property, or method.
+```
+
+**❌ ATCDIR008: Instance member must be static**
+
+```csharp
+[Registration(As = typeof(ICache), Instance = nameof(InstanceField))]
+public class CacheService : ICache
+{
+    public readonly CacheService InstanceField = new();  // Not static!
+}
+// Error: Instance member 'InstanceField' must be static.
+```
+
+**❌ ATCDIR009: Instance and Factory are mutually exclusive**
+
+```csharp
+[Registration(
+    As = typeof(IEmailSender),
+    Factory = nameof(Create),
+    Instance = nameof(DefaultInstance))]  // Cannot use both!
+public class EmailSender : IEmailSender { }
+// Error: Cannot use both Instance and Factory parameters on the same service.
+```
+
+**❌ ATCDIR010: Instance registration requires Singleton lifetime**
+
+```csharp
+[Registration(Lifetime.Scoped, As = typeof(ICache), Instance = nameof(Instance))]
+public class CacheService : ICache
+{
+    public static CacheService Instance { get; } = new();
+}
+// Error: Instance registration can only be used with Singleton lifetime. Current lifetime is 'Scoped'.
+```
+
+### Instance vs Factory Method
+
+**Use Instance when:**
+
+- The instance is pre-created and immutable
+- No runtime dependencies or configuration needed
+- Singleton pattern with guaranteed single instance
+
+**Use Factory Method when:**
+
+- Service requires `IServiceProvider` to resolve dependencies
+- Runtime configuration is needed (from `IConfiguration`, environment, etc.)
+- Conditional initialization based on runtime state
+
+**Example comparison:**
+
+```csharp
+// Instance: Pre-created, immutable configuration
+[Registration(As = typeof(IAppSettings), Instance = nameof(Default))]
+public class AppSettings : IAppSettings
+{
+    public static readonly AppSettings Default = new() { Timeout = 30 };
+}
+
+// Factory: Runtime configuration from IConfiguration
+[Registration(Lifetime.Singleton, As = typeof(IEmailClient), Factory = nameof(Create))]
+public class EmailClient : IEmailClient
+{
+    public static IEmailClient Create(IServiceProvider sp)
+    {
+        var config = sp.GetRequiredService<IConfiguration>();
+        var apiKey = config["Email:ApiKey"];
+        return new EmailClient(apiKey);
+    }
+}
 ```
 
 ---
@@ -1484,6 +1812,7 @@ public class DefaultLogger : ILogger
 ```
 
 **Generated Code:**
+
 ```csharp
 services.TryAddSingleton<ILogger, DefaultLogger>();
 ```
@@ -1527,6 +1856,7 @@ public class DefaultHealthCheck : IHealthCheck
 ```
 
 **Consumer can override:**
+
 ```csharp
 // Application code
 services.AddSingleton<IHealthCheck, AdvancedHealthCheck>();  // Custom implementation
@@ -1534,6 +1864,7 @@ services.AddDependencyRegistrationsFromDomain();  // DefaultHealthCheck won't be
 ```
 
 **Or consumer can use default:**
+
 ```csharp
 // Application code
 services.AddDependencyRegistrationsFromDomain();  // DefaultHealthCheck is added
@@ -1558,6 +1889,7 @@ public class DefaultMessageFormatter : IMessageFormatter
 ```
 
 **Generated Code:**
+
 ```csharp
 services.TryAddScoped<ICache, DefaultCache>();
 services.TryAddTransient<IMessageFormatter, DefaultMessageFormatter>();
@@ -1593,6 +1925,7 @@ public class DefaultEmailSender : IEmailSender
 ```
 
 **Generated Code:**
+
 ```csharp
 services.TryAddSingleton<IEmailSender>(sp => DefaultEmailSender.CreateEmailSender(sp));
 ```
@@ -1611,6 +1944,7 @@ public class DefaultRepository<T> : IRepository<T> where T : class
 ```
 
 **Generated Code:**
+
 ```csharp
 services.TryAddScoped(typeof(IRepository<>), typeof(DefaultRepository<>));
 ```
@@ -1629,6 +1963,7 @@ public class DefaultNotificationService : IEmailNotificationService, ISmsNotific
 ```
 
 **Generated Code:**
+
 ```csharp
 services.TryAddSingleton<IEmailNotificationService, DefaultNotificationService>();
 services.TryAddSingleton<ISmsNotificationService, DefaultNotificationService>();
@@ -1637,12 +1972,14 @@ services.TryAddSingleton<ISmsNotificationService, DefaultNotificationService>();
 ### TryAdd Best Practices
 
 **When to Use TryAdd:**
+
 - ✅ Library projects providing default implementations
 - ✅ Fallback services that applications may want to customize
 - ✅ Services with sensible defaults but customizable behavior
 - ✅ Avoiding registration conflicts in modular applications
 
 **When NOT to Use TryAdd:**
+
 - ❌ Core application services that should always be registered
 - ❌ Services where registration order matters for business logic
 - ❌ When you need to explicitly override existing registrations (use regular registration)
@@ -1679,6 +2016,7 @@ services.AddSingleton<ILogger, CustomLogger>();  // This creates a duplicate reg
 ## 🚫 Assembly Scanning Filters
 
 Assembly Scanning Filters allow you to exclude specific types, namespaces, or patterns from automatic registration. This is particularly useful for:
+
 - Excluding internal/test services from production builds
 - Preventing mock/stub services from being registered
 - Filtering out utilities that shouldn't be in the DI container
@@ -1738,6 +2076,7 @@ namespace MyApp.Internal.Deep.Nested
 ```
 
 **How Namespace Filtering Works:**
+
 - Exact match: `"MyApp.Internal"` excludes types in that namespace
 - Sub-namespace match: Also excludes `"MyApp.Internal.Something"`, `"MyApp.Internal.Deep.Nested"`, etc.
 
@@ -1770,6 +2109,7 @@ namespace MyApp.Services
 ```
 
 **Pattern Matching Rules:**
+
 - `*` matches zero or more characters
 - `?` matches exactly one character
 - Matching is case-insensitive
@@ -1802,6 +2142,7 @@ namespace MyApp.Services
 ```
 
 **How Interface Filtering Works:**
+
 - Checks all interfaces implemented by the type
 - Uses proper generic type comparison (`SymbolEqualityComparer`)
 - Works with generic interfaces like `IRepository<T>`
@@ -1929,12 +2270,14 @@ Console.WriteLine($"EmailService registered: {emailService != null}"); // True
 ### Best Practices
 
 **When to Use Filters:**
+
 - ✅ Excluding internal implementation details from DI
 - ✅ Preventing test/mock services from production builds
 - ✅ Filtering development-only utilities
 - ✅ Clean separation between production and development code
 
 **When NOT to Use Filters:**
+
 - ❌ Don't use filters as the primary way to control registration (use conditional compilation instead)
 - ❌ Don't create overly complex filter patterns that are hard to understand
 - ❌ Don't filter services that SHOULD be in DI but you forgot to configure properly
@@ -2069,6 +2412,7 @@ services.AddDependencyRegistrationsFromDomain(
 ```
 
 All referenced assemblies will also exclude:
+
 - Any namespace ending with `.Internal`
 - Any type matching `*Test*` pattern
 - The `EmailService` type
@@ -2142,6 +2486,7 @@ services.AddDependencyRegistrationsFromDomain(
 ### Best Practices
 
 ✅ **Do:**
+
 - Use runtime filtering when different applications need different service subsets
 - Use type exclusion for specific services you know by name
 - Use pattern exclusion for groups of services (e.g., all `*Mock*` services)
@@ -2155,6 +2500,7 @@ services.AddDependencyRegistrationsFromDomain(
 ```
 
 ❌ **Avoid:**
+
 - Using overly broad patterns that might accidentally exclude needed services
 - Runtime filtering as a replacement for proper service design
 - Filtering when you should just not add `[Registration]` attribute
@@ -2244,6 +2590,7 @@ public class LoggingOrderServiceDecorator : IOrderService
 ```
 
 **Usage:**
+
 ```csharp
 services.AddDependencyRegistrationsFromDomain();
 
@@ -2259,6 +2606,7 @@ await orderService.PlaceOrderAsync("ORDER-123");
 ### Generated Code
 
 The generator creates special `Decorate` extension methods that:
+
 1. Find the existing service registration
 2. Remove it from the service collection
 3. Create a new registration that resolves the original and wraps it
@@ -2295,6 +2643,7 @@ public class CachingDecorator : IOrderService { }
 ### 🎯 Common Use Cases
 
 #### 1. Logging/Auditing
+
 ```csharp
 [Registration(Decorator = true)]
 public class AuditingDecorator : IPetService
@@ -2312,6 +2661,7 @@ public class AuditingDecorator : IPetService
 ```
 
 #### 2. Caching
+
 ```csharp
 [Registration(Decorator = true)]
 public class CachingPetServiceDecorator : IPetService
@@ -2331,6 +2681,7 @@ public class CachingPetServiceDecorator : IPetService
 ```
 
 #### 3. Validation
+
 ```csharp
 [Registration(Decorator = true)]
 public class ValidationDecorator : IPetService
@@ -2351,6 +2702,7 @@ public class ValidationDecorator : IPetService
 ```
 
 #### 4. Retry Logic
+
 ```csharp
 [Registration(Decorator = true)]
 public class RetryDecorator : IExternalApiService
@@ -2377,6 +2729,7 @@ public class RetryDecorator : IExternalApiService
 ### ⚠️ Important Notes
 
 1. **Explicit `As` Required**: Decorators MUST specify the `As` parameter to indicate which interface they decorate
+
    ```csharp
    // ❌ Won't work - missing As parameter
    [Registration(Decorator = true)]
@@ -2388,6 +2741,7 @@ public class RetryDecorator : IExternalApiService
    ```
 
 2. **Constructor First Parameter**: The decorator's constructor must accept the interface as the first parameter
+
    ```csharp
    // ✅ Correct - interface is first parameter
    public MyDecorator(IService inner, ILogger logger) { }
@@ -2403,6 +2757,7 @@ public class RetryDecorator : IExternalApiService
 ### 🔍 Complete Example
 
 See the **PetStore.Domain** sample for a complete working example:
+
 - Base service: [PetService.cs](../../sample/PetStore.Domain/Services/PetService.cs)
 - Decorator: [LoggingPetServiceDecorator.cs](../../sample/PetStore.Domain/Services/LoggingPetServiceDecorator.cs)
 
