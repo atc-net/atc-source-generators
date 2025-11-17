@@ -102,6 +102,7 @@ Both generators follow the **Incremental Generator** pattern (IIncrementalGenera
 
 **Key Features:**
 - Auto-detects all implemented interfaces (excluding System.* and Microsoft.* namespaces)
+- **Generic interface registration** - Full support for open generic types like `IRepository<T>` and `IHandler<TRequest, TResponse>`
 - Supports explicit `As` parameter to override auto-detection
 - Generates `AddDependencyRegistrationsFrom{SmartSuffix}()` extension methods with 4 overloads
 - **Smart naming** - uses short suffix if unique, full name if conflicts exist
@@ -113,6 +114,9 @@ Both generators follow the **Incremental Generator** pattern (IIncrementalGenera
 ```csharp
 // Input: [Registration] public class UserService : IUserService { }
 // Output: services.AddSingleton<IUserService, UserService>();
+
+// Generic Input: [Registration(Lifetime.Scoped)] public class Repository<T> : IRepository<T> where T : class { }
+// Generic Output: services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
 
 // Hosted Service Input: [Registration] public class MaintenanceService : BackgroundService { }
 // Hosted Service Output: services.AddHostedService<MaintenanceService>();

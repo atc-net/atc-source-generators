@@ -75,7 +75,7 @@ These features are essential based on Scrutor's popularity and real-world DI pat
 ### 1. Generic Interface Registration
 
 **Priority**: 🔴 **Critical**
-**Status**: ❌ Not Implemented
+**Status**: ✅ **Implemented** (v1.1)
 **Inspiration**: Scrutor's generic type support
 
 **Description**: Support registering services that implement open generic interfaces like `IRepository<T>`, `IHandler<TRequest, TResponse>`.
@@ -111,10 +111,12 @@ services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
 
 **Implementation Notes**:
 
-- Detect when service implements open generic interface
-- Generate `typeof(IInterface<>)` and `typeof(Implementation<>)` syntax
-- Validate generic constraints match between interface and implementation
-- Support multiple generic parameters (`IHandler<TRequest, TResponse>`)
+- ✅ Detects when service implements open generic interface
+- ✅ Generates `typeof(IInterface<>)` and `typeof(Implementation<>)` syntax
+- ✅ Validates generic constraints match between interface and implementation
+- ✅ Supports multiple generic parameters (`IHandler<TRequest, TResponse>`)
+- ✅ Works with explicit `As` parameter and auto-detection
+- ✅ Supports constraints (where T : class, IEntity, new())
 
 ---
 

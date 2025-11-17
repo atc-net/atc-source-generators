@@ -45,4 +45,33 @@ emailService.SendBulk(["Email 1", "Email 2", "Email 3"]);
 
 Console.WriteLine($"\nSame instance: {ReferenceEquals(notificationService, emailService)}");
 
+Console.WriteLine("\n5. Testing Generic Repository Pattern (IRepository<T> -> Repository<T>):");
+using (var scope = serviceProvider.CreateScope())
+{
+    // Resolve IRepository<User>
+    var userRepository = scope.ServiceProvider.GetRequiredService<IRepository<User>>();
+    userRepository.Add(new User { Id = 1, Name = "John Doe", Email = "john@example.com" });
+    userRepository.Add(new User { Id = 2, Name = "Jane Smith", Email = "jane@example.com" });
+
+    var user = userRepository.GetById(1);
+    Console.WriteLine($"Retrieved user: {user?.Name} ({user?.Email})");
+
+    var allUsers = userRepository.GetAll();
+    Console.WriteLine($"Total users: {allUsers.Count()}");
+
+    // Resolve IRepository<Product>
+    var productRepository = scope.ServiceProvider.GetRequiredService<IRepository<Product>>();
+    productRepository.Add(new Product { Id = 1, Name = "Laptop", Price = 999.99m });
+    productRepository.Add(new Product { Id = 2, Name = "Mouse", Price = 29.99m });
+
+    var product = productRepository.GetById(1);
+    Console.WriteLine($"Retrieved product: {product?.Name} (${product?.Price})");
+
+    var allProducts = productRepository.GetAll();
+    Console.WriteLine($"Total products: {allProducts.Count()}");
+
+    // Verify different repository instances for different types
+    Console.WriteLine($"\nDifferent repository types: {userRepository.GetType() != productRepository.GetType()}");
+}
+
 Console.WriteLine("\n=== All tests completed successfully! ===");

@@ -43,6 +43,7 @@ Automatically register services in the dependency injection container using attr
   - [❌ ATCDIR002: Class Does Not Implement Interface](#-ATCDIR002-class-does-not-implement-interface)
   - [⚠️ ATCDIR003: Duplicate Registration with Different Lifetime](#️-ATCDIR003-duplicate-registration-with-different-lifetime)
   - [❌ ATCDIR004: Hosted Services Must Use Singleton Lifetime](#-ATCDIR004-hosted-services-must-use-singleton-lifetime)
+- [🔷 Generic Interface Registration](#-generic-interface-registration)
 - [📚 Additional Examples](#-additional-examples)
 
 ---
@@ -606,6 +607,7 @@ builder.Services.AddDependencyRegistrationsFromApi();
 ## ✨ Features
 
 - **Automatic Service Registration**: Decorate classes with `[Registration]` attribute for automatic DI registration
+- **Generic Interface Registration**: Full support for open generic types like `IRepository<T>` and `IHandler<TRequest, TResponse>` 🆕
 - **Hosted Service Support**: Automatically detects `BackgroundService` and `IHostedService` implementations and uses `AddHostedService<T>()`
 - **Interface Auto-Detection**: Automatically registers against all implemented interfaces (no `As` parameter needed!)
 - **Smart Filtering**: System interfaces (IDisposable, etc.) are automatically excluded
@@ -1137,6 +1139,103 @@ public class MyBackgroundService : BackgroundService { }
 **Generated Registration:**
 ```csharp
 services.AddHostedService<MyBackgroundService>();
+```
+
+---
+
+## 🔷 Generic Interface Registration
+
+The generator supports open generic types, enabling the repository pattern and other generic service patterns.
+
+### Single Type Parameter
+
+```csharp
+// Generic interface
+public interface IRepository<T> where T : class
+{
+    T? GetById(int id);
+    IEnumerable<T> GetAll();
+    void Add(T entity);
+}
+
+// Generic implementation
+[Registration(Lifetime.Scoped)]
+public class Repository<T> : IRepository<T> where T : class
+{
+    public T? GetById(int id) => /* implementation */;
+    public IEnumerable<T> GetAll() => /* implementation */;
+    public void Add(T entity) => /* implementation */;
+}
+```
+
+**Generated Code:**
+```csharp
+services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
+```
+
+**Usage:**
+```csharp
+// Resolve for specific types
+var userRepository = serviceProvider.GetRequiredService<IRepository<User>>();
+var productRepository = serviceProvider.GetRequiredService<IRepository<Product>>();
+```
+
+### Multiple Type Parameters
+
+```csharp
+// Handler interface with two type parameters
+public interface IHandler<TRequest, TResponse>
+{
+    TResponse Handle(TRequest request);
+}
+
+[Registration(Lifetime.Transient)]
+public class Handler<TRequest, TResponse> : IHandler<TRequest, TResponse>
+{
+    public TResponse Handle(TRequest request) => /* implementation */;
+}
+```
+
+**Generated Code:**
+```csharp
+services.AddTransient(typeof(IHandler<,>), typeof(Handler<,>));
+```
+
+### Complex Constraints
+
+```csharp
+// Interface with multiple constraints
+public interface IRepository<T>
+    where T : class, IEntity, new()
+{
+    T Create();
+    void Save(T entity);
+}
+
+[Registration(Lifetime.Scoped)]
+public class Repository<T> : IRepository<T>
+    where T : class, IEntity, new()
+{
+    public T Create() => new T();
+    public void Save(T entity) => /* implementation */;
+}
+```
+
+**Generated Code:**
+```csharp
+services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
+```
+
+### Explicit Generic Registration
+
+You can also use explicit `As` parameter with open generic types:
+
+```csharp
+[Registration(Lifetime.Scoped, As = typeof(IRepository<>))]
+public class Repository<T> : IRepository<T> where T : class
+{
+    // Implementation
+}
 ```
 
 ---
