@@ -7,4 +7,5 @@ internal sealed record ServiceRegistrationInfo(
     bool AsSelf,
     bool IsHostedService,
     object? Key,
+    string? FactoryMethodName,
     Location Location);

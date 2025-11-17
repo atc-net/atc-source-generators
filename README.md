@@ -91,8 +91,9 @@ builder.Services.AddDependencyRegistrationsFromDataAccess();
 #### ✨ Key Features
 
 - **🎯 Auto-Detection**: Automatically registers against all implemented interfaces - no more `As = typeof(IService)`
-- **🔷 Generic Types**: Full support for open generics like `IRepository<T>` and `IHandler<TRequest, TResponse>` 🆕
-- **🔑 Keyed Services**: Multiple implementations of the same interface with different keys (.NET 8+) 🆕
+- **🔷 Generic Types**: Full support for open generics like `IRepository<T>` and `IHandler<TRequest, TResponse>`
+- **🔑 Keyed Services**: Multiple implementations of the same interface with different keys (.NET 8+)
+- **🏭 Factory Methods**: Custom initialization logic via static factory methods
 - **🧹 Smart Filtering**: System interfaces (IDisposable, etc.) are excluded automatically
 - **🔍 Multi-Interface**: Implementing multiple interfaces? Registers against all of them
 - **🏃 Hosted Service Support**: Automatically detects BackgroundService and IHostedService implementations and uses AddHostedService<T>()
@@ -122,6 +123,19 @@ public class EmailService : IEmailService, INotificationService { }
 // Need both interface AND concrete type?
 [Registration(AsSelf = true)]
 public class ReportService : IReportService { }
+
+// Custom initialization logic via factory method
+[Registration(Lifetime.Scoped, As = typeof(IEmailSender), Factory = nameof(Create))]
+public class EmailSender : IEmailSender
+{
+    private EmailSender(string apiKey) { }
+
+    public static IEmailSender Create(IServiceProvider sp)
+    {
+        var config = sp.GetRequiredService<IConfiguration>();
+        return new EmailSender(config["Email:ApiKey"]);
+    }
+}
 ```
 
 #### 🔧 Service Lifetimes
@@ -143,6 +157,8 @@ Get errors at compile time, not runtime:
 | ATCDIR002 | Class must implement the specified interface |
 | ATCDIR003 | Duplicate registration with different lifetimes |
 | ATCDIR004 | Hosted services must use Singleton lifetime |
+| ATCDIR005 | Factory method not found |
+| ATCDIR006 | Factory method has invalid signature |
 
 ---
 

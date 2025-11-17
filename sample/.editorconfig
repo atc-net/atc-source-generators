@@ -53,11 +53,13 @@ dotnet_diagnostic.S1075.severity = none             # Refactor your code not to 
 dotnet_diagnostic.CA1062.severity = none            # In externally visible method
 dotnet_diagnostic.CA1056.severity = none            #
 dotnet_diagnostic.CA1303.severity = none            #
-dotnet_diagnostic.SA1615.severity = none            # Element return value should be documented
 dotnet_diagnostic.CA1848.severity = none            # For improved performance
 dotnet_diagnostic.CA1819.severity = none            # Properties should not return arrays
 
+dotnet_diagnostic.MA0084.severity = none            # Local variable 'smtpHost' should not hide field
+
 dotnet_diagnostic.SA1611.severity = none            # The documentation for parameter 'pet' is missing
+dotnet_diagnostic.SA1615.severity = none            # Element return value should be documented
 
 dotnet_diagnostic.S6580.severity = none             # Use a format provider when parsing date and time.
 dotnet_diagnostic.S6667.severity = none             # Logging in a catch clause should pass the caught exception as a parameter.

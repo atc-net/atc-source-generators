@@ -61,9 +61,12 @@ This roadmap is based on comprehensive analysis of:
 - **Smart naming** - Generate unique extension method names (`AddDependencyRegistrationsFromDomain()`)
 - **Transitive registration** - 4 overloads support automatic or selective assembly registration
 - **Hosted service detection** - Automatically uses `AddHostedService<T>()` for `BackgroundService` and `IHostedService`
+- **Generic interface registration** - Support open generic types like `IRepository<T>`, `IHandler<TRequest, TResponse>`
+- **Keyed service registration** - Multiple implementations with keys (.NET 8+)
+- **Factory method registration** - Custom initialization logic via static factory methods
 - **Lifetime support** - Singleton (default), Scoped, Transient
 - **Multi-project support** - Assembly-specific extension methods
-- **Compile-time validation** - Diagnostics for invalid configurations
+- **Compile-time validation** - Diagnostics for invalid configurations (ATCDIR001-006)
 - **Native AOT compatible** - Zero reflection, compile-time generation
 
 ---
@@ -172,7 +175,7 @@ public class CheckoutService
 ### 3. Factory Method Registration
 
 **Priority**: 🟡 **Medium-High**
-**Status**: ❌ Not Implemented
+**Status**: ✅ **Implemented** (v1.1)
 **Inspiration**: Microsoft.Extensions.DependencyInjection factories, Jab's custom instantiation
 
 **Description**: Support registering services via factory methods for complex initialization logic.
@@ -183,15 +186,15 @@ public class CheckoutService
 **Example**:
 
 ```csharp
-[Registration(As = typeof(IEmailSender), Factory = nameof(CreateEmailSender))]
-public partial class EmailSender : IEmailSender
+[Registration(Lifetime.Scoped, As = typeof(IEmailSender), Factory = nameof(CreateEmailSender))]
+public class EmailSender : IEmailSender
 {
-    private readonly string _apiKey;
+    private readonly string apiKey;
 
-    private EmailSender(string apiKey) => _apiKey = apiKey;
+    private EmailSender(string apiKey) => this.apiKey = apiKey;
 
     // Factory method signature: static T Create(IServiceProvider provider)
-    private static EmailSender CreateEmailSender(IServiceProvider provider)
+    public static IEmailSender CreateEmailSender(IServiceProvider provider)
     {
         var config = provider.GetRequiredService<IConfiguration>();
         var apiKey = config["EmailSettings:ApiKey"] ?? throw new InvalidOperationException();
@@ -207,10 +210,14 @@ services.AddScoped<IEmailSender>(sp => EmailSender.CreateEmailSender(sp));
 
 **Implementation Notes**:
 
-- Factory method must be `static` and return the service type
-- Accept `IServiceProvider` parameter for dependency resolution
-- Support both instance factories and delegate factories
-- Validate factory method signature at compile time
+- ✅ Added `Factory` property to `[Registration]` attribute
+- ✅ Factory method must be `static` and return the service type (interface or class)
+- ✅ Factory method must accept `IServiceProvider` as single parameter
+- ✅ Validates factory method signature at compile time
+- ✅ Generates factory delegate registration: `services.Add{Lifetime}<T>(sp => Class.Factory(sp))`
+- ✅ Works with all lifetimes (Singleton, Scoped, Transient)
+- ✅ Supports registering as interface, as self, or multiple interfaces
+- ✅ Diagnostics: ATCDIR005 (factory method not found), ATCDIR006 (invalid signature)
 
 ---
 
@@ -507,29 +514,29 @@ These features either conflict with design principles or are too complex.
 
 Based on priority, user demand, and implementation complexity:
 
-### Phase 1: Essential Features (v1.1 - Q1 2025)
+### Phase 1: Essential Features (v1.1 - Q1 2025) ✅ COMPLETED
 
-**Goal**: Support advanced DI patterns (generics, keyed services)
+**Goal**: Support advanced DI patterns (generics, keyed services, factory methods)
 
-1. **Generic Interface Registration** 🔴 Critical - `IRepository<T>`, `IHandler<TRequest, TResponse>`
-2. **Keyed Service Registration** 🔴 High - Multiple implementations with keys (.NET 8+)
-3. **TryAdd* Registration** 🟡 Medium - Conditional registration for library scenarios
+1. ✅ **Generic Interface Registration** 🔴 Critical - `IRepository<T>`, `IHandler<TRequest, TResponse>`
+2. ✅ **Keyed Service Registration** 🔴 High - Multiple implementations with keys (.NET 8+)
+3. ✅ **Factory Method Registration** 🟡 Medium-High - Custom initialization logic
 
-**Estimated effort**: 4-5 weeks
-**Impact**: Unlock repository pattern, multi-tenant scenarios, plugin architectures
+**Status**: ✅ COMPLETED (January 2025)
+**Impact**: Unlock repository pattern, multi-tenant scenarios, plugin architectures, complex initialization
 
 ---
 
 ### Phase 2: Flexibility & Control (v1.2 - Q2 2025)
 
-**Goal**: Factory methods and filtering
+**Goal**: Conditional registration and filtering
 
-4. **Factory Method Registration** 🟡 Medium-High - Custom initialization logic
+4. **TryAdd* Registration** 🟡 Medium - Conditional registration for library scenarios
 5. **Assembly Scanning Filters** 🟡 Medium - Exclude namespaces/patterns from transitive registration
 6. **Multi-Interface Registration** 🟢 Low - Selective interface registration
 
 **Estimated effort**: 3-4 weeks
-**Impact**: Complex initialization scenarios, better control over transitive registration
+**Impact**: Better control over transitive registration, library author support
 
 ---
 
@@ -559,18 +566,18 @@ Based on priority, user demand, and implementation complexity:
 
 ### Feature Prioritization Matrix
 
-| Feature | Priority | User Demand | Complexity | Phase |
-|---------|----------|-------------|------------|-------|
-| Generic Interface Registration | 🔴 Critical | ⭐⭐⭐ | High | 1.1 |
-| Keyed Service Registration | 🔴 High | ⭐⭐⭐ | Medium | 1.1 |
-| TryAdd* Registration | 🟡 Medium | ⭐⭐ | Low | 1.1 |
-| Factory Method Registration | 🟡 Med-High | ⭐⭐ | Medium | 1.2 |
-| Assembly Scanning Filters | 🟡 Medium | ⭐⭐ | Medium | 1.2 |
-| Multi-Interface Registration | 🟢 Low | ⭐ | Low | 1.2 |
-| Registration Validation | 🟡 Medium | ⭐⭐ | High | 1.3 |
-| Conditional Registration | 🟢 Low-Med | ⭐ | Medium | 1.3 |
-| Decorator Pattern | 🟢 Low-Med | ⭐⭐⭐ | Very High | 2.0 |
-| Convention-Based Discovery | 🟢 Low-Med | ⭐⭐ | Medium | 2.0 |
+| Feature | Priority | User Demand | Complexity | Phase | Status |
+|---------|----------|-------------|------------|-------|--------|
+| Generic Interface Registration | 🔴 Critical | ⭐⭐⭐ | High | 1.1 | ✅ Done |
+| Keyed Service Registration | 🔴 High | ⭐⭐⭐ | Medium | 1.1 | ✅ Done |
+| Factory Method Registration | 🟡 Med-High | ⭐⭐ | Medium | 1.1 | ✅ Done |
+| TryAdd* Registration | 🟡 Medium | ⭐⭐ | Low | 1.2 | 📋 Planned |
+| Assembly Scanning Filters | 🟡 Medium | ⭐⭐ | Medium | 1.2 | 📋 Planned |
+| Multi-Interface Registration | 🟢 Low | ⭐ | Low | 1.2 | 📋 Planned |
+| Registration Validation | 🟡 Medium | ⭐⭐ | High | 1.3 | 📋 Planned |
+| Conditional Registration | 🟢 Low-Med | ⭐ | Medium | 1.3 | 📋 Planned |
+| Decorator Pattern | 🟢 Low-Med | ⭐⭐⭐ | Very High | 2.0 | 📋 Planned |
+| Convention-Based Discovery | 🟢 Low-Med | ⭐⭐ | Medium | 2.0 | 📋 Planned |
 
 ---
 
