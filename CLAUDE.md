@@ -107,6 +107,7 @@ Both generators follow the **Incremental Generator** pattern (IIncrementalGenera
 - **Factory method registration** - Custom initialization logic via static factory methods
 - **TryAdd registration** - Conditional registration for default implementations (library pattern)
 - **Assembly scanning filters** - Exclude types by namespace, pattern (wildcards), or interface implementation
+- **Runtime filtering** - Exclude services when calling registration methods via optional parameters (different apps, different service subsets)
 - Supports explicit `As` parameter to override auto-detection
 - Generates `AddDependencyRegistrationsFrom{SmartSuffix}()` extension methods with 4 overloads
 - **Smart naming** - uses short suffix if unique, full name if conflicts exist
@@ -194,6 +195,45 @@ Assembly-level filters allow excluding types from automatic registration during 
 - **Interface filtering**: Uses `SymbolEqualityComparer` for proper generic type comparison
 - **Multiple filters**: All filter attributes are combined (union of all exclusions)
 - **Applied globally**: Filters apply to both current assembly and referenced assemblies during transitive registration
+
+**Runtime Filtering:**
+Runtime filters allow excluding services when calling the registration methods, rather than at compile time. All generated methods support three optional filter parameters:
+
+```csharp
+// Exclude specific types
+services.AddDependencyRegistrationsFromDomain(
+    excludedTypes: new[] { typeof(EmailService), typeof(SmsService) });
+
+// Exclude by namespace (including sub-namespaces)
+services.AddDependencyRegistrationsFromDomain(
+    excludedNamespaces: new[] { "MyApp.Domain.Internal" });
+
+// Exclude by pattern (wildcards: * and ?)
+services.AddDependencyRegistrationsFromDomain(
+    excludedPatterns: new[] { "*Mock*", "*Test*" });
+
+// Combine all three
+services.AddDependencyRegistrationsFromDomain(
+    excludedNamespaces: new[] { "MyApp.Internal" },
+    excludedPatterns: new[] { "*Test*" },
+    excludedTypes: new[] { typeof(LegacyService) });
+
+// Works with transitive registration too
+services.AddDependencyRegistrationsFromDomain(
+    includeReferencedAssemblies: true,
+    excludedTypes: new[] { typeof(EmailService) });
+```
+
+**How Runtime Filtering Works:**
+- **Applied at registration**: Filters are evaluated when services are being added to the container
+- **Application-specific**: Different applications can exclude different services from the same library
+- **Propagated**: Filters are automatically passed to referenced assembly calls
+- **Generic type support**: Properly handles generic types using `typeof(Repository<>)` syntax
+- **Complement to compile-time**: Use compile-time filters for global exclusions, runtime for application-specific
+
+**Runtime vs Compile-Time Filtering:**
+- Compile-time (assembly-level): Fixed at build time, applies to ALL registrations from that assembly
+- Runtime (method parameters): Flexible per application, allows different apps to exclude different services
 
 **Diagnostics:**
 - `ATCDIR001` - Service 'As' type must be an interface (Error)

@@ -710,6 +710,9 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
         sb.AppendLineLf("public static class ServiceCollectionExtensions");
         sb.AppendLineLf("{");
 
+        // Generate runtime filtering helper method
+        GenerateRuntimeFilteringHelper(sb);
+
         // Overload 1: Default (existing behavior, no transitive calls)
         GenerateDefaultOverload(sb, methodName, assemblyName, services);
 
@@ -728,6 +731,84 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
         return sb.ToString();
     }
 
+    private static void GenerateRuntimeFilteringHelper(StringBuilder sb)
+    {
+        sb.AppendLineLf("    /// <summary>");
+        sb.AppendLineLf("    /// Determines if a service type should be excluded from registration based on runtime filters.");
+        sb.AppendLineLf("    /// </summary>");
+        sb.AppendLineLf("    private static bool ShouldExcludeService(");
+        sb.AppendLineLf("        global::System.Type serviceType,");
+        sb.AppendLineLf("        global::System.Collections.Generic.IEnumerable<string>? excludedNamespaces,");
+        sb.AppendLineLf("        global::System.Collections.Generic.IEnumerable<string>? excludedPatterns,");
+        sb.AppendLineLf("        global::System.Collections.Generic.IEnumerable<global::System.Type>? excludedTypes)");
+        sb.AppendLineLf("    {");
+        sb.AppendLineLf("        // Check if explicitly excluded by type");
+        sb.AppendLineLf("        if (excludedTypes != null)");
+        sb.AppendLineLf("        {");
+        sb.AppendLineLf("            foreach (var excludedType in excludedTypes)");
+        sb.AppendLineLf("            {");
+        sb.AppendLineLf("                if (serviceType == excludedType || serviceType.IsAssignableFrom(excludedType))");
+        sb.AppendLineLf("                {");
+        sb.AppendLineLf("                    return true;");
+        sb.AppendLineLf("                }");
+        sb.AppendLineLf("            }");
+        sb.AppendLineLf("        }");
+        sb.AppendLineLf();
+        sb.AppendLineLf("        // Check namespace exclusion");
+        sb.AppendLineLf("        if (excludedNamespaces != null && serviceType.Namespace != null)");
+        sb.AppendLineLf("        {");
+        sb.AppendLineLf("            foreach (var excludedNs in excludedNamespaces)");
+        sb.AppendLineLf("            {");
+        sb.AppendLineLf("                // Exact match or sub-namespace match");
+        sb.AppendLineLf("                if (serviceType.Namespace.Equals(excludedNs, global::System.StringComparison.Ordinal) ||");
+        sb.AppendLineLf("                    serviceType.Namespace.StartsWith($\"{excludedNs}.\", global::System.StringComparison.Ordinal))");
+        sb.AppendLineLf("                {");
+        sb.AppendLineLf("                    return true;");
+        sb.AppendLineLf("                }");
+        sb.AppendLineLf("            }");
+        sb.AppendLineLf("        }");
+        sb.AppendLineLf();
+        sb.AppendLineLf("        // Check pattern exclusion (wildcard matching)");
+        sb.AppendLineLf("        if (excludedPatterns != null)");
+        sb.AppendLineLf("        {");
+        sb.AppendLineLf("            var typeName = serviceType.Name;");
+        sb.AppendLineLf("            var fullTypeName = serviceType.FullName ?? serviceType.Name;");
+        sb.AppendLineLf();
+        sb.AppendLineLf("            foreach (var pattern in excludedPatterns)");
+        sb.AppendLineLf("            {");
+        sb.AppendLineLf("                if (MatchesPattern(typeName, pattern) || MatchesPattern(fullTypeName, pattern))");
+        sb.AppendLineLf("                {");
+        sb.AppendLineLf("                    return true;");
+        sb.AppendLineLf("                }");
+        sb.AppendLineLf("            }");
+        sb.AppendLineLf("        }");
+        sb.AppendLineLf();
+        sb.AppendLineLf("        return false;");
+        sb.AppendLineLf("    }");
+        sb.AppendLineLf();
+        sb.AppendLineLf("    /// <summary>");
+        sb.AppendLineLf("    /// Matches a string against a wildcard pattern.");
+        sb.AppendLineLf("    /// Supports * (any characters) and ? (single character).");
+        sb.AppendLineLf("    /// </summary>");
+        sb.AppendLineLf("    private static bool MatchesPattern(");
+        sb.AppendLineLf("        string value,");
+        sb.AppendLineLf("        string pattern)");
+        sb.AppendLineLf("    {");
+        sb.AppendLineLf("        // Convert wildcard pattern to regex");
+        sb.AppendLineLf("        var escapedPattern = global::System.Text.RegularExpressions.Regex.Escape(pattern);");
+        sb.AppendLineLf("        var replacedStars = escapedPattern.Replace(\"\\\\*\", \".*\");");
+        sb.AppendLineLf("        var replacedQuestions = replacedStars.Replace(\"\\\\?\", \".\");");
+        sb.AppendLineLf("        var regexPattern = $\"^{replacedQuestions}$\";");
+        sb.AppendLineLf();
+        sb.AppendLineLf("        return global::System.Text.RegularExpressions.Regex.IsMatch(");
+        sb.AppendLineLf("            value,");
+        sb.AppendLineLf("            regexPattern,");
+        sb.AppendLineLf("            global::System.Text.RegularExpressions.RegexOptions.IgnoreCase,");
+        sb.AppendLineLf("            global::System.TimeSpan.FromSeconds(1));");
+        sb.AppendLineLf("    }");
+        sb.AppendLineLf();
+    }
+
     private static void GenerateDefaultOverload(
         StringBuilder sb,
         string methodName,
@@ -738,11 +819,18 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
         sb.AppendLineLf($"    /// Registers all services from {assemblyName} that are decorated with [Registration] attribute.");
         sb.AppendLineLf("    /// </summary>");
         sb.AppendLineLf("    /// <param name=\"services\">The service collection.</param>");
+        sb.AppendLineLf("    /// <param name=\"excludedNamespaces\">Optional. Namespaces to exclude from registration.</param>");
+        sb.AppendLineLf("    /// <param name=\"excludedPatterns\">Optional. Wildcard patterns (* and ?) to exclude types by name.</param>");
+        sb.AppendLineLf("    /// <param name=\"excludedTypes\">Optional. Specific types to exclude from registration.</param>");
         sb.AppendLineLf("    /// <returns>The service collection for chaining.</returns>");
-        sb.AppendLineLf($"    public static IServiceCollection {methodName}(this IServiceCollection services)");
+        sb.AppendLineLf($"    public static IServiceCollection {methodName}(");
+        sb.AppendLineLf("        this IServiceCollection services,");
+        sb.AppendLineLf("        global::System.Collections.Generic.IEnumerable<string>? excludedNamespaces = null,");
+        sb.AppendLineLf("        global::System.Collections.Generic.IEnumerable<string>? excludedPatterns = null,");
+        sb.AppendLineLf("        global::System.Collections.Generic.IEnumerable<global::System.Type>? excludedTypes = null)");
         sb.AppendLineLf("    {");
 
-        GenerateServiceRegistrationCalls(sb, services);
+        GenerateServiceRegistrationCalls(sb, services, includeRuntimeFiltering: true);
 
         sb.AppendLineLf();
         sb.AppendLineLf("        return services;");
@@ -763,10 +851,16 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
         sb.AppendLineLf("    /// </summary>");
         sb.AppendLineLf("    /// <param name=\"services\">The service collection.</param>");
         sb.AppendLineLf("    /// <param name=\"includeReferencedAssemblies\">If true, also registers services from all referenced assemblies with [Registration] attributes.</param>");
+        sb.AppendLineLf("    /// <param name=\"excludedNamespaces\">Optional. Namespaces to exclude from registration.</param>");
+        sb.AppendLineLf("    /// <param name=\"excludedPatterns\">Optional. Wildcard patterns (* and ?) to exclude types by name.</param>");
+        sb.AppendLineLf("    /// <param name=\"excludedTypes\">Optional. Specific types to exclude from registration.</param>");
         sb.AppendLineLf("    /// <returns>The service collection for chaining.</returns>");
         sb.AppendLineLf($"    public static IServiceCollection {methodName}(");
         sb.AppendLineLf("        this IServiceCollection services,");
-        sb.AppendLineLf("        bool includeReferencedAssemblies)");
+        sb.AppendLineLf("        bool includeReferencedAssemblies,");
+        sb.AppendLineLf("        global::System.Collections.Generic.IEnumerable<string>? excludedNamespaces = null,");
+        sb.AppendLineLf("        global::System.Collections.Generic.IEnumerable<string>? excludedPatterns = null,");
+        sb.AppendLineLf("        global::System.Collections.Generic.IEnumerable<global::System.Type>? excludedTypes = null)");
         sb.AppendLineLf("    {");
         sb.AppendLineLf("        if (includeReferencedAssemblies)");
         sb.AppendLineLf("        {");
@@ -780,13 +874,13 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
         {
             var refSmartSuffix = GetSmartMethodSuffixFromContext(refAssembly.AssemblyName, allAssemblies);
             var refMethodName = $"AddDependencyRegistrationsFrom{refSmartSuffix}";
-            sb.AppendLineLf($"            services.{refMethodName}(includeReferencedAssemblies: true);");
+            sb.AppendLineLf($"            services.{refMethodName}(includeReferencedAssemblies: true, excludedNamespaces: excludedNamespaces, excludedPatterns: excludedPatterns, excludedTypes: excludedTypes);");
         }
 
         sb.AppendLineLf("        }");
         sb.AppendLineLf();
 
-        GenerateServiceRegistrationCalls(sb, services);
+        GenerateServiceRegistrationCalls(sb, services, includeRuntimeFiltering: true);
 
         sb.AppendLineLf();
         sb.AppendLineLf("        return services;");
@@ -808,10 +902,16 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
         sb.AppendLineLf("    /// </summary>");
         sb.AppendLineLf("    /// <param name=\"services\">The service collection.</param>");
         sb.AppendLineLf("    /// <param name=\"referencedAssemblyName\">The name of the referenced assembly to include (full name or short name).</param>");
+        sb.AppendLineLf("    /// <param name=\"excludedNamespaces\">Optional. Namespaces to exclude from registration.</param>");
+        sb.AppendLineLf("    /// <param name=\"excludedPatterns\">Optional. Wildcard patterns (* and ?) to exclude types by name.</param>");
+        sb.AppendLineLf("    /// <param name=\"excludedTypes\">Optional. Specific types to exclude from registration.</param>");
         sb.AppendLineLf("    /// <returns>The service collection for chaining.</returns>");
         sb.AppendLineLf($"    public static IServiceCollection {methodName}(");
         sb.AppendLineLf("        this IServiceCollection services,");
-        sb.AppendLineLf("        string referencedAssemblyName)");
+        sb.AppendLineLf("        string referencedAssemblyName,");
+        sb.AppendLineLf("        global::System.Collections.Generic.IEnumerable<string>? excludedNamespaces = null,");
+        sb.AppendLineLf("        global::System.Collections.Generic.IEnumerable<string>? excludedPatterns = null,");
+        sb.AppendLineLf("        global::System.Collections.Generic.IEnumerable<global::System.Type>? excludedTypes = null)");
         sb.AppendLineLf("    {");
 
         // Build context for smart suffix calculation
@@ -830,12 +930,12 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
             sb.AppendLineLf($"        if (string.Equals(referencedAssemblyName, \"{refAssembly.AssemblyName}\", global::System.StringComparison.OrdinalIgnoreCase) ||");
             sb.AppendLineLf($"            string.Equals(referencedAssemblyName, \"{refAssembly.ShortName}\", global::System.StringComparison.OrdinalIgnoreCase))");
             sb.AppendLineLf("        {");
-            sb.AppendLineLf($"            services.{refMethodName}(referencedAssemblyName);");
+            sb.AppendLineLf($"            services.{refMethodName}(referencedAssemblyName, excludedNamespaces: excludedNamespaces, excludedPatterns: excludedPatterns, excludedTypes: excludedTypes);");
             sb.AppendLineLf("        }");
             sb.AppendLineLf();
         }
 
-        GenerateServiceRegistrationCalls(sb, services);
+        GenerateServiceRegistrationCalls(sb, services, includeRuntimeFiltering: true);
 
         sb.AppendLineLf();
         sb.AppendLineLf("        return services;");
@@ -856,10 +956,16 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
         sb.AppendLineLf("    /// optionally including specific referenced assemblies.");
         sb.AppendLineLf("    /// </summary>");
         sb.AppendLineLf("    /// <param name=\"services\">The service collection.</param>");
+        sb.AppendLineLf("    /// <param name=\"excludedNamespaces\">Optional. Namespaces to exclude from registration.</param>");
+        sb.AppendLineLf("    /// <param name=\"excludedPatterns\">Optional. Wildcard patterns (* and ?) to exclude types by name.</param>");
+        sb.AppendLineLf("    /// <param name=\"excludedTypes\">Optional. Specific types to exclude from registration.</param>");
         sb.AppendLineLf("    /// <param name=\"referencedAssemblyNames\">The names of the referenced assemblies to include (full names or short names).</param>");
         sb.AppendLineLf("    /// <returns>The service collection for chaining.</returns>");
         sb.AppendLineLf($"    public static IServiceCollection {methodName}(");
         sb.AppendLineLf("        this IServiceCollection services,");
+        sb.AppendLineLf("        global::System.Collections.Generic.IEnumerable<string>? excludedNamespaces = null,");
+        sb.AppendLineLf("        global::System.Collections.Generic.IEnumerable<string>? excludedPatterns = null,");
+        sb.AppendLineLf("        global::System.Collections.Generic.IEnumerable<global::System.Type>? excludedTypes = null,");
         sb.AppendLineLf("        params string[] referencedAssemblyNames)");
         sb.AppendLineLf("    {");
         sb.AppendLineLf("        foreach (var name in referencedAssemblyNames)");
@@ -884,14 +990,14 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
             sb.AppendLineLf($"            {ifKeyword} (string.Equals(name, \"{refAssembly.AssemblyName}\", global::System.StringComparison.OrdinalIgnoreCase) ||");
             sb.AppendLineLf($"                string.Equals(name, \"{refAssembly.ShortName}\", global::System.StringComparison.OrdinalIgnoreCase))");
             sb.AppendLineLf("            {");
-            sb.AppendLineLf($"                services.{refMethodName}(referencedAssemblyNames);");
+            sb.AppendLineLf($"                services.{refMethodName}(excludedNamespaces: excludedNamespaces, excludedPatterns: excludedPatterns, excludedTypes: excludedTypes, referencedAssemblyNames: referencedAssemblyNames);");
             sb.AppendLineLf("            }");
         }
 
         sb.AppendLineLf("        }");
         sb.AppendLineLf();
 
-        GenerateServiceRegistrationCalls(sb, services);
+        GenerateServiceRegistrationCalls(sb, services, includeRuntimeFiltering: true);
 
         sb.AppendLineLf();
         sb.AppendLineLf("        return services;");
@@ -900,7 +1006,8 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
 
     private static void GenerateServiceRegistrationCalls(
         StringBuilder sb,
-        List<ServiceRegistrationInfo> services)
+        List<ServiceRegistrationInfo> services,
+        bool includeRuntimeFiltering = false)
     {
         foreach (var service in services)
         {
@@ -910,6 +1017,19 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
             var keyString = FormatKeyValue(service.Key);
 
             var hasFactory = !string.IsNullOrEmpty(service.FactoryMethodName);
+
+            // Generate runtime filtering check if enabled
+            if (includeRuntimeFiltering)
+            {
+                var typeForExclusion = isGeneric
+                    ? $"typeof({GetOpenGenericTypeName(service.ClassSymbol)})"
+                    : $"typeof({implementationType})";
+
+                sb.AppendLineLf();
+                sb.AppendLineLf($"        // Check runtime exclusions for {service.ClassSymbol.Name}");
+                sb.AppendLineLf($"        if (!ShouldExcludeService({typeForExclusion}, excludedNamespaces, excludedPatterns, excludedTypes))");
+                sb.AppendLineLf("        {");
+            }
 
             // Hosted services use AddHostedService instead of regular lifetime methods
             if (service.IsHostedService)
@@ -1086,6 +1206,12 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
                         }
                     }
                 }
+            }
+
+            // Close runtime filtering check if enabled
+            if (includeRuntimeFiltering)
+            {
+                sb.AppendLineLf("        }");
             }
         }
     }
