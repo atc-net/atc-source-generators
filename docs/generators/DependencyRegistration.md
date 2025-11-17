@@ -45,6 +45,9 @@ Automatically register services in the dependency injection container using attr
   - [❌ ATCDIR004: Hosted Services Must Use Singleton Lifetime](#-ATCDIR004-hosted-services-must-use-singleton-lifetime)
 - [🔷 Generic Interface Registration](#-generic-interface-registration)
 - [🔑 Keyed Service Registration](#-keyed-service-registration)
+- [🏭 Factory Method Registration](#-factory-method-registration)
+- [🔄 TryAdd* Registration](#-tryadd-registration)
+- [🚫 Assembly Scanning Filters](#-assembly-scanning-filters)
 - [📚 Additional Examples](#-additional-examples)
 
 ---
@@ -610,6 +613,9 @@ builder.Services.AddDependencyRegistrationsFromApi();
 - **Automatic Service Registration**: Decorate classes with `[Registration]` attribute for automatic DI registration
 - **Generic Interface Registration**: Full support for open generic types like `IRepository<T>` and `IHandler<TRequest, TResponse>` 🆕
 - **Keyed Service Registration**: Multiple implementations of the same interface with different keys (.NET 8+) 🆕
+- **Factory Method Registration**: Custom initialization logic via static factory methods 🆕
+- **TryAdd* Registration**: Conditional registration for default implementations (library pattern) 🆕
+- **Assembly Scanning Filters**: Exclude types by namespace, pattern (wildcards), or interface implementation 🆕
 - **Hosted Service Support**: Automatically detects `BackgroundService` and `IHostedService` implementations and uses `AddHostedService<T>()`
 - **Interface Auto-Detection**: Automatically registers against all implemented interfaces (no `As` parameter needed!)
 - **Smart Filtering**: System interfaces (IDisposable, etc.) are automatically excluded
@@ -1030,6 +1036,9 @@ var app = builder.Build();
 | `lifetime` | `Lifetime` | `Singleton` | Service lifetime (Singleton, Scoped, or Transient) |
 | `As` | `Type?` | `null` | Explicit interface type to register against (overrides auto-detection) |
 | `AsSelf` | `bool` | `false` | Also register the concrete type when interfaces are detected/specified |
+| `Key` | `object?` | `null` | Service key for keyed service registration (.NET 8+) |
+| `Factory` | `string?` | `null` | Name of static factory method for custom initialization |
+| `TryAdd` | `bool` | `false` | Use TryAdd* methods for conditional registration (library pattern) |
 
 ### 📝 Examples
 
@@ -1049,8 +1058,17 @@ var app = builder.Build();
 // Also register concrete type
 [Registration(AsSelf = true)]
 
+// Keyed service
+[Registration(Key = "Primary", As = typeof(ICache))]
+
+// Factory method
+[Registration(Factory = nameof(Create))]
+
+// TryAdd registration
+[Registration(TryAdd = true)]
+
 // All parameters
-[Registration(Lifetime.Scoped, As = typeof(IService), AsSelf = true)]
+[Registration(Lifetime.Scoped, As = typeof(IService), AsSelf = true, TryAdd = true)]
 ```
 
 ---
@@ -1437,6 +1455,496 @@ public static string Create(IServiceProvider sp) => "wrong";
 ```csharp
 // ✅ Correct: static, accepts IServiceProvider, returns service type
 public static IMyService Create(IServiceProvider sp) => new MyService();
+```
+
+---
+
+## 🔄 TryAdd* Registration
+
+TryAdd* registration enables conditional service registration that only adds services if they're not already registered. This is particularly useful for library authors who want to provide default implementations that can be easily overridden by application code.
+
+### Basic TryAdd Registration
+
+```csharp
+[Registration(As = typeof(ILogger), TryAdd = true)]
+public class DefaultLogger : ILogger
+{
+    public void Log(string message)
+    {
+        Console.WriteLine($"[DefaultLogger] {message}");
+    }
+}
+```
+
+**Generated Code:**
+```csharp
+services.TryAddSingleton<ILogger, DefaultLogger>();
+```
+
+### How TryAdd Works
+
+When `TryAdd = true`, the generator uses `TryAdd{Lifetime}()` methods instead of `Add{Lifetime}()`:
+
+- `TryAddSingleton<T>()` - Only registers if no `T` is already registered
+- `TryAddScoped<T>()` - Only registers if no `T` is already registered
+- `TryAddTransient<T>()` - Only registers if no `T` is already registered
+
+This allows consumers to override default implementations:
+
+```csharp
+// Application code (runs BEFORE library registration)
+services.AddSingleton<ILogger, CustomLogger>();  // This takes precedence
+
+// Library registration (uses TryAdd)
+services.AddDependencyRegistrationsFromLibrary();
+// DefaultLogger will NOT be registered because CustomLogger is already registered
+```
+
+### Library Author Pattern
+
+TryAdd is perfect for libraries that want to provide sensible defaults:
+
+```csharp
+// Library code: PetStore.Domain
+namespace PetStore.Domain.Services;
+
+[Registration(Lifetime.Singleton, As = typeof(IHealthCheck), TryAdd = true)]
+public class DefaultHealthCheck : IHealthCheck
+{
+    public Task<bool> CheckHealthAsync()
+    {
+        Console.WriteLine("DefaultHealthCheck: Performing basic health check (always healthy)");
+        return Task.FromResult(true);
+    }
+}
+```
+
+**Consumer can override:**
+```csharp
+// Application code
+services.AddSingleton<IHealthCheck, AdvancedHealthCheck>();  // Custom implementation
+services.AddDependencyRegistrationsFromDomain();  // DefaultHealthCheck won't be added
+```
+
+**Or consumer can use default:**
+```csharp
+// Application code
+services.AddDependencyRegistrationsFromDomain();  // DefaultHealthCheck is added
+```
+
+### TryAdd with Different Lifetimes
+
+```csharp
+// Scoped with TryAdd
+[Registration(Lifetime.Scoped, As = typeof(ICache), TryAdd = true)]
+public class DefaultCache : ICache
+{
+    public string Get(string key) => /* implementation */;
+}
+
+// Transient with TryAdd
+[Registration(Lifetime.Transient, As = typeof(IMessageFormatter), TryAdd = true)]
+public class DefaultMessageFormatter : IMessageFormatter
+{
+    public string Format(string message) => /* implementation */;
+}
+```
+
+**Generated Code:**
+```csharp
+services.TryAddScoped<ICache, DefaultCache>();
+services.TryAddTransient<IMessageFormatter, DefaultMessageFormatter>();
+```
+
+### TryAdd with Factory Methods
+
+TryAdd works seamlessly with factory methods:
+
+```csharp
+[Registration(Lifetime.Singleton, As = typeof(IEmailSender), TryAdd = true, Factory = nameof(CreateEmailSender))]
+public class DefaultEmailSender : IEmailSender
+{
+    private readonly string smtpHost;
+
+    private DefaultEmailSender(string smtpHost)
+    {
+        this.smtpHost = smtpHost;
+    }
+
+    public static IEmailSender CreateEmailSender(IServiceProvider provider)
+    {
+        var config = provider.GetRequiredService<IConfiguration>();
+        var host = config["Email:SmtpHost"] ?? "localhost";
+        return new DefaultEmailSender(host);
+    }
+
+    public Task SendEmailAsync(string to, string subject, string body)
+    {
+        // Implementation...
+    }
+}
+```
+
+**Generated Code:**
+```csharp
+services.TryAddSingleton<IEmailSender>(sp => DefaultEmailSender.CreateEmailSender(sp));
+```
+
+### TryAdd with Generic Types
+
+TryAdd supports generic interface registration:
+
+```csharp
+[Registration(Lifetime.Scoped, TryAdd = true)]
+public class DefaultRepository<T> : IRepository<T> where T : class
+{
+    public T? GetById(int id) => /* implementation */;
+    public IEnumerable<T> GetAll() => /* implementation */;
+}
+```
+
+**Generated Code:**
+```csharp
+services.TryAddScoped(typeof(IRepository<>), typeof(DefaultRepository<>));
+```
+
+### TryAdd with Multiple Interfaces
+
+When a service implements multiple interfaces, TryAdd is applied to each registration:
+
+```csharp
+[Registration(TryAdd = true)]
+public class DefaultNotificationService : IEmailNotificationService, ISmsNotificationService
+{
+    public Task SendEmailAsync(string email, string message) => /* implementation */;
+    public Task SendSmsAsync(string phoneNumber, string message) => /* implementation */;
+}
+```
+
+**Generated Code:**
+```csharp
+services.TryAddSingleton<IEmailNotificationService, DefaultNotificationService>();
+services.TryAddSingleton<ISmsNotificationService, DefaultNotificationService>();
+```
+
+### TryAdd Best Practices
+
+**When to Use TryAdd:**
+- ✅ Library projects providing default implementations
+- ✅ Fallback services that applications may want to customize
+- ✅ Services with sensible defaults but customizable behavior
+- ✅ Avoiding registration conflicts in modular applications
+
+**When NOT to Use TryAdd:**
+- ❌ Core application services that should always be registered
+- ❌ Services where registration order matters for business logic
+- ❌ When you need to explicitly override existing registrations (use regular registration)
+
+### Important Notes
+
+**Keyed Services:**
+TryAdd is **not supported** with keyed services. When both `Key` and `TryAdd` are specified, the generator will prioritize keyed registration and ignore `TryAdd`:
+
+```csharp
+// ⚠️ TryAdd is ignored when Key is specified
+[Registration(Key = "Primary", TryAdd = true)]
+public class PrimaryCache : ICache { }
+
+// Generated (keyed registration, no TryAdd):
+services.AddKeyedSingleton<ICache, PrimaryCache>("Primary");
+```
+
+**Registration Order:**
+For TryAdd to work correctly, ensure library registrations happen **after** application-specific registrations:
+
+```csharp
+// ✅ Correct order
+services.AddSingleton<ILogger, CustomLogger>();  // Application override
+services.AddDependencyRegistrationsFromLibrary();  // Library defaults (TryAdd)
+
+// ❌ Wrong order
+services.AddDependencyRegistrationsFromLibrary();  // Library defaults register first
+services.AddSingleton<ILogger, CustomLogger>();  // This creates a duplicate registration!
+```
+
+---
+
+## 🚫 Assembly Scanning Filters
+
+Assembly Scanning Filters allow you to exclude specific types, namespaces, or patterns from automatic registration. This is particularly useful for:
+- Excluding internal/test services from production builds
+- Preventing mock/stub services from being registered
+- Filtering out utilities that shouldn't be in the DI container
+
+### Basic Filter Usage
+
+Filters are applied using the `[RegistrationFilter]` attribute at the assembly level:
+
+```csharp
+using Atc.DependencyInjection;
+
+// Exclude internal services
+[assembly: RegistrationFilter(ExcludeNamespaces = new[] { "MyApp.Internal" })]
+
+// Your services
+namespace MyApp.Services
+{
+    [Registration]
+    public class ProductionService : IProductionService { } // ✅ Will be registered
+}
+
+namespace MyApp.Internal
+{
+    [Registration]
+    public class InternalService : IInternalService { } // ❌ Excluded by filter
+}
+```
+
+### Namespace Exclusion
+
+Exclude types in specific namespaces. Sub-namespaces are also excluded:
+
+```csharp
+[assembly: RegistrationFilter(ExcludeNamespaces = new[] {
+    "MyApp.Internal",
+    "MyApp.Testing",
+    "MyApp.Utilities"
+})]
+
+namespace MyApp.Services
+{
+    [Registration]
+    public class UserService : IUserService { } // ✅ Registered
+}
+
+namespace MyApp.Internal
+{
+    [Registration]
+    public class InternalCache : ICache { } // ❌ Excluded
+}
+
+namespace MyApp.Internal.Deep.Nested
+{
+    [Registration]
+    public class DeepService : IDeepService { } // ❌ Also excluded (sub-namespace)
+}
+```
+
+**How Namespace Filtering Works:**
+- Exact match: `"MyApp.Internal"` excludes types in that namespace
+- Sub-namespace match: Also excludes `"MyApp.Internal.Something"`, `"MyApp.Internal.Deep.Nested"`, etc.
+
+### Pattern Exclusion
+
+Exclude types whose names match wildcard patterns. Supports `*` (any characters) and `?` (single character):
+
+```csharp
+[assembly: RegistrationFilter(ExcludePatterns = new[] {
+    "*Mock*",     // Excludes MockEmailService, EmailMockService, etc.
+    "*Test*",     // Excludes TestHelper, UserTestService, etc.
+    "Temp*",      // Excludes TempService, TempCache, etc.
+    "Old?Data"    // Excludes OldAData, OldBData, but NOT OldAbcData
+})]
+
+namespace MyApp.Services
+{
+    [Registration]
+    public class ProductionEmailService : IEmailService { } // ✅ Registered
+
+    [Registration]
+    public class MockEmailService : IEmailService { } // ❌ Excluded (*Mock*)
+
+    [Registration]
+    public class UserTestHelper : ITestHelper { } // ❌ Excluded (*Test*)
+
+    [Registration]
+    public class TempCache : ICache { } // ❌ Excluded (Temp*)
+}
+```
+
+**Pattern Matching Rules:**
+- `*` matches zero or more characters
+- `?` matches exactly one character
+- Matching is case-insensitive
+- Patterns match against the type name (not the full namespace)
+
+### Interface Exclusion
+
+Exclude types that implement specific interfaces:
+
+```csharp
+[assembly: RegistrationFilter(ExcludeImplementing = new[] {
+    typeof(ITestUtility),
+    typeof(IInternalTool)
+})]
+
+namespace MyApp.Services
+{
+    public interface ITestUtility { }
+    public interface IProductionService { }
+
+    [Registration]
+    public class ProductionService : IProductionService { } // ✅ Registered
+
+    [Registration]
+    public class TestHelper : ITestUtility { } // ❌ Excluded (implements ITestUtility)
+
+    [Registration]
+    public class MockDatabase : IDatabase, ITestUtility { } // ❌ Excluded (implements ITestUtility)
+}
+```
+
+**How Interface Filtering Works:**
+- Checks all interfaces implemented by the type
+- Uses proper generic type comparison (`SymbolEqualityComparer`)
+- Works with generic interfaces like `IRepository<T>`
+
+### Combining Multiple Filters
+
+You can combine multiple filter types in a single attribute:
+
+```csharp
+[assembly: RegistrationFilter(
+    ExcludeNamespaces = new[] { "MyApp.Internal", "MyApp.Testing" },
+    ExcludePatterns = new[] { "*Mock*", "*Test*", "*Fake*" },
+    ExcludeImplementing = new[] { typeof(ITestUtility) })]
+
+// All filter rules are applied
+// A type is excluded if it matches ANY of the rules
+```
+
+### Multiple Filter Attributes
+
+You can also apply multiple `[RegistrationFilter]` attributes:
+
+```csharp
+// Filter 1: Exclude internal namespaces
+[assembly: RegistrationFilter(ExcludeNamespaces = new[] {
+    "MyApp.Internal"
+})]
+
+// Filter 2: Exclude test patterns
+[assembly: RegistrationFilter(ExcludePatterns = new[] {
+    "*Mock*",
+    "*Test*"
+})]
+
+// Filter 3: Exclude utility interfaces
+[assembly: RegistrationFilter(ExcludeImplementing = new[] {
+    typeof(ITestUtility)
+})]
+
+// All filters are combined
+```
+
+### Real-World Example
+
+Here's a complete example showing filters in action:
+
+```csharp
+// AssemblyInfo.cs
+using Atc.DependencyInjection;
+
+[assembly: RegistrationFilter(
+    ExcludeNamespaces = new[] {
+        "MyApp.Internal",
+        "MyApp.Development"
+    },
+    ExcludePatterns = new[] {
+        "*Mock*",
+        "*Test*",
+        "*Fake*",
+        "Temp*"
+    })]
+```
+
+```csharp
+// Production service - WILL be registered
+namespace MyApp.Services
+{
+    [Registration]
+    public class EmailService : IEmailService
+    {
+        public void SendEmail(string to, string message) { }
+    }
+}
+
+// Internal service - EXCLUDED by namespace
+namespace MyApp.Internal
+{
+    [Registration]
+    public class InternalCache : ICache { } // ❌ Excluded
+}
+
+// Mock service - EXCLUDED by pattern
+namespace MyApp.Services
+{
+    [Registration]
+    public class MockEmailService : IEmailService { } // ❌ Excluded
+}
+
+// Test helper - EXCLUDED by pattern
+namespace MyApp.Testing
+{
+    [Registration]
+    public class TestDataBuilder : ITestHelper { } // ❌ Excluded
+}
+```
+
+### Filter Priority and Behavior
+
+**Important Notes:**
+
+1. **Filters are applied first**: Types are filtered OUT before any registration happens
+2. **ANY match excludes**: If a type matches ANY filter rule, it's excluded
+3. **Applies to all registrations**: Filters affect both current assembly and referenced assemblies
+4. **No diagnostics for filtered types**: Filtered types are silently skipped (this is intentional)
+
+### Verification
+
+You can verify filters are working by trying to resolve filtered services:
+
+```csharp
+var services = new ServiceCollection();
+services.AddDependencyRegistrationsFromMyApp();
+
+var provider = services.BuildServiceProvider();
+
+// This will return null (service was filtered out)
+var mockService = provider.GetService<IMockEmailService>();
+Console.WriteLine($"MockEmailService registered: {mockService != null}"); // False
+
+// This will succeed (service was not filtered)
+var emailService = provider.GetRequiredService<IEmailService>();
+Console.WriteLine($"EmailService registered: {emailService != null}"); // True
+```
+
+### Best Practices
+
+**When to Use Filters:**
+- ✅ Excluding internal implementation details from DI
+- ✅ Preventing test/mock services from production builds
+- ✅ Filtering development-only utilities
+- ✅ Clean separation between production and development code
+
+**When NOT to Use Filters:**
+- ❌ Don't use filters as the primary way to control registration (use conditional compilation instead)
+- ❌ Don't create overly complex filter patterns that are hard to understand
+- ❌ Don't filter services that SHOULD be in DI but you forgot to configure properly
+
+**Recommended Patterns:**
+
+```csharp
+// ✅ Good: Clear, specific exclusions
+[assembly: RegistrationFilter(
+    ExcludeNamespaces = new[] { "MyApp.Internal" },
+    ExcludePatterns = new[] { "*Mock*", "*Test*" })]
+
+// ❌ Avoid: Overly broad patterns
+[assembly: RegistrationFilter(ExcludePatterns = new[] { "*" })] // Excludes everything!
+
+// ❌ Avoid: Filters as primary registration control
+// Instead of filtering, just don't add [Registration] attribute
 ```
 
 ---

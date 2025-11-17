@@ -105,6 +105,8 @@ Both generators follow the **Incremental Generator** pattern (IIncrementalGenera
 - **Generic interface registration** - Full support for open generic types like `IRepository<T>` and `IHandler<TRequest, TResponse>`
 - **Keyed service registration** - Multiple implementations of the same interface with different keys (.NET 8+)
 - **Factory method registration** - Custom initialization logic via static factory methods
+- **TryAdd registration** - Conditional registration for default implementations (library pattern)
+- **Assembly scanning filters** - Exclude types by namespace, pattern (wildcards), or interface implementation
 - Supports explicit `As` parameter to override auto-detection
 - Generates `AddDependencyRegistrationsFrom{SmartSuffix}()` extension methods with 4 overloads
 - **Smart naming** - uses short suffix if unique, full name if conflicts exist
@@ -126,6 +128,9 @@ Both generators follow the **Incremental Generator** pattern (IIncrementalGenera
 // Factory Input: [Registration(Lifetime.Scoped, As = typeof(IEmailSender), Factory = nameof(Create))]
 //                public static IEmailSender Create(IServiceProvider sp) => new EmailSender();
 // Factory Output: services.AddScoped<IEmailSender>(sp => EmailSender.Create(sp));
+
+// TryAdd Input: [Registration(As = typeof(ILogger), TryAdd = true)]
+// TryAdd Output: services.TryAddSingleton<ILogger, DefaultLogger>();
 
 // Hosted Service Input: [Registration] public class MaintenanceService : BackgroundService { }
 // Hosted Service Output: services.AddHostedService<MaintenanceService>();
@@ -161,6 +166,34 @@ services.AddDependencyRegistrationsFromDomain("DataAccess", "Infrastructure");
 - **Manual mode**: Only includes assemblies with matching prefix (e.g., "MyApp.*")
 - **Prefix filtering**: When using assembly names, only same-prefix assemblies are registered
 - **Silent skip**: Non-existent assemblies or assemblies without registrations are silently skipped
+
+**Assembly Scanning Filters:**
+Assembly-level filters allow excluding types from automatic registration during assembly scanning. Apply multiple `[RegistrationFilter]` attributes to exclude specific namespaces, naming patterns, or interface implementations.
+
+```csharp
+// AssemblyInfo.cs - Exclude by namespace
+[assembly: RegistrationFilter(
+    ExcludeNamespaces = new[] { "MyApp.Internal", "MyApp.Tests" })]
+
+// Exclude by pattern (wildcards: * = any characters, ? = single character)
+[assembly: RegistrationFilter(
+    ExcludePatterns = new[] { "*Mock*", "*Test*", "*Fake*" })]
+
+// Exclude types implementing specific interfaces
+[assembly: RegistrationFilter(
+    ExcludeImplementing = new[] { typeof(ITestUtility), typeof(IInternalService) })]
+
+// Multiple filters can be combined
+[assembly: RegistrationFilter(ExcludeNamespaces = new[] { "MyApp.Legacy" })]
+[assembly: RegistrationFilter(ExcludePatterns = new[] { "*Deprecated*" })]
+```
+
+**How Assembly Scanning Filters Work:**
+- **Namespace filtering**: Exact match or sub-namespace match (e.g., "MyApp.Internal" excludes "MyApp.Internal.Deep.Nested")
+- **Pattern matching**: Case-insensitive wildcard matching on both short type name and full type name
+- **Interface filtering**: Uses `SymbolEqualityComparer` for proper generic type comparison
+- **Multiple filters**: All filter attributes are combined (union of all exclusions)
+- **Applied globally**: Filters apply to both current assembly and referenced assemblies during transitive registration
 
 **Diagnostics:**
 - `ATCDIR001` - Service 'As' type must be an interface (Error)

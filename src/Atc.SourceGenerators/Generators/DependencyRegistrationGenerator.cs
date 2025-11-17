@@ -17,6 +17,8 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
     private const string AttributeNamespace = "Atc.DependencyInjection";
     private const string AttributeName = "RegistrationAttribute";
     private const string AttributeFullName = $"{AttributeNamespace}.{AttributeName}";
+    private const string FilterAttributeName = "RegistrationFilterAttribute";
+    private const string FilterAttributeFullName = $"{AttributeNamespace}.{FilterAttributeName}";
 
     private static readonly DiagnosticDescriptor AsTypeMustBeInterfaceDescriptor = new(
         id: RuleIdentifierConstants.DependencyInjection.AsTypeMustBeInterface,
@@ -163,6 +165,7 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
             var asSelf = false;
             object? key = null;
             string? factoryMethodName = null;
+            var tryAdd = false;
 
             // Constructor argument (lifetime)
             if (attributeData.ConstructorArguments.Length > 0)
@@ -174,7 +177,7 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
                 }
             }
 
-            // Named arguments (As, AsSelf, Key, Factory)
+            // Named arguments (As, AsSelf, Key, Factory, TryAdd)
             foreach (var namedArg in attributeData.NamedArguments)
             {
                 switch (namedArg.Key)
@@ -194,6 +197,13 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
                         break;
                     case "Factory":
                         factoryMethodName = namedArg.Value.Value as string;
+                        break;
+                    case "TryAdd":
+                        if (namedArg.Value.Value is bool tryAddValue)
+                        {
+                            tryAdd = tryAddValue;
+                        }
+
                         break;
                 }
             }
@@ -227,6 +237,7 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
                 isHostedService,
                 key,
                 factoryMethodName,
+                tryAdd,
                 classDeclaration.GetLocation());
         }
 
@@ -254,9 +265,12 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
                 continue;
             }
 
+            // Parse filter rules from the assembly
+            var filterRules = ParseFilterRules(assemblySymbol);
+
             // Check if this assembly contains any types with [Registration] attribute
             // Traverse all types in the assembly's global namespace
-            if (!HasRegistrationAttributeInNamespace(assemblySymbol.GlobalNamespace))
+            if (!HasRegistrationAttributeInNamespace(assemblySymbol.GlobalNamespace, filterRules))
             {
                 continue;
             }
@@ -273,8 +287,82 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
         return result.ToImmutableArray();
     }
 
+    private static FilterRules ParseFilterRules(IAssemblySymbol assemblySymbol)
+    {
+        var excludedNamespaces = new List<string>();
+        var excludedPatterns = new List<string>();
+        var excludedInterfaces = new List<ITypeSymbol>();
+
+        // Get all RegistrationFilter attributes on the assembly
+        foreach (var attribute in assemblySymbol.GetAttributes())
+        {
+            if (attribute.AttributeClass?.ToDisplayString() != FilterAttributeFullName)
+            {
+                continue;
+            }
+
+            // Parse named arguments
+            foreach (var namedArg in attribute.NamedArguments)
+            {
+                switch (namedArg.Key)
+                {
+                    case "ExcludeNamespaces":
+                        if (namedArg.Value.Kind == TypedConstantKind.Array &&
+                            !namedArg.Value.IsNull)
+                        {
+                            foreach (var value in namedArg.Value.Values)
+                            {
+                                if (value.Value is string ns)
+                                {
+                                    excludedNamespaces.Add(ns);
+                                }
+                            }
+                        }
+
+                        break;
+
+                    case "ExcludePatterns":
+                        if (namedArg.Value.Kind == TypedConstantKind.Array &&
+                            !namedArg.Value.IsNull)
+                        {
+                            foreach (var value in namedArg.Value.Values)
+                            {
+                                if (value.Value is string pattern)
+                                {
+                                    excludedPatterns.Add(pattern);
+                                }
+                            }
+                        }
+
+                        break;
+
+                    case "ExcludeImplementing":
+                        if (namedArg.Value.Kind == TypedConstantKind.Array &&
+                            !namedArg.Value.IsNull)
+                        {
+                            foreach (var value in namedArg.Value.Values)
+                            {
+                                if (value.Value is ITypeSymbol typeSymbol)
+                                {
+                                    excludedInterfaces.Add(typeSymbol);
+                                }
+                            }
+                        }
+
+                        break;
+                }
+            }
+        }
+
+        return new FilterRules(
+            excludedNamespaces.ToImmutableArray(),
+            excludedPatterns.ToImmutableArray(),
+            excludedInterfaces.ToImmutableArray());
+    }
+
     private static bool HasRegistrationAttributeInNamespace(
-        INamespaceSymbol namespaceSymbol)
+        INamespaceSymbol namespaceSymbol,
+        FilterRules filterRules)
     {
         // Check all types in this namespace
         foreach (var member in namespaceSymbol.GetMembers())
@@ -286,8 +374,10 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
                     // Check if this type has the [Registration] attribute
                     foreach (var attribute in typeSymbol.GetAttributes())
                     {
-                        if (attribute.AttributeClass?.ToDisplayString() == AttributeFullName)
+                        if (attribute.AttributeClass?.ToDisplayString() == AttributeFullName &&
+                            !filterRules.ShouldExclude(typeSymbol))
                         {
+                            // Check if this type should be excluded by filter rules
                             return true;
                         }
                     }
@@ -296,7 +386,7 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
                 }
 
                 case INamespaceSymbol childNamespace when
-                    HasRegistrationAttributeInNamespace(childNamespace):
+                    HasRegistrationAttributeInNamespace(childNamespace, filterRules):
                     return true;
             }
         }
@@ -314,11 +404,20 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
             return;
         }
 
+        // Parse filter rules from the current assembly
+        var filterRules = ParseFilterRules(compilation.Assembly);
+
         var validServices = new List<ServiceRegistrationInfo>();
 
-        // Validate and emit diagnostics
+        // Validate and emit diagnostics, and apply filters
         foreach (var service in services)
         {
+            // Check if service should be excluded by filter rules
+            if (filterRules.ShouldExclude(service.ClassSymbol))
+            {
+                continue;
+            }
+
             var isValid = ValidateService(service, context);
             if (isValid)
             {
@@ -601,6 +700,7 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
         sb.AppendLineLf("#nullable enable");
         sb.AppendLineLf();
         sb.AppendLineLf("using Microsoft.Extensions.DependencyInjection;");
+        sb.AppendLineLf("using Microsoft.Extensions.DependencyInjection.Extensions;");
         sb.AppendLineLf();
         sb.AppendLineLf("namespace Atc.DependencyInjection;");
         sb.AppendLineLf();
@@ -827,13 +927,21 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
             else if (hasFactory)
             {
                 // Factory method registration
-                var lifetimeMethod = service.Lifetime switch
-                {
-                    ServiceLifetime.Singleton => "AddSingleton",
-                    ServiceLifetime.Scoped => "AddScoped",
-                    ServiceLifetime.Transient => "AddTransient",
-                    _ => "AddSingleton",
-                };
+                var lifetimeMethod = service.TryAdd
+                    ? service.Lifetime switch
+                    {
+                        ServiceLifetime.Singleton => "TryAddSingleton",
+                        ServiceLifetime.Scoped => "TryAddScoped",
+                        ServiceLifetime.Transient => "TryAddTransient",
+                        _ => "TryAddSingleton",
+                    }
+                    : service.Lifetime switch
+                    {
+                        ServiceLifetime.Singleton => "AddSingleton",
+                        ServiceLifetime.Scoped => "AddScoped",
+                        ServiceLifetime.Transient => "AddTransient",
+                        _ => "AddSingleton",
+                    };
 
                 // Register against each interface using factory
                 if (service.AsTypes.Length > 0)
@@ -866,13 +974,21 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
                         ServiceLifetime.Transient => "AddKeyedTransient",
                         _ => "AddKeyedSingleton",
                     }
-                    : service.Lifetime switch
-                    {
-                        ServiceLifetime.Singleton => "AddSingleton",
-                        ServiceLifetime.Scoped => "AddScoped",
-                        ServiceLifetime.Transient => "AddTransient",
-                        _ => "AddSingleton",
-                    };
+                    : service.TryAdd
+                        ? service.Lifetime switch
+                        {
+                            ServiceLifetime.Singleton => "TryAddSingleton",
+                            ServiceLifetime.Scoped => "TryAddScoped",
+                            ServiceLifetime.Transient => "TryAddTransient",
+                            _ => "TryAddSingleton",
+                        }
+                        : service.Lifetime switch
+                        {
+                            ServiceLifetime.Singleton => "AddSingleton",
+                            ServiceLifetime.Scoped => "AddScoped",
+                            ServiceLifetime.Transient => "AddTransient",
+                            _ => "AddSingleton",
+                        };
 
                 // Register against each interface
                 if (service.AsTypes.Length > 0)
@@ -1155,6 +1271,96 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
                  /// </code>
                  /// </example>
                  public string? Factory { get; set; }
+
+                 /// <summary>
+                 /// Gets or sets a value indicating whether to use TryAdd registration.
+                 /// When true, the service is only registered if not already registered.
+                 /// </summary>
+                 /// <remarks>
+                 /// TryAdd registration is useful for library authors who want to provide default implementations
+                 /// that can be overridden by application code. If a service is already registered, TryAdd will
+                 /// skip the registration, allowing user code to take precedence.
+                 /// </remarks>
+                 /// <example>
+                 /// <code>
+                 /// // Library code - provides default implementation
+                 /// [Registration(As = typeof(ILogger), TryAdd = true)]
+                 /// public class DefaultLogger : ILogger { }
+                 ///
+                 /// // User code can override by registering before library
+                 /// services.AddScoped&lt;ILogger, CustomLogger&gt;();  // This takes precedence
+                 /// services.AddDependencyRegistrationsFromLibrary();    // TryAdd skips DefaultLogger
+                 /// </code>
+                 /// </example>
+                 public bool TryAdd { get; set; }
+             }
+
+             /// <summary>
+             /// Filters types from automatic registration during transitive assembly scanning.
+             /// Apply at assembly level to exclude specific namespaces, naming patterns, or interface implementations.
+             /// </summary>
+             /// <remarks>
+             /// This attribute is used to exclude certain types from automatic registration when using
+             /// includeReferencedAssemblies option. Multiple filters can be specified by using the attribute
+             /// multiple times or by passing arrays to the properties.
+             /// </remarks>
+             /// <example>
+             /// <code>
+             /// // Exclude specific namespace
+             /// [assembly: RegistrationFilter(ExcludeNamespaces = new[] { "MyApp.Internal" })]
+             ///
+             /// // Exclude by naming pattern
+             /// [assembly: RegistrationFilter(ExcludePatterns = new[] { "*Test*", "*Mock*" })]
+             ///
+             /// // Exclude types implementing specific interface
+             /// [assembly: RegistrationFilter(ExcludeImplementing = new[] { typeof(ITestUtility) })]
+             ///
+             /// // Multiple filters in one attribute
+             /// [assembly: RegistrationFilter(
+             ///     ExcludeNamespaces = new[] { "MyApp.Internal", "MyApp.Tests" },
+             ///     ExcludePatterns = new[] { "*Test*" })]
+             /// </code>
+             /// </example>
+             [global::System.CodeDom.Compiler.GeneratedCode("Atc.SourceGenerators.DependencyRegistration", "1.0.0")]
+             [global::System.ComponentModel.EditorBrowsable(global::System.ComponentModel.EditorBrowsableState.Never)]
+             [global::System.Runtime.CompilerServices.CompilerGenerated]
+             [global::System.Diagnostics.DebuggerNonUserCode]
+             [global::System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
+             [global::System.AttributeUsage(global::System.AttributeTargets.Assembly, Inherited = false, AllowMultiple = true)]
+             public sealed class RegistrationFilterAttribute : global::System.Attribute
+             {
+                 /// <summary>
+                 /// Gets or sets the namespaces to exclude from registration.
+                 /// Types in these namespaces (or sub-namespaces) will not be registered.
+                 /// </summary>
+                 /// <example>
+                 /// <code>
+                 /// [assembly: RegistrationFilter(ExcludeNamespaces = new[] { "MyApp.Internal", "MyApp.Tests" })]
+                 /// </code>
+                 /// </example>
+                 public string[]? ExcludeNamespaces { get; set; }
+
+                 /// <summary>
+                 /// Gets or sets the naming patterns to exclude from registration.
+                 /// Supports wildcards: * matches any characters, ? matches single character.
+                 /// </summary>
+                 /// <example>
+                 /// <code>
+                 /// [assembly: RegistrationFilter(ExcludePatterns = new[] { "*Test*", "*Mock*", "Temp*" })]
+                 /// </code>
+                 /// </example>
+                 public string[]? ExcludePatterns { get; set; }
+
+                 /// <summary>
+                 /// Gets or sets the interface types to exclude from registration.
+                 /// Types implementing any of these interfaces will not be registered.
+                 /// </summary>
+                 /// <example>
+                 /// <code>
+                 /// [assembly: RegistrationFilter(ExcludeImplementing = new[] { typeof(ITestUtility), typeof(IInternal) })]
+                 /// </code>
+                 /// </example>
+                 public global::System.Type[]? ExcludeImplementing { get; set; }
              }
              """;
 }

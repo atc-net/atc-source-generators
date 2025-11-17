@@ -94,6 +94,8 @@ builder.Services.AddDependencyRegistrationsFromDataAccess();
 - **🔷 Generic Types**: Full support for open generics like `IRepository<T>` and `IHandler<TRequest, TResponse>`
 - **🔑 Keyed Services**: Multiple implementations of the same interface with different keys (.NET 8+)
 - **🏭 Factory Methods**: Custom initialization logic via static factory methods
+- **🔄 TryAdd Registration**: Conditional registration for default implementations (library pattern)
+- **🚫 Assembly Scanning Filters**: Exclude types by namespace, pattern (wildcards), or interface implementation
 - **🧹 Smart Filtering**: System interfaces (IDisposable, etc.) are excluded automatically
 - **🔍 Multi-Interface**: Implementing multiple interfaces? Registers against all of them
 - **🏃 Hosted Service Support**: Automatically detects BackgroundService and IHostedService implementations and uses AddHostedService<T>()
@@ -135,6 +137,13 @@ public class EmailSender : IEmailSender
         var config = sp.GetRequiredService<IConfiguration>();
         return new EmailSender(config["Email:ApiKey"]);
     }
+}
+
+// Default implementation for libraries (can be overridden by consumers)
+[Registration(As = typeof(ILogger), TryAdd = true)]
+public class DefaultLogger : ILogger
+{
+    public void Log(string message) => Console.WriteLine(message);
 }
 ```
 

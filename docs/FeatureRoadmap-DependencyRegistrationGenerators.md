@@ -64,6 +64,8 @@ This roadmap is based on comprehensive analysis of:
 - **Generic interface registration** - Support open generic types like `IRepository<T>`, `IHandler<TRequest, TResponse>`
 - **Keyed service registration** - Multiple implementations with keys (.NET 8+)
 - **Factory method registration** - Custom initialization logic via static factory methods
+- **TryAdd* registration** - Conditional registration for default implementations (library pattern)
+- **Assembly scanning filters** - Exclude types by namespace, pattern, or interface (supports wildcards)
 - **Lifetime support** - Singleton (default), Scoped, Transient
 - **Multi-project support** - Assembly-specific extension methods
 - **Compile-time validation** - Diagnostics for invalid configurations (ATCDIR001-006)
@@ -224,7 +226,7 @@ services.AddScoped<IEmailSender>(sp => EmailSender.CreateEmailSender(sp));
 ### 4. TryAdd* Registration
 
 **Priority**: 🟡 **Medium**
-**Status**: ❌ Not Implemented
+**Status**: ✅ **Implemented** (v1.2)
 **Inspiration**: Scrutor's TryAdd support, AutoRegisterInject's "Try" variants
 
 **Description**: Support conditional registration that only adds services if not already registered.
@@ -250,16 +252,21 @@ services.AddScoped<ILogger, CustomLogger>();  // This wins
 
 **Implementation Notes**:
 
-- Add `TryAdd` boolean parameter to `[Registration]`
-- Generate `TryAdd{Lifetime}()` calls instead of `Add{Lifetime}()`
-- Useful for default implementations and library code
+- ✅ Added `TryAdd` boolean parameter to `[Registration]` attribute
+- ✅ Generates `TryAdd{Lifetime}()` calls instead of `Add{Lifetime}()`
+- ✅ Works with factory methods: `services.TryAddScoped<T>(sp => Factory(sp))`
+- ✅ Supports all lifetimes: TryAddSingleton, TryAddScoped, TryAddTransient
+- ✅ Works with generic types: `services.TryAddScoped(typeof(IRepository<>), typeof(Repository<>))`
+- ✅ Compatible with AsSelf and multiple interface registrations
+- ⚠️ Note: Keyed services take precedence (no TryAdd support for keyed registrations)
+- ✅ Requires `using Microsoft.Extensions.DependencyInjection.Extensions;` (automatically added to generated code)
 
 ---
 
 ### 5. Assembly Scanning Filters
 
 **Priority**: 🟡 **Medium**
-**Status**: ❌ Not Implemented
+**Status**: ✅ **Implemented** (v1.2)
 **Inspiration**: Scrutor's filtering capabilities
 
 **Description**: Provide filtering options to exclude specific types, namespaces, or patterns from transitive registration.
@@ -270,23 +277,34 @@ services.AddScoped<ILogger, CustomLogger>();  // This wins
 **Example**:
 
 ```csharp
-// Option A: Exclude specific namespace
-[assembly: RegistrationFilter(ExcludeNamespace = "MyApp.Internal")]
+// Option A: Exclude specific namespace (supports arrays)
+[assembly: RegistrationFilter(ExcludeNamespaces = new[] { "MyApp.Internal", "MyApp.Tests" })]
 
-// Option B: Exclude by naming pattern
-[assembly: RegistrationFilter(ExcludePattern = "*Test*")]
+// Option B: Exclude by naming pattern (supports wildcards)
+[assembly: RegistrationFilter(ExcludePatterns = new[] { "*Test*", "*Mock*" })]
 
 // Option C: Exclude types implementing specific interface
-[assembly: RegistrationFilter(ExcludeImplementing = typeof(ITestUtility))]
+[assembly: RegistrationFilter(ExcludeImplementing = new[] { typeof(ITestUtility) })]
+
+// Option D: Multiple filters in one attribute
+[assembly: RegistrationFilter(
+    ExcludeNamespaces = new[] { "MyApp.Internal" },
+    ExcludePatterns = new[] { "*Test*", "*Mock*" })]
 
 // Generated code only includes non-excluded types
 ```
 
 **Implementation Notes**:
 
-- Assembly-level attribute for configuration
-- Support namespace exclusion, type name patterns, interface exclusion
-- Apply filters during transitive registration discovery
+- ✅ Assembly-level `RegistrationFilterAttribute` with `AllowMultiple = true`
+- ✅ Support namespace exclusion (exact match + sub-namespaces)
+- ✅ Support wildcard patterns: `*` (any characters), `?` (single character)
+- ✅ Support interface exclusion with proper generic type comparison
+- ✅ Multiple filter attributes can be applied
+- ✅ Filters applied to both current assembly and referenced assemblies
+- ✅ All properties accept arrays for multiple values
+- ✅ Pattern matching is case-insensitive
+- ✅ Sub-namespace matching: "MyApp.Internal" excludes "MyApp.Internal.Deep"
 
 ---
 
@@ -571,8 +589,8 @@ Based on priority, user demand, and implementation complexity:
 | Generic Interface Registration | 🔴 Critical | ⭐⭐⭐ | High | 1.1 | ✅ Done |
 | Keyed Service Registration | 🔴 High | ⭐⭐⭐ | Medium | 1.1 | ✅ Done |
 | Factory Method Registration | 🟡 Med-High | ⭐⭐ | Medium | 1.1 | ✅ Done |
-| TryAdd* Registration | 🟡 Medium | ⭐⭐ | Low | 1.2 | 📋 Planned |
-| Assembly Scanning Filters | 🟡 Medium | ⭐⭐ | Medium | 1.2 | 📋 Planned |
+| TryAdd* Registration | 🟡 Medium | ⭐⭐ | Low | 1.2 | ✅ Done |
+| Assembly Scanning Filters | 🟡 Medium | ⭐⭐ | Medium | 1.2 | ✅ Done |
 | Multi-Interface Registration | 🟢 Low | ⭐ | Low | 1.2 | 📋 Planned |
 | Registration Validation | 🟡 Medium | ⭐⭐ | High | 1.3 | 📋 Planned |
 | Conditional Registration | 🟢 Low-Med | ⭐ | Medium | 1.3 | 📋 Planned |
