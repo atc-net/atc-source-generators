@@ -262,8 +262,7 @@ public class EnumMappingGenerator : IIncrementalGenerator
         sb.AppendLineLf("    /// </summary>");
         sb.AppendLineLf($"    public static {mapping.TargetEnum.ToDisplayString()} {methodName}(");
         sb.AppendLineLf($"        this {mapping.SourceEnum.ToDisplayString()} source)");
-        sb.AppendLineLf("    {");
-        sb.AppendLineLf("        return source switch");
+        sb.AppendLineLf("        => source switch");
         sb.AppendLineLf("        {");
 
         // Generate switch cases
@@ -278,7 +277,6 @@ public class EnumMappingGenerator : IIncrementalGenerator
 
         sb.AppendLineLf("            _ => throw new global::System.ArgumentOutOfRangeException(nameof(source), source, \"Unmapped enum value\"),");
         sb.AppendLineLf("        };");
-        sb.AppendLineLf("    }");
         sb.AppendLineLf();
     }
 }
