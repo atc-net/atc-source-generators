@@ -57,6 +57,7 @@ public static UserDto MapToUserDto(this User source) =>
   - [🏗️ Constructor Mapping](#️-constructor-mapping)
   - [🪝 Before/After Mapping Hooks](#-beforeafter-mapping-hooks)
   - [🏭 Object Factories](#-object-factories)
+  - [🔄 Update Existing Target Instance](#-update-existing-target-instance)
 - [⚙️ MapToAttribute Parameters](#️-maptoattribute-parameters)
 - [🛡️ Diagnostics](#️-diagnostics)
   - [❌ ATCMAP001: Mapping Class Must Be Partial](#-atcmap001-mapping-class-must-be-partial)
@@ -2289,6 +2290,178 @@ public partial class UserDto
 
 ---
 
+## Update Existing Target Instance
+
+The `UpdateTarget` parameter allows you to generate an additional method overload that updates an existing target instance instead of creating a new one. This is particularly useful when working with **EF Core tracked entities**, **ViewModels**, or when you want to reduce object allocations.
+
+### Basic Usage
+
+```csharp
+[MapTo(typeof(UserDto), UpdateTarget = true)]
+public partial class User
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+}
+```
+
+**Generated Code:**
+```csharp
+// Method 1: Standard method (creates new instance)
+public static UserDto MapToUserDto(this User source)
+{
+    if (source is null) return default!;
+
+    return new UserDto
+    {
+        Id = source.Id,
+        Name = source.Name,
+        Email = source.Email
+    };
+}
+
+// Method 2: Update method (updates existing instance)
+public static void MapToUserDto(this User source, UserDto target)
+{
+    if (source is null) return;
+    if (target is null) return;
+
+    target.Id = source.Id;
+    target.Name = source.Name;
+    target.Email = source.Email;
+}
+```
+
+### EF Core Tracked Entities
+
+The primary use case for `UpdateTarget` is updating EF Core tracked entities:
+
+```csharp
+[MapTo(typeof(PetEntity), Bidirectional = true, UpdateTarget = true)]
+public partial class Pet
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Species { get; set; } = string.Empty;
+}
+
+// Usage in a service:
+public async Task UpdatePetAsync(Guid petId, Pet domainPet)
+{
+    // Fetch tracked entity from database
+    var existingPet = await _dbContext.Pets.FindAsync(petId);
+    if (existingPet is null)
+    {
+        throw new NotFoundException($"Pet with ID {petId} not found");
+    }
+
+    // Update it with new data (EF Core tracks changes)
+    domainPet.MapToPetEntity(existingPet);
+
+    // Save changes (only modified properties are updated in database)
+    await _dbContext.SaveChangesAsync();
+}
+```
+
+### Update with Hooks
+
+The update method fully supports `BeforeMap` and `AfterMap` hooks:
+
+```csharp
+[MapTo(typeof(OrderDto), UpdateTarget = true, BeforeMap = nameof(ValidateOrder), AfterMap = nameof(EnrichOrder))]
+public partial class Order
+{
+    public Guid Id { get; set; }
+    public decimal Total { get; set; }
+
+    internal static void ValidateOrder(Order source)
+    {
+        if (source.Total < 0)
+            throw new ArgumentException("Total cannot be negative");
+    }
+
+    internal static void EnrichOrder(Order source, OrderDto target)
+    {
+        // Custom enrichment logic after update
+        target.LastModified = DateTimeOffset.UtcNow;
+    }
+}
+
+// Usage:
+var existingDto = GetOrderDto(orderId);
+updatedOrder.MapToOrderDto(existingDto);  // Validates, updates, then enriches
+```
+
+**Execution Order for Update Method:**
+1. Null check for source
+2. Null check for target
+3. Execute `BeforeMap(source)` hook (if specified)
+4. Update all properties on target
+5. Execute `AfterMap(source, target)` hook (if specified)
+
+### Reduce Object Allocations
+
+Reuse DTO instances to reduce allocations in hot paths:
+
+```csharp
+[MapTo(typeof(SettingsDto), UpdateTarget = true)]
+public partial class Settings
+{
+    public string Theme { get; set; } = "Light";
+    public bool EnableNotifications { get; set; } = true;
+}
+
+// Reuse the same DTO instance
+var settingsDto = new SettingsDto();
+
+settings1.MapToSettingsDto(settingsDto);
+ProcessSettings(settingsDto);
+
+settings2.MapToSettingsDto(settingsDto);  // Reuse same instance
+ProcessSettings(settingsDto);
+```
+
+### Important Notes
+
+- **Both methods are generated**: When `UpdateTarget = true`, you get both the standard method (creates new instance) and the update method (updates existing instance)
+- **Null checks**: The update method checks both source and target for null
+- **Void return**: The update method returns `void` (no return value)
+- **No factory**: The update method does not use factory methods (factory is only for creating new instances)
+- **Bidirectional support**: Works seamlessly with `Bidirectional = true` - both directions get update overloads
+- **All properties updated**: All mapped properties are updated, including nullable properties
+
+### When to Use UpdateTarget
+
+✅ **Use when:**
+- Updating EF Core tracked entities
+- Reducing allocations for frequently mapped objects
+- Updating existing ViewModels or DTOs
+- You need to preserve object identity
+- Working with object pools
+
+❌ **Don't use when:**
+- You always need new instances
+- Working with immutable types (records with init-only properties)
+- Factory method is needed (factory creates new instances)
+- You want the update operation to return a value
+
+### Comparison with Standard Mapping
+
+| Feature | Standard Method | Update Method |
+|---------|----------------|---------------|
+| **Return Type** | `TargetType` | `void` |
+| **Creates New Instance** | ✅ Yes | ❌ No |
+| **Updates Existing Instance** | ❌ No | ✅ Yes |
+| **Target Parameter** | ❌ No | ✅ Yes (`TargetType target`) |
+| **EF Core Compatible** | ⚠️ Requires attach | ✅ Yes (change tracking) |
+| **Null Checks** | Source only | Source and target |
+| **BeforeMap Hook** | ✅ Yes | ✅ Yes |
+| **AfterMap Hook** | ✅ Yes | ✅ Yes |
+| **Factory Support** | ✅ Yes | ❌ No |
+
+---
+
 ## ⚙️ MapToAttribute Parameters
 
 The `MapToAttribute` accepts the following parameters:
@@ -2301,6 +2474,7 @@ The `MapToAttribute` accepts the following parameters:
 | `BeforeMap` | `string?` | ❌ No | `null` | Name of a static method to call before performing the mapping. Signature: `static void MethodName(SourceType source)` |
 | `AfterMap` | `string?` | ❌ No | `null` | Name of a static method to call after performing the mapping. Signature: `static void MethodName(SourceType source, TargetType target)` |
 | `Factory` | `string?` | ❌ No | `null` | Name of a static factory method to use for creating the target instance. Signature: `static TargetType MethodName()` |
+| `UpdateTarget` | `bool` | ❌ No | `false` | Generate an additional method overload that updates an existing target instance instead of creating a new one. Generates both `MapToX()` and `MapToX(target)` methods |
 
 **Example:**
 ```csharp

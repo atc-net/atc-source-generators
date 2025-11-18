@@ -7,7 +7,7 @@ namespace PetStore.Domain.Models;
 [MapTo(typeof(PetSummaryResponse), EnableFlattening = true)]
 [MapTo(typeof(PetDetailsDto))]
 [MapTo(typeof(UpdatePetRequest))]
-[MapTo(typeof(PetEntity), Bidirectional = true)]
+[MapTo(typeof(PetEntity), Bidirectional = true, UpdateTarget = true)]
 public partial class Pet
 {
     /// <summary>
