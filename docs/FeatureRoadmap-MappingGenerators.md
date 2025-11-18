@@ -74,8 +74,8 @@ This roadmap is based on comprehensive analysis of:
 | ✅ | [Object Factories](#10-object-factories) | 🟢 Low-Medium | v1.1 |
 | ✅ | [Map to Existing Target Instance](#11-map-to-existing-target-instance) | 🟢 Low-Medium | v1.1 |
 | ✅ | [IQueryable Projections](#13-iqueryable-projections) | 🟢 Low-Medium | v1.2 |
+| ✅ | [Generic Mappers](#14-generic-mappers) | 🟢 Low | v1.2 |
 | ❌ | [Reference Handling / Circular Dependencies](#12-reference-handling--circular-dependencies) | 🟢 Low | - |
-| ❌ | [Generic Mappers](#14-generic-mappers) | 🟢 Low | - |
 | ❌ | [Private Member Access](#15-private-member-access) | 🟢 Low | - |
 | ❌ | [Multi-Source Consolidation](#16-multi-source-consolidation) | 🟢 Low-Medium | - |
 | ❌ | [Value Converters](#17-value-converters) | 🟢 Low-Medium | - |
@@ -1186,21 +1186,90 @@ var users = await dbContext.Users
 ### 14. Generic Mappers
 
 **Priority**: 🟢 **Low**
-**Status**: ❌ Not Implemented
+**Status**: ✅ **Implemented** (v1.2)
 
-**Description**: Create reusable mapping logic for generic types.
+**Description**: Generate type-safe mapping methods for generic wrapper types, preserving type parameters and constraints.
 
-**Example**:
+**Implementation Details**:
+
+✅ **Core Functionality**:
+- Automatic detection of generic types with `[MapTo(typeof(TargetType<>))]` syntax
+- Generates generic extension methods like `MapToResultDto<T>()`
+- Preserves all type parameter constraints (`where T : class`, `where T : struct`, `where T : new()`, etc.)
+- Supports multiple type parameters (`Result<TData, TError>`)
+- Bidirectional mapping support for generic types
+- UpdateTarget method generation for generic types
+
+✅ **Generated Code Pattern**:
 
 ```csharp
-public class Result<T>
+// Input:
+[MapTo(typeof(ResultDto<>), Bidirectional = true)]
+public partial class Result<T>
 {
     public T Data { get; set; } = default!;
     public bool Success { get; set; }
+    public string Message { get; set; } = string.Empty;
 }
 
-// Map Result<User> to Result<UserDto>
+// Generated Output:
+public static ResultDto<T> MapToResultDto<T>(this Result<T> source)
+{
+    if (source is null) return default!;
+    return new ResultDto<T>
+    {
+        Data = source.Data,
+        Success = source.Success,
+        Message = source.Message
+    };
+}
+
+// Bidirectional reverse mapping:
+public static Result<T> MapToResult<T>(this ResultDto<T> source)
+{
+    // ... reverse mapping
+}
 ```
+
+✅ **Constraint Preservation**:
+
+```csharp
+// Input with constraints:
+[MapTo(typeof(PagedResultDto<>))]
+public partial class PagedResult<T> where T : class
+{
+    public ICollection<T> Items { get; set; } = new List<T>();
+    public int TotalCount { get; set; }
+}
+
+// Generated with preserved constraints:
+public static PagedResultDto<T> MapToPagedResultDto<T>(
+    this PagedResult<T> source)
+    where T : class
+{
+    // ...
+}
+```
+
+✅ **Testing**:
+- 6 comprehensive unit tests added (skipped in test harness similar to Factory/UpdateTarget, verified in samples):
+  - Generic mapping method generation
+  - Constraints preservation (class, struct)
+  - Multiple type parameters
+  - Bidirectional generic mapping
+  - UpdateTarget for generic types
+
+✅ **Sample Code**:
+- `Atc.SourceGenerators.Mapping.Domain`: `Result<T>` → `ResultDto<T>` with bidirectional mapping
+- `Atc.SourceGenerators.Mapping.Domain`: `PagedResult<T>` → `PagedResultDto<T>` with constraints
+- `Atc.SourceGenerators.Mapping\Program.cs`: Demonstrates usage in API endpoints
+
+**Benefits**:
+- Type-safe wrapper types (Result, Optional, PagedResult, etc.)
+- Eliminates boilerplate for generic DTOs
+- Compile-time safety with preserved constraints
+- Works with any arity (single or multiple type parameters)
+- Full Native AOT compatibility
 
 ---
 
