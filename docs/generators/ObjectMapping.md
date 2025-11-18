@@ -56,6 +56,7 @@ public static UserDto MapToUserDto(this User source) =>
   - [🌳 Polymorphic / Derived Type Mapping](#-polymorphic--derived-type-mapping)
   - [🏗️ Constructor Mapping](#️-constructor-mapping)
   - [🪝 Before/After Mapping Hooks](#-beforeafter-mapping-hooks)
+  - [🏭 Object Factories](#-object-factories)
 - [⚙️ MapToAttribute Parameters](#️-maptoattribute-parameters)
 - [🛡️ Diagnostics](#️-diagnostics)
   - [❌ ATCMAP001: Mapping Class Must Be Partial](#-atcmap001-mapping-class-must-be-partial)
@@ -2039,6 +2040,253 @@ public partial class UserDto
 }
 ```
 
+### 🏭 Object Factories
+
+Use custom factory methods to create target instances during mapping, allowing you to initialize objects with default values, use object pooling, or apply other custom creation logic.
+
+#### Basic Usage
+
+```csharp
+using Atc.SourceGenerators.Annotations;
+
+[MapTo(typeof(UserDto), Factory = nameof(CreateUserDto))]
+public partial class User
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+
+    // Factory method creates the target instance
+    internal static UserDto CreateUserDto()
+    {
+        return new UserDto
+        {
+            CreatedAt = DateTimeOffset.UtcNow,  // Set default value
+        };
+    }
+}
+
+public class UserDto
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public DateTimeOffset CreatedAt { get; set; }
+}
+```
+
+**Generated code:**
+
+```csharp
+public static UserDto MapToUserDto(this User source)
+{
+    if (source is null)
+    {
+        return default!;
+    }
+
+    var target = User.CreateUserDto();  // Factory creates instance
+
+    target.Id = source.Id;               // Property mappings applied
+    target.Name = source.Name;
+
+    return target;
+}
+```
+
+#### Factory Method Signature
+
+**Signature**: `static TargetType MethodName()`
+
+- Must be static
+- Must return the target type
+- Takes no parameters
+- Can be `internal`, `public`, or `private`
+
+#### Execution Order
+
+When a factory is specified, the mapping lifecycle follows this sequence:
+
+1. **Null check** on source object
+2. **BeforeMap hook** (if specified)
+3. **Factory method** creates target instance
+4. **Property mappings** applied to target
+5. **AfterMap hook** (if specified)
+6. **Return** target object
+
+#### Factory with Hooks
+
+Factories work seamlessly with BeforeMap and AfterMap hooks:
+
+```csharp
+[MapTo(typeof(OrderDto), Factory = nameof(CreateOrderDto), BeforeMap = nameof(ValidateOrder), AfterMap = nameof(EnrichOrder))]
+public partial class Order
+{
+    public Guid Id { get; set; }
+    public string OrderNumber { get; set; } = string.Empty;
+    public DateTimeOffset OrderDate { get; set; }
+
+    internal static void ValidateOrder(Order source)
+    {
+        if (string.IsNullOrWhiteSpace(source.OrderNumber))
+        {
+            throw new ArgumentException("Order number is required");
+        }
+    }
+
+    internal static OrderDto CreateOrderDto()
+    {
+        return new OrderDto
+        {
+            CreatedAt = DateTimeOffset.UtcNow,
+            Status = "Pending",  // Default status
+        };
+    }
+
+    internal static void EnrichOrder(
+        Order source,
+        OrderDto target)
+    {
+        target.FormattedOrderNumber = $"ORD-{source.OrderNumber}";
+    }
+}
+
+public class OrderDto
+{
+    public Guid Id { get; set; }
+    public string OrderNumber { get; set; } = string.Empty;
+    public DateTimeOffset OrderDate { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public string Status { get; set; } = string.Empty;
+    public string FormattedOrderNumber { get; set; } = string.Empty;
+}
+```
+
+**Generated code:**
+
+```csharp
+public static OrderDto MapToOrderDto(this Order source)
+{
+    if (source is null)
+    {
+        return default!;
+    }
+
+    Order.ValidateOrder(source);         // BeforeMap hook
+
+    var target = Order.CreateOrderDto(); // Factory creates instance
+
+    target.Id = source.Id;                // Property mappings
+    target.OrderNumber = source.OrderNumber;
+    target.OrderDate = source.OrderDate;
+
+    Order.EnrichOrder(source, target);   // AfterMap hook
+
+    return target;
+}
+```
+
+#### Use Cases
+
+**Default Values:**
+```csharp
+internal static ProductDto CreateProductDto()
+{
+    return new ProductDto
+    {
+        CreatedAt = DateTimeOffset.UtcNow,
+        IsActive = true,
+        Version = 1,
+    };
+}
+```
+
+**Object Pooling:**
+```csharp
+private static readonly ObjectPool<UserDto> _userDtoPool = new();
+
+internal static UserDto CreateUserDto()
+{
+    return _userDtoPool.Get();  // Reuse objects from pool
+}
+```
+
+**Dependency Injection (Service Locator):**
+```csharp
+internal static NotificationDto CreateNotificationDto()
+{
+    var factory = ServiceLocator.GetService<INotificationDtoFactory>();
+    return factory.Create();
+}
+```
+
+**Complex Initialization:**
+```csharp
+internal static ReportDto CreateReportDto()
+{
+    var dto = new ReportDto();
+    dto.Initialize();  // Custom initialization logic
+    dto.RegisterEventHandlers();
+    return dto;
+}
+```
+
+#### Important Notes
+
+- ✅ Factory method **must be static**
+- ✅ Factory **replaces** `new TargetType()` for object creation
+- ✅ Property mappings are **applied after** factory creates the instance
+- ✅ Fully compatible with **BeforeMap/AfterMap hooks**
+- ✅ Works with all mapping features (nested objects, collections, etc.)
+- ✅ **Reverse mappings** (Bidirectional = true) do NOT inherit factory methods
+- ✅ Full **Native AOT compatibility**
+- ⚠️ **Limitation**: Factory pattern doesn't work with init-only properties (records with `init` setters)
+  - For init-only properties, use constructor mapping or object initializers instead
+
+#### Factories in Bidirectional Mappings
+
+When using bidirectional mappings, each direction can have its own factory:
+
+```csharp
+[MapTo(typeof(UserDto), Bidirectional = true, Factory = nameof(CreateUserDto))]
+public partial class User
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+
+    internal static UserDto CreateUserDto()
+    {
+        return new UserDto { CreatedAt = DateTimeOffset.UtcNow };
+    }
+}
+
+// Generated forward mapping: User → UserDto (includes factory)
+public static UserDto MapToUserDto(this User source)
+{
+    // ... uses CreateUserDto factory
+}
+
+// Generated reverse mapping: UserDto → User (NO factory)
+public static User MapToUser(this UserDto source)
+{
+    // ... uses standard object initializer
+}
+```
+
+If you need a factory in the reverse direction, define it on the target type:
+
+```csharp
+[MapTo(typeof(User), Factory = nameof(CreateUser))]
+public partial class UserDto
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+
+    internal static User CreateUser()
+    {
+        return new User();  // Custom creation logic
+    }
+}
+```
+
 ---
 
 ## ⚙️ MapToAttribute Parameters
@@ -2052,6 +2300,7 @@ The `MapToAttribute` accepts the following parameters:
 | `EnableFlattening` | `bool` | ❌ No | `false` | Enable property flattening (nested properties are flattened using {PropertyName}{NestedPropertyName} convention) |
 | `BeforeMap` | `string?` | ❌ No | `null` | Name of a static method to call before performing the mapping. Signature: `static void MethodName(SourceType source)` |
 | `AfterMap` | `string?` | ❌ No | `null` | Name of a static method to call after performing the mapping. Signature: `static void MethodName(SourceType source, TargetType target)` |
+| `Factory` | `string?` | ❌ No | `null` | Name of a static factory method to use for creating the target instance. Signature: `static TargetType MethodName()` |
 
 **Example:**
 ```csharp

@@ -10,4 +10,5 @@ internal sealed record MappingInfo(
     List<string> ConstructorParameterNames,
     List<DerivedTypeMapping> DerivedTypeMappings,
     string? BeforeMap,
-    string? AfterMap);
+    string? AfterMap,
+    string? Factory);

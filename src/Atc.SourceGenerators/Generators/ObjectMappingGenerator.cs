@@ -194,11 +194,12 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                 continue;
             }
 
-            // Extract Bidirectional, EnableFlattening, BeforeMap, and AfterMap properties
+            // Extract Bidirectional, EnableFlattening, BeforeMap, AfterMap, and Factory properties
             var bidirectional = false;
             var enableFlattening = false;
             string? beforeMap = null;
             string? afterMap = null;
+            string? factory = null;
             foreach (var namedArg in attribute.NamedArguments)
             {
                 if (namedArg.Key == "Bidirectional")
@@ -216,6 +217,10 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                 else if (namedArg.Key == "AfterMap")
                 {
                     afterMap = namedArg.Value.Value as string;
+                }
+                else if (namedArg.Key == "Factory")
+                {
+                    factory = namedArg.Value.Value as string;
                 }
             }
 
@@ -238,7 +243,8 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                 ConstructorParameterNames: constructorParameterNames,
                 DerivedTypeMappings: derivedTypeMappings,
                 BeforeMap: beforeMap,
-                AfterMap: afterMap));
+                AfterMap: afterMap,
+                Factory: factory));
         }
 
         return mappings.Count > 0 ? mappings : null;
@@ -900,7 +906,8 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                     ConstructorParameterNames: reverseConstructorParams,
                     DerivedTypeMappings: new List<DerivedTypeMapping>(), // No derived type mappings for reverse
                     BeforeMap: null, // No hooks for reverse mapping
-                    AfterMap: null); // No hooks for reverse mapping
+                    AfterMap: null, // No hooks for reverse mapping
+                    Factory: null); // No factory for reverse mapping
 
                 GenerateMappingMethod(sb, reverseMapping);
             }
@@ -945,13 +952,32 @@ public class ObjectMappingGenerator : IIncrementalGenerator
             return;
         }
 
-        // Determine if we need to use a variable for AfterMap hook
-        var needsTargetVariable = !string.IsNullOrWhiteSpace(mapping.AfterMap);
+        // Determine if we need to use a variable for AfterMap hook or Factory
+        var needsTargetVariable = !string.IsNullOrWhiteSpace(mapping.AfterMap) || !string.IsNullOrWhiteSpace(mapping.Factory);
+
+        // Check if we should use factory method
+        var useFactory = !string.IsNullOrWhiteSpace(mapping.Factory);
+
+        if (useFactory)
+        {
+            // Use factory method to create the object
+            sb.AppendLineLf($"        var target = {mapping.SourceType.ToDisplayString()}.{mapping.Factory}();");
+            sb.AppendLineLf();
+
+            // Apply property mappings to the factory-created instance
+            foreach (var prop in mapping.PropertyMappings)
+            {
+                var value = GeneratePropertyMappingValue(prop, "source");
+                sb.AppendLineLf($"        target.{prop.TargetProperty.Name} = {value};");
+            }
+        }
 
         // Check if we should use constructor-based initialization
-        var useConstructor = mapping.Constructor is not null && mapping.ConstructorParameterNames.Count > 0;
+        else
+        {
+            var useConstructor = mapping.Constructor is not null && mapping.ConstructorParameterNames.Count > 0;
 
-        if (useConstructor)
+            if (useConstructor)
         {
             // Separate properties into constructor parameters and initializer properties
             var constructorParamSet = new HashSet<string>(mapping.ConstructorParameterNames, StringComparer.OrdinalIgnoreCase);
@@ -1029,13 +1055,18 @@ public class ObjectMappingGenerator : IIncrementalGenerator
             sb.AppendLineLf("        {");
             GeneratePropertyInitializers(sb, mapping.PropertyMappings);
             sb.AppendLineLf("        };");
+            }
         }
 
-        // Generate AfterMap hook call
+        // Generate AfterMap hook call and return statement
         if (needsTargetVariable)
         {
-            sb.AppendLineLf();
-            sb.AppendLineLf($"        {mapping.SourceType.ToDisplayString()}.{mapping.AfterMap}(source, target);");
+            if (!string.IsNullOrWhiteSpace(mapping.AfterMap))
+            {
+                sb.AppendLineLf();
+                sb.AppendLineLf($"        {mapping.SourceType.ToDisplayString()}.{mapping.AfterMap}(source, target);");
+            }
+
             sb.AppendLineLf();
             sb.AppendLineLf("        return target;");
         }
@@ -1297,6 +1328,12 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                    /// The method must have the signature: static void MethodName(SourceType source, TargetType target).
                    /// </summary>
                    public string? AfterMap { get; set; }
+
+                   /// <summary>
+                   /// Gets or sets the name of a static factory method to use for creating the target instance.
+                   /// The method must have the signature: static TargetType MethodName().
+                   /// </summary>
+                   public string? Factory { get; set; }
                }
            }
            """;
