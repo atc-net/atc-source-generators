@@ -705,6 +705,7 @@ builder.Services.AddDependencyRegistrationsFromApi();
 - **Keyed Service Registration**: Multiple implementations of the same interface with different keys (.NET 8+)
 - **Factory Method Registration**: Custom initialization logic via static factory methods
 - **TryAdd* Registration**: Conditional registration for default implementations (library pattern)
+- **Conditional Registration**: Register services based on configuration values (feature flags, environment-specific services) 🆕
 - **Assembly Scanning Filters**: Exclude types by namespace, pattern (wildcards), or interface implementation
 - **Runtime Filtering**: Exclude services at registration time with method parameters (different apps, different service subsets) 🆕
 - **Hosted Service Support**: Automatically detects `BackgroundService` and `IHostedService` implementations and uses `AddHostedService<T>()`
@@ -1140,6 +1141,7 @@ var app = builder.Build();
 | `Factory` | `string?` | `null` | Name of static factory method for custom initialization |
 | `TryAdd` | `bool` | `false` | Use TryAdd* methods for conditional registration (library pattern) |
 | `Decorator` | `bool` | `false` | Mark this service as a decorator that wraps the previous registration of the same interface |
+| `Condition` | `string?` | `null` | Configuration key path for conditional registration (feature flags). Prefix with "!" for negation |
 
 ### 📝 Examples
 
@@ -1170,6 +1172,12 @@ var app = builder.Build();
 
 // Decorator pattern
 [Registration(Lifetime.Scoped, As = typeof(IOrderService), Decorator = true)]
+
+// Conditional registration
+[Registration(As = typeof(ICache), Condition = "Features:UseRedisCache")]
+
+// Negated conditional
+[Registration(As = typeof(ICache), Condition = "!Features:UseRedisCache")]
 
 // All parameters
 [Registration(Lifetime.Scoped, As = typeof(IService), AsSelf = true, TryAdd = true)]
@@ -2760,6 +2768,346 @@ See the **PetStore.Domain** sample for a complete working example:
 
 - Base service: [PetService.cs](../../sample/PetStore.Domain/Services/PetService.cs)
 - Decorator: [LoggingPetServiceDecorator.cs](../../sample/PetStore.Domain/Services/LoggingPetServiceDecorator.cs)
+
+---
+
+## 🎛️ Conditional Registration
+
+Conditional Registration allows you to register services based on configuration values at runtime. This is perfect for feature flags, environment-specific services, A/B testing, and gradual rollouts.
+
+### ✨ How It Works
+
+Services with a `Condition` parameter are only registered if the configuration value at the specified key path evaluates to `true`. The condition is checked at runtime when the registration methods are called.
+
+When an assembly contains services with conditional registration:
+- An `IConfiguration` parameter is **automatically added** to all generated extension method signatures
+- The configuration value is checked using `configuration.GetValue<bool>("key")`
+- Services are registered inside `if` blocks based on the condition
+
+### 📝 Basic Example
+
+```csharp
+// Register RedisCache only when Features:UseRedisCache is true
+[Registration(As = typeof(ICache), Condition = "Features:UseRedisCache")]
+public class RedisCache : ICache
+{
+    public string Get(string key) => /* Redis implementation */;
+    public void Set(string key, string value) => /* Redis implementation */;
+}
+
+// Register MemoryCache only when Features:UseRedisCache is false
+[Registration(As = typeof(ICache), Condition = "!Features:UseRedisCache")]
+public class MemoryCache : ICache
+{
+    public string Get(string key) => /* In-memory implementation */;
+    public void Set(string key, string value) => /* In-memory implementation */;
+}
+```
+
+**Configuration (appsettings.json):**
+
+```json
+{
+  "Features": {
+    "UseRedisCache": true
+  }
+}
+```
+
+**Usage:**
+
+```csharp
+var configuration = new ConfigurationBuilder()
+    .AddJsonFile("appsettings.json")
+    .Build();
+
+// IConfiguration is required when conditional services exist
+services.AddDependencyRegistrationsFromDomain(configuration);
+
+// Resolves to RedisCache (because Features:UseRedisCache = true)
+var cache = serviceProvider.GetRequiredService<ICache>();
+```
+
+### Generated Code
+
+```csharp
+public static IServiceCollection AddDependencyRegistrationsFromDomain(
+    this IServiceCollection services,
+    IConfiguration configuration)
+{
+    // Conditional registration with positive check
+    if (configuration.GetValue<bool>("Features:UseRedisCache"))
+    {
+        services.AddSingleton<ICache, RedisCache>();
+    }
+
+    // Conditional registration with negation
+    if (!configuration.GetValue<bool>("Features:UseRedisCache"))
+    {
+        services.AddSingleton<ICache, MemoryCache>();
+    }
+
+    return services;
+}
+```
+
+### 🔄 Negation Support
+
+Prefix the condition with `!` to negate it (register when the value is `false`):
+
+```csharp
+// Register when Features:UseRedisCache is FALSE
+[Registration(As = typeof(ICache), Condition = "!Features:UseRedisCache")]
+public class MemoryCache : ICache { }
+```
+
+**Generated:**
+
+```csharp
+if (!configuration.GetValue<bool>("Features:UseRedisCache"))
+{
+    services.AddSingleton<ICache, MemoryCache>();
+}
+```
+
+### 🎯 Common Use Cases
+
+#### 1. Feature Flags
+
+Enable/disable features without code changes:
+
+```csharp
+// Premium features only when enabled
+[Registration(Lifetime.Scoped, As = typeof(IPremiumService), Condition = "Features:EnablePremium")]
+public class PremiumService : IPremiumService
+{
+    public void ExecutePremiumFeature() { /* Premium logic */ }
+}
+```
+
+**Configuration:**
+
+```json
+{
+  "Features": {
+    "EnablePremium": true
+  }
+}
+```
+
+#### 2. Environment-Specific Services
+
+Different implementations for different environments:
+
+```csharp
+// Production email service
+[Registration(As = typeof(IEmailService), Condition = "Environment:IsProduction")]
+public class SendGridEmailService : IEmailService { }
+
+// Development email service (logs instead of sending)
+[Registration(As = typeof(IEmailService), Condition = "!Environment:IsProduction")]
+public class LoggingEmailService : IEmailService { }
+```
+
+#### 3. A/B Testing
+
+Register different implementations based on experiment configuration:
+
+```csharp
+[Registration(As = typeof(IRecommendationEngine), Condition = "Experiments:UseNewAlgorithm")]
+public class NewRecommendationEngine : IRecommendationEngine { }
+
+[Registration(As = typeof(IRecommendationEngine), Condition = "!Experiments:UseNewAlgorithm")]
+public class LegacyRecommendationEngine : IRecommendationEngine { }
+```
+
+#### 4. Cost Optimization
+
+Disable expensive services when not needed:
+
+```csharp
+// AI service only when enabled (cost-saving)
+[Registration(As = typeof(IAIService), Condition = "Services:EnableAI")]
+public class OpenAIService : IAIService { }
+
+// Fallback simple service
+[Registration(As = typeof(IAIService), Condition = "!Services:EnableAI")]
+public class BasicTextService : IAIService { }
+```
+
+### 🎨 Advanced Scenarios
+
+#### Multiple Conditional Services
+
+```csharp
+[Registration(As = typeof(IStorage), Condition = "Storage:UseAzure")]
+public class AzureBlobStorage : IStorage { }
+
+[Registration(As = typeof(IStorage), Condition = "Storage:UseAWS")]
+public class S3Storage : IStorage { }
+
+[Registration(As = typeof(IStorage), Condition = "Storage:UseLocal")]
+public class LocalFileStorage : IStorage { }
+```
+
+**Configuration:**
+
+```json
+{
+  "Storage": {
+    "UseAzure": false,
+    "UseAWS": true,
+    "UseLocal": false
+  }
+}
+```
+
+#### Combining with Different Lifetimes
+
+```csharp
+// Scoped Redis cache (production)
+[Registration(Lifetime.Scoped, As = typeof(ICache), Condition = "Cache:UseRedis")]
+public class RedisCache : ICache { }
+
+// Singleton memory cache (development)
+[Registration(Lifetime.Singleton, As = typeof(ICache), Condition = "!Cache:UseRedis")]
+public class MemoryCache : ICache { }
+```
+
+#### Mixing Conditional and Unconditional
+
+```csharp
+// Always registered (core service)
+[Registration(Lifetime.Scoped, As = typeof(IUserService))]
+public class UserService : IUserService { }
+
+// Conditionally registered (optional feature)
+[Registration(Lifetime.Scoped, As = typeof(IAnalyticsService), Condition = "Features:EnableAnalytics")]
+public class AnalyticsService : IAnalyticsService { }
+```
+
+### ⚙️ Configuration Best Practices
+
+**1. Use Hierarchical Configuration Keys:**
+
+```csharp
+// Good: Organized hierarchy
+[Registration(Condition = "Features:Cache:UseRedis")]
+[Registration(Condition = "Features:Email:UseSendGrid")]
+[Registration(Condition = "Experiments:NewUI:Enabled")]
+```
+
+**2. Boolean Values:**
+
+Conditions always use `GetValue<bool>()`, so ensure configuration values are boolean:
+
+```json
+{
+  "Features": {
+    "UseRedisCache": true,          // ✅ Correct
+    "EnablePremium": "true",        // ⚠️ Works but not ideal
+    "UseNewAlgorithm": 1            // ❌ Won't work as expected
+  }
+}
+```
+
+**3. Default Values:**
+
+If a configuration key is missing, `GetValue<bool>()` returns `false` by default:
+
+```csharp
+// If "Features:UseRedisCache" doesn't exist in config, MemoryCache is used
+[Registration(Condition = "Features:UseRedisCache")]
+public class RedisCache : ICache { }
+
+[Registration(Condition = "!Features:UseRedisCache")]
+public class MemoryCache : ICache { }  // ← This one is registered (default false)
+```
+
+### 🔍 IConfiguration Parameter Behavior
+
+**Without Conditional Services:**
+
+```csharp
+// No conditional services → no IConfiguration parameter
+services.AddDependencyRegistrationsFromDomain();
+```
+
+**With Conditional Services:**
+
+```csharp
+// Has conditional services → IConfiguration parameter required
+services.AddDependencyRegistrationsFromDomain(configuration);
+```
+
+**All Overloads Updated:**
+
+When conditional services exist, ALL generated overloads include the `IConfiguration` parameter:
+
+```csharp
+// Overload 1: Basic registration
+services.AddDependencyRegistrationsFromDomain(configuration);
+
+// Overload 2: With transitive registration
+services.AddDependencyRegistrationsFromDomain(configuration, includeReferencedAssemblies: true);
+
+// Overload 3: With specific assembly
+services.AddDependencyRegistrationsFromDomain(configuration, "DataAccess");
+
+// Overload 4: With multiple assemblies
+services.AddDependencyRegistrationsFromDomain(configuration, "DataAccess", "Infrastructure");
+```
+
+### ⚠️ Important Notes
+
+**1. Configuration Not Passed Transitively:**
+
+Configuration is NOT passed to referenced assemblies automatically. Each assembly manages its own conditional services:
+
+```csharp
+// Domain has conditional services → needs configuration
+services.AddDependencyRegistrationsFromDomain(configuration);
+
+// DataAccess also has conditional services → call it directly with configuration
+services.AddDependencyRegistrationsFromDataAccess(configuration);
+
+// Or use transitive registration (but configuration isn't passed through)
+services.AddDependencyRegistrationsFromDomain(configuration, includeReferencedAssemblies: true);
+// ↑ This registers DataAccess services, but they won't have conditional logic applied
+```
+
+**2. Thread-Safe:**
+
+Configuration reading is thread-safe and can be used in concurrent scenarios.
+
+**3. Native AOT Compatible:**
+
+Conditional registration is fully compatible with Native AOT since all checks are simple boolean reads from configuration.
+
+**4. No Circular Dependencies:**
+
+Be careful not to create circular dependencies between conditional services.
+
+### ✅ Benefits
+
+- **🎯 Feature Flags**: Enable/disable features dynamically without redeployment
+- **🌍 Environment-Specific**: Different implementations for dev/staging/prod
+- **🧪 A/B Testing**: Easy experimentation with different implementations
+- **💰 Cost Optimization**: Disable expensive services when not needed
+- **🚀 Gradual Rollout**: Safely test new implementations before full deployment
+- **🎨 Clean Code**: No `#if` preprocessor directives needed
+- **⚡ Runtime Flexibility**: Change service implementations via configuration
+- **🔒 Type-Safe**: All registrations validated at compile time
+
+### 📝 Complete Example
+
+See the **Atc.SourceGenerators.DependencyRegistration** sample for a complete working example:
+
+- **appsettings.json**: Feature flag configuration
+- **RedisCache.cs**: Conditional service (Features:UseRedisCache = true)
+- **MemoryCache.cs**: Conditional service (Features:UseRedisCache = false)
+- **PremiumFeatureService.cs**: Conditional premium features
+- **Program.cs**: Usage demonstration
 
 ---
 

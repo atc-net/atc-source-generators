@@ -76,4 +76,36 @@ public sealed class RegistrationAttribute : Attribute
     /// </code>
     /// </example>
     public string? Instance { get; set; }
+
+    /// <summary>
+    /// Gets or sets the configuration key path that determines whether this service should be registered.
+    /// The service will only be registered if the configuration value at this path evaluates to true.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Conditional registration allows services to be registered based on runtime configuration values,
+    /// such as feature flags or environment-specific settings. The condition string should be a valid
+    /// configuration key path (e.g., "Features:UseRedisCache").
+    /// </para>
+    /// <para>
+    /// Prefix the condition with "!" to negate it. For example, "!Features:UseRedisCache" will register
+    /// the service only when the configuration value is false.
+    /// </para>
+    /// <para>
+    /// When conditional registration is used, an IConfiguration parameter will be added to the registration
+    /// method signature, and the configuration value will be checked at runtime before registering the service.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Register RedisCache only when Features:UseRedisCache is true
+    /// [Registration(As = typeof(ICache), Condition = "Features:UseRedisCache")]
+    /// public class RedisCache : ICache { }
+    ///
+    /// // Register MemoryCache only when Features:UseRedisCache is false
+    /// [Registration(As = typeof(ICache), Condition = "!Features:UseRedisCache")]
+    /// public class MemoryCache : ICache { }
+    /// </code>
+    /// </example>
+    public string? Condition { get; set; }
 }

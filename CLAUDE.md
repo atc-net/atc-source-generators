@@ -108,6 +108,7 @@ Both generators follow the **Incremental Generator** pattern (IIncrementalGenera
 - **Instance registration** - Register pre-created singleton instances via static fields, properties, or methods
 - **TryAdd registration** - Conditional registration for default implementations (library pattern)
 - **Decorator pattern support** - Wrap services with cross-cutting concerns (logging, caching, validation) using `Decorator = true`
+- **Conditional registration** - Register services based on configuration values (feature flags, environment-specific services)
 - **Assembly scanning filters** - Exclude types by namespace, pattern (wildcards), or interface implementation
 - **Runtime filtering** - Exclude services when calling registration methods via optional parameters (different apps, different service subsets)
 - Supports explicit `As` parameter to override auto-detection
@@ -146,6 +147,20 @@ Both generators follow the **Incremental Generator** pattern (IIncrementalGenera
 //                   public class LoggingOrderServiceDecorator : IOrderService { }
 // Decorator Output: services.Decorate<IOrderService>((provider, inner) =>
 //                       ActivatorUtilities.CreateInstance<LoggingOrderServiceDecorator>(provider, inner));
+
+// Conditional Input: [Registration(As = typeof(ICache), Condition = "Features:UseRedisCache")]
+//                    public class RedisCache : ICache { }
+// Conditional Output: if (configuration.GetValue<bool>("Features:UseRedisCache"))
+//                    {
+//                        services.AddSingleton<ICache, RedisCache>();
+//                    }
+
+// Negated Conditional: [Registration(As = typeof(ICache), Condition = "!Features:UseRedisCache")]
+//                      public class MemoryCache : ICache { }
+// Negated Output: if (!configuration.GetValue<bool>("Features:UseRedisCache"))
+//                {
+//                    services.AddSingleton<ICache, MemoryCache>();
+//                }
 ```
 
 **Smart Naming:**
@@ -155,6 +170,18 @@ PetStore.Domain → AddDependencyRegistrationsFromDomain()
 
 // If multiple assemblies have "Domain" suffix:
 PetStore.Domain + AnotherApp.Domain → AddDependencyRegistrationsFromPetStoreDomain()
+```
+
+**Conditional Registration Configuration:**
+When an assembly contains services with `Condition` parameter, an `IConfiguration` parameter is added to all generated extension method signatures:
+
+```csharp
+// Without conditional services:
+services.AddDependencyRegistrationsFromDomain();
+
+// With conditional services (IConfiguration required):
+services.AddDependencyRegistrationsFromDomain(configuration);
+services.AddDependencyRegistrationsFromDomain(configuration, includeReferencedAssemblies: true);
 ```
 
 **Transitive Registration (4 Overloads):**
@@ -171,6 +198,9 @@ services.AddDependencyRegistrationsFromDomain("MyApp.DataAccess");
 
 // Overload 4: Register multiple specific assemblies
 services.AddDependencyRegistrationsFromDomain("DataAccess", "Infrastructure");
+
+// Note: Configuration is only passed to the calling assembly, not transitively to referenced assemblies
+// Each assembly with conditional services should be called directly with configuration if needed
 ```
 
 **How Transitive Registration Works:**
