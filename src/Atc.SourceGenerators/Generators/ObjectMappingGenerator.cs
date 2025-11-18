@@ -194,7 +194,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                 continue;
             }
 
-            // Extract Bidirectional, EnableFlattening, BeforeMap, AfterMap, Factory, UpdateTarget, and GenerateProjection properties
+            // Extract Bidirectional, EnableFlattening, BeforeMap, AfterMap, Factory, UpdateTarget, GenerateProjection, and IncludePrivateMembers properties
             var bidirectional = false;
             var enableFlattening = false;
             string? beforeMap = null;
@@ -202,6 +202,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
             string? factory = null;
             var updateTarget = false;
             var generateProjection = false;
+            var includePrivateMembers = false;
             foreach (var namedArg in attribute.NamedArguments)
             {
                 if (namedArg.Key == "Bidirectional")
@@ -232,10 +233,14 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                 {
                     generateProjection = namedArg.Value.Value as bool? ?? false;
                 }
+                else if (namedArg.Key == "IncludePrivateMembers")
+                {
+                    includePrivateMembers = namedArg.Value.Value as bool? ?? false;
+                }
             }
 
             // Get property mappings
-            var propertyMappings = GetPropertyMappings(classSymbol, targetType, enableFlattening, context);
+            var propertyMappings = GetPropertyMappings(classSymbol, targetType, enableFlattening, includePrivateMembers, context);
 
             // Find best matching constructor
             var (constructor, constructorParameterNames) = FindBestConstructor(classSymbol, targetType);
@@ -265,7 +270,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
 
             // Get property mappings (using constructed target type for generics)
             var mappingsForGeneric = isGenericMapping ?
-                GetPropertyMappings(classSymbol, targetTypeForMapping, enableFlattening, context) :
+                GetPropertyMappings(classSymbol, targetTypeForMapping, enableFlattening, includePrivateMembers, context) :
                 propertyMappings;
 
             // Find best matching constructor (using constructed target type for generics)
@@ -287,7 +292,8 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                 Factory: factory,
                 UpdateTarget: updateTarget,
                 GenerateProjection: generateProjection,
-                IsGeneric: isGenericMapping));
+                IsGeneric: isGenericMapping,
+                IncludePrivateMembers: includePrivateMembers));
         }
 
         return mappings.Count > 0 ? mappings : null;
@@ -297,6 +303,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         INamedTypeSymbol sourceType,
         INamedTypeSymbol targetType,
         bool enableFlattening,
+        bool includePrivateMembers,
         SourceProductionContext? context = null)
     {
         var mappings = new List<PropertyMapping>();
@@ -304,14 +311,17 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         var sourceProperties = sourceType
             .GetMembers()
             .OfType<IPropertySymbol>()
-            .Where(p => p.GetMethod is not null && !HasMapIgnoreAttribute(p))
+            .Where(p => p.GetMethod is not null &&
+                        !HasMapIgnoreAttribute(p) &&
+                        (includePrivateMembers || p.DeclaredAccessibility == Accessibility.Public))
             .ToList();
 
         var targetProperties = targetType
             .GetMembers()
             .OfType<IPropertySymbol>()
             .Where(p => (p.SetMethod is not null || targetType.TypeKind == TypeKind.Struct) &&
-                        !HasMapIgnoreAttribute(p))
+                        !HasMapIgnoreAttribute(p) &&
+                        (includePrivateMembers || p.DeclaredAccessibility == Accessibility.Public))
             .ToList();
 
         foreach (var sourceProp in sourceProperties)
@@ -358,7 +368,9 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                     CollectionTargetType: null,
                     IsFlattened: false,
                     FlattenedNestedProperty: null,
-                    IsBuiltInTypeConversion: false));
+                    IsBuiltInTypeConversion: false,
+                    SourceRequiresUnsafeAccessor: includePrivateMembers && RequiresUnsafeAccessorForReading(sourceProp),
+                    TargetRequiresUnsafeAccessor: includePrivateMembers && RequiresUnsafeAccessorForWriting(targetProp)));
             }
             else
             {
@@ -384,7 +396,9 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                             CollectionTargetType: GetCollectionTargetType(targetProp.Type),
                             IsFlattened: false,
                             FlattenedNestedProperty: null,
-                            IsBuiltInTypeConversion: false));
+                            IsBuiltInTypeConversion: false,
+                            SourceRequiresUnsafeAccessor: includePrivateMembers && RequiresUnsafeAccessorForReading(sourceProp),
+                            TargetRequiresUnsafeAccessor: includePrivateMembers && RequiresUnsafeAccessorForWriting(targetProp)));
                     }
                     else
                     {
@@ -407,7 +421,9 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                                 CollectionTargetType: null,
                                 IsFlattened: false,
                                 FlattenedNestedProperty: null,
-                                IsBuiltInTypeConversion: isBuiltInTypeConversion));
+                                IsBuiltInTypeConversion: isBuiltInTypeConversion,
+                                SourceRequiresUnsafeAccessor: includePrivateMembers && RequiresUnsafeAccessorForReading(sourceProp),
+                                TargetRequiresUnsafeAccessor: includePrivateMembers && RequiresUnsafeAccessorForWriting(targetProp)));
                         }
                     }
                 }
@@ -468,7 +484,9 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                             CollectionTargetType: null,
                             IsFlattened: true,
                             FlattenedNestedProperty: nestedProp,
-                            IsBuiltInTypeConversion: false));
+                            IsBuiltInTypeConversion: false,
+                            SourceRequiresUnsafeAccessor: includePrivateMembers && RequiresUnsafeAccessorForReading(sourceProp),
+                            TargetRequiresUnsafeAccessor: includePrivateMembers && RequiresUnsafeAccessorForWriting(targetProp)));
                     }
                 }
             }
@@ -842,6 +860,42 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         return null;
     }
 
+    private static bool RequiresUnsafeAccessorForReading(
+        IPropertySymbol property)
+    {
+        // Check if the property itself or its getter is not publicly accessible
+        if (property.DeclaredAccessibility != Accessibility.Public)
+        {
+            return true;
+        }
+
+        if (property.GetMethod is not null &&
+            property.GetMethod.DeclaredAccessibility != Accessibility.Public)
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool RequiresUnsafeAccessorForWriting(
+        IPropertySymbol property)
+    {
+        // Check if the property itself or its setter is not publicly accessible
+        if (property.DeclaredAccessibility != Accessibility.Public)
+        {
+            return true;
+        }
+
+        if (property.SetMethod is not null &&
+            property.SetMethod.DeclaredAccessibility != Accessibility.Public)
+        {
+            return true;
+        }
+
+        return false;
+    }
+
     private static (IMethodSymbol? Constructor, List<string> ParameterNames) FindBestConstructor(
         INamedTypeSymbol sourceType,
         INamedTypeSymbol targetType)
@@ -924,6 +978,12 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         sb.AppendLineLf("public static class ObjectMappingExtensions");
         sb.AppendLineLf("{");
 
+        // Generate UnsafeAccessor methods for all mappings that need them
+        foreach (var mapping in mappings)
+        {
+            GenerateUnsafeAccessors(sb, mapping);
+        }
+
         foreach (var mapping in mappings)
         {
             GenerateMappingMethod(sb, mapping);
@@ -950,7 +1010,8 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                 var reverseMappings = GetPropertyMappings(
                     sourceType: reverseSourceType,
                     targetType: mapping.SourceType,
-                    enableFlattening: mapping.EnableFlattening);
+                    enableFlattening: mapping.EnableFlattening,
+                    includePrivateMembers: mapping.IncludePrivateMembers);
 
                 // Find best matching constructor for reverse mapping
                 var (reverseConstructor, reverseConstructorParams) = FindBestConstructor(reverseSourceType, mapping.SourceType);
@@ -969,7 +1030,8 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                     Factory: null, // No factory for reverse mapping
                     UpdateTarget: false, // No update target for reverse mapping
                     GenerateProjection: false, // No projection for reverse mapping
-                    IsGeneric: mapping.IsGeneric); // Preserve generic flag for reverse mapping
+                    IsGeneric: mapping.IsGeneric, // Preserve generic flag for reverse mapping
+                    IncludePrivateMembers: mapping.IncludePrivateMembers); // Preserve private member access for reverse mapping
 
                 GenerateMappingMethod(sb, reverseMapping);
             }
@@ -1084,7 +1146,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
             // Apply property mappings to the factory-created instance
             foreach (var prop in mapping.PropertyMappings)
             {
-                var value = GeneratePropertyMappingValue(prop, "source");
+                var value = GeneratePropertyMappingValue(prop, "source", mapping.SourceType);
                 sb.AppendLineLf($"        target.{prop.TargetProperty.Name} = {value};");
             }
         }
@@ -1141,7 +1203,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                 var isLast = i == orderedConstructorProps.Count - 1;
                 var comma = isLast && initializerProps.Count == 0 ? string.Empty : ",";
 
-                var value = GeneratePropertyMappingValue(prop, "source");
+                var value = GeneratePropertyMappingValue(prop, "source", mapping.SourceType);
                 sb.AppendLineLf($"            {value}{comma}");
             }
 
@@ -1149,7 +1211,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
             {
                 sb.AppendLineLf("        )");
                 sb.AppendLineLf("        {");
-                GeneratePropertyInitializers(sb, initializerProps);
+                GeneratePropertyInitializers(sb, initializerProps, mapping.SourceType);
                 sb.AppendLineLf("        };");
             }
             else
@@ -1170,7 +1232,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
             }
 
             sb.AppendLineLf("        {");
-            GeneratePropertyInitializers(sb, mapping.PropertyMappings);
+            GeneratePropertyInitializers(sb, mapping.PropertyMappings, mapping.SourceType);
             sb.AppendLineLf("        };");
             }
         }
@@ -1287,8 +1349,19 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         // Update properties on existing target
         foreach (var prop in mapping.PropertyMappings)
         {
-            var value = GeneratePropertyMappingValue(prop, "source");
-            sb.AppendLineLf($"        target.{prop.TargetProperty.Name} = {value};");
+            var value = GeneratePropertyMappingValue(prop, "source", mapping.SourceType);
+
+            if (prop.TargetRequiresUnsafeAccessor)
+            {
+                // Use UnsafeAccessor setter for private/internal properties
+                var setterName = GetAccessorMethodName(mapping.TargetType, prop.TargetProperty.Name, isGetter: false);
+                sb.AppendLineLf($"        {setterName}(target, {value});");
+            }
+            else
+            {
+                // Direct property assignment for public properties
+                sb.AppendLineLf($"        target.{prop.TargetProperty.Name} = {value};");
+            }
         }
 
         // Generate AfterMap hook call
@@ -1382,7 +1455,8 @@ public class ObjectMappingGenerator : IIncrementalGenerator
 
     private static void GeneratePropertyInitializers(
         StringBuilder sb,
-        List<PropertyMapping> properties)
+        List<PropertyMapping> properties,
+        INamedTypeSymbol sourceType)
     {
         for (var i = 0; i < properties.Count; i++)
         {
@@ -1390,14 +1464,15 @@ public class ObjectMappingGenerator : IIncrementalGenerator
             var isLast = i == properties.Count - 1;
             var comma = isLast ? string.Empty : ",";
 
-            var value = GeneratePropertyMappingValue(prop, "source");
+            var value = GeneratePropertyMappingValue(prop, "source", sourceType);
             sb.AppendLineLf($"            {prop.TargetProperty.Name} = {value}{comma}");
         }
     }
 
     private static string GeneratePropertyMappingValue(
         PropertyMapping prop,
-        string sourceVariable)
+        string sourceVariable,
+        INamedTypeSymbol sourceType)
     {
         if (prop.IsFlattened && prop.FlattenedNestedProperty is not null)
         {
@@ -1464,11 +1539,21 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         {
             // Nested object mapping
             var nestedMethodName = $"MapTo{prop.TargetProperty.Type.Name}";
-            return $"{sourceVariable}.{prop.SourceProperty.Name}?.{nestedMethodName}()!";
+            var propertyAccess = GenerateSourcePropertyAccess(prop, sourceVariable, sourceType);
+
+            // For nullable nested objects, we need null-conditional operator
+            // But UnsafeAccessor returns the value directly, so we need to handle both cases
+            if (prop.SourceRequiresUnsafeAccessor)
+            {
+                // UnsafeAccessor: check for null separately
+                return $"{propertyAccess}?.{nestedMethodName}()!";
+            }
+
+            return $"{propertyAccess}?.{nestedMethodName}()!";
         }
 
         // Direct property mapping
-        return $"{sourceVariable}.{prop.SourceProperty.Name}";
+        return GenerateSourcePropertyAccess(prop, sourceVariable, sourceType);
     }
 
     private static string GenerateBuiltInTypeConversion(
@@ -1546,6 +1631,65 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         return sourcePropertyAccess;
     }
 
+    private static void GenerateUnsafeAccessors(
+        StringBuilder sb,
+        MappingInfo mapping)
+    {
+        if (!mapping.IncludePrivateMembers)
+        {
+            return;
+        }
+
+        var accessorsGenerated = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var prop in mapping.PropertyMappings)
+        {
+            // Generate getter accessor for source property if needed
+            if (prop.SourceRequiresUnsafeAccessor)
+            {
+                var sourceTypeName = mapping.SourceType.ToDisplayString();
+                var accessorName = $"UnsafeGet{mapping.SourceType.Name}_{prop.SourceProperty.Name}";
+
+                if (accessorsGenerated.Add(accessorName))
+                {
+                    sb.AppendLineLf($"    [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Method, Name = \"get_{prop.SourceProperty.Name}\")]");
+                    sb.AppendLineLf($"    private static extern {prop.SourceProperty.Type.ToDisplayString()} {accessorName}({sourceTypeName} instance);");
+                    sb.AppendLineLf();
+                }
+            }
+
+            // Generate setter accessor for target property if needed
+            if (prop.TargetRequiresUnsafeAccessor)
+            {
+                var targetTypeName = mapping.TargetType.ToDisplayString();
+                var accessorName = $"UnsafeSet{mapping.TargetType.Name}_{prop.TargetProperty.Name}";
+
+                if (accessorsGenerated.Add(accessorName))
+                {
+                    sb.AppendLineLf($"    [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Method, Name = \"set_{prop.TargetProperty.Name}\")]");
+                    sb.AppendLineLf($"    private static extern void {accessorName}({targetTypeName} instance, {prop.TargetProperty.Type.ToDisplayString()} value);");
+                    sb.AppendLineLf();
+                }
+            }
+        }
+    }
+
+    private static string GetAccessorMethodName(
+        INamedTypeSymbol containingType,
+        string propertyName,
+        bool isGetter) =>
+        isGetter
+            ? $"UnsafeGet{containingType.Name}_{propertyName}"
+            : $"UnsafeSet{containingType.Name}_{propertyName}";
+
+    private static string GenerateSourcePropertyAccess(
+        PropertyMapping prop,
+        string sourceVariable,
+        INamedTypeSymbol sourceType) =>
+        prop.SourceRequiresUnsafeAccessor
+            ? $"{GetAccessorMethodName(sourceType, prop.SourceProperty.Name, isGetter: true)}({sourceVariable})"
+            : $"{sourceVariable}.{prop.SourceProperty.Name}";
+
     private static string GenerateAttributeSource()
         => """
            // <auto-generated/>
@@ -1621,6 +1765,13 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                    /// for use with IQueryable (EF Core server-side projection).
                    /// </summary>
                    public bool GenerateProjection { get; set; }
+
+                   /// <summary>
+                   /// Gets or sets a value indicating whether to include private and internal members in the mapping.
+                   /// When enabled, uses UnsafeAccessor (NET 8+) for AOT-safe, zero-overhead access to private members.
+                   /// Default is false (only public members).
+                   /// </summary>
+                   public bool IncludePrivateMembers { get; set; }
                }
            }
            """;

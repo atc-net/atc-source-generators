@@ -14,4 +14,5 @@ internal sealed record MappingInfo(
     string? Factory,
     bool UpdateTarget,
     bool GenerateProjection,
-    bool IsGeneric);
+    bool IsGeneric,
+    bool IncludePrivateMembers);
