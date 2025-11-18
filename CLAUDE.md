@@ -297,7 +297,7 @@ services.AddDependencyRegistrationsFromDomain(
   3. `public const string NameTitle`
   4. `public const string Name`
   5. Auto-inferred from class name
-- Supports validation: `ValidateDataAnnotations`, `ValidateOnStart`, Custom validators (`IValidateOptions<T>`)
+- Supports validation: `ValidateDataAnnotations`, `ValidateOnStart`, `ErrorOnMissingKeys` (fail-fast for missing sections), Custom validators (`IValidateOptions<T>`)
 - **Named options support**: Multiple configurations of the same options type with different names (e.g., Primary/Secondary email servers)
 - Supports lifetime selection: Singleton (IOptions), Scoped (IOptionsSnapshot), Monitor (IOptionsMonitor)
 - Requires classes to be declared `partial`
@@ -324,6 +324,27 @@ services.AddOptions<DatabaseOptions>()
     .ValidateOnStart();
 
 services.AddSingleton<IValidateOptions<DatabaseOptions>, DatabaseOptionsValidator>();
+
+// Input with ErrorOnMissingKeys (fail-fast for missing configuration):
+[OptionsBinding("Database", ErrorOnMissingKeys = true, ValidateOnStart = true)]
+public partial class DatabaseOptions { }
+
+// Output with ErrorOnMissingKeys:
+services.AddOptions<DatabaseOptions>()
+    .Bind(configuration.GetSection("Database"))
+    .Validate(options =>
+    {
+        var section = configuration.GetSection("Database");
+        if (!section.Exists())
+        {
+            throw new global::System.InvalidOperationException(
+                "Configuration section 'Database' is missing. " +
+                "Ensure the section exists in your appsettings.json or other configuration sources.");
+        }
+
+        return true;
+    })
+    .ValidateOnStart();
 
 // Input with named options (multiple configurations):
 [OptionsBinding("Email:Primary", Name = "Primary")]

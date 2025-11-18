@@ -186,7 +186,6 @@ public class OptionsBindingGenerator : IIncrementalGenerator
         AttributeData attribute,
         SourceProductionContext context)
     {
-
         // Extract section name with priority:
         // 1. Explicit constructor argument
         // 2. const string NameTitle or Name
@@ -241,6 +240,7 @@ public class OptionsBindingGenerator : IIncrementalGenerator
         var lifetime = 0; // Singleton
         INamedTypeSymbol? validatorType = null;
         string? name = null;
+        var errorOnMissingKeys = false;
 
         foreach (var namedArg in attribute.NamedArguments)
         {
@@ -261,6 +261,9 @@ public class OptionsBindingGenerator : IIncrementalGenerator
                 case "Name":
                     name = namedArg.Value.Value as string;
                     break;
+                case "ErrorOnMissingKeys":
+                    errorOnMissingKeys = namedArg.Value.Value as bool? ?? false;
+                    break;
             }
         }
 
@@ -276,7 +279,8 @@ public class OptionsBindingGenerator : IIncrementalGenerator
             validateDataAnnotations,
             lifetime,
             validatorTypeName,
-            name);
+            name,
+            errorOnMissingKeys);
     }
 
     private static string InferSectionNameFromClassName(string className)
@@ -611,6 +615,23 @@ public static class OptionsBindingExtensions
                 sb.Append("            .ValidateDataAnnotations()");
             }
 
+            if (option.ErrorOnMissingKeys)
+            {
+                sb.AppendLineLf();
+                sb.AppendLineLf("            .Validate(options =>");
+                sb.AppendLineLf("            {");
+                sb.AppendLineLf($"                var section = configuration.GetSection(\"{sectionName}\");");
+                sb.AppendLineLf("                if (!section.Exists())");
+                sb.AppendLineLf("                {");
+                sb.AppendLineLf($"                    throw new global::System.InvalidOperationException(");
+                sb.AppendLineLf($"                        \"Configuration section '{sectionName}' is missing. \" +");
+                sb.AppendLineLf($"                        \"Ensure the section exists in your appsettings.json or other configuration sources.\");");
+                sb.AppendLineLf("                }");
+                sb.AppendLineLf();
+                sb.AppendLineLf("                return true;");
+                sb.AppendLineLf("            })");
+            }
+
             if (option.ValidateOnStart)
             {
                 sb.AppendLineLf();
@@ -809,6 +830,14 @@ public static class OptionsBindingExtensions
                    /// Default is null (unnamed options).
                    /// </summary>
                    public string? Name { get; set; }
+
+                   /// <summary>
+                   /// Gets or sets a value indicating whether to throw an exception if the configuration section is missing or empty.
+                   /// When true, generates validation that ensures the configuration section exists and contains data.
+                   /// Recommended to combine with <c>ValidateOnStart = true</c> to detect missing configuration at application startup.
+                   /// Default is false.
+                   /// </summary>
+                   public bool ErrorOnMissingKeys { get; set; }
                }
            }
            """;

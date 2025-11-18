@@ -6,7 +6,9 @@ namespace PetStore.Domain.Options.Validators;
 /// </summary>
 public class PetStoreOptionsValidator : IValidateOptions<PetStoreOptions>
 {
-    public ValidateOptionsResult Validate(string? name, PetStoreOptions options)
+    public ValidateOptionsResult Validate(
+        string? name,
+        PetStoreOptions options)
     {
         var failures = new List<string>();
 
@@ -23,7 +25,8 @@ public class PetStoreOptionsValidator : IValidateOptions<PetStoreOptions>
         }
 
         // Ensure store name doesn't contain invalid characters
-        if (options.StoreName.Contains('<') || options.StoreName.Contains('>'))
+        if (options.StoreName.Contains('<', StringComparison.Ordinal) ||
+            options.StoreName.Contains('>', StringComparison.Ordinal))
         {
             failures.Add("StoreName cannot contain HTML/XML tags (< or > characters)");
         }

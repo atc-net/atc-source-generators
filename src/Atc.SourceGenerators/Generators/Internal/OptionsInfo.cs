@@ -9,4 +9,5 @@ internal sealed record OptionsInfo(
     bool ValidateDataAnnotations,
     int Lifetime,
     string? ValidatorType,
-    string? Name);
+    string? Name,
+    bool ErrorOnMissingKeys);

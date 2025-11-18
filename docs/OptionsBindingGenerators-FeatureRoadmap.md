@@ -56,6 +56,7 @@ This roadmap is based on comprehensive analysis of:
 - **Validation support** - `ValidateDataAnnotations` and `ValidateOnStart` parameters
 - **Custom validation** - `IValidateOptions<T>` for complex business rules beyond DataAnnotations
 - **Named options** - Multiple configurations of the same options type with different names
+- **Error on missing keys** - `ErrorOnMissingKeys` fail-fast validation when configuration sections are missing
 - **Lifetime selection** - Singleton (`IOptions`), Scoped (`IOptionsSnapshot`), Monitor (`IOptionsMonitor`)
 - **Multi-project support** - Assembly-specific extension methods with smart naming
 - **Transitive registration** - 4 overloads for automatic/selective assembly registration
@@ -72,7 +73,7 @@ This roadmap is based on comprehensive analysis of:
 | ✅ | [Custom Validation Support (IValidateOptions)](#1-custom-validation-support-ivalidateoptions) | 🔴 High |
 | ✅ | [Named Options Support](#2-named-options-support) | 🔴 High |
 | ❌ | [Post-Configuration Support](#3-post-configuration-support) | 🟡 Medium-High |
-| ❌ | [Error on Missing Configuration Keys](#4-error-on-missing-configuration-keys) | 🔴 High |
+| ✅ | [Error on Missing Configuration Keys](#4-error-on-missing-configuration-keys) | 🔴 High |
 | ❌ | [Configuration Change Callbacks](#5-configuration-change-callbacks) | 🟡 Medium |
 | ❌ | [Bind Configuration Subsections to Properties](#6-bind-configuration-subsections-to-properties) | 🟡 Medium |
 | ❌ | [ConfigureAll Support](#7-configureall-support) | 🟢 Low-Medium |
@@ -296,10 +297,10 @@ services.AddOptions<StorageOptions>()
 ### 4. Error on Missing Configuration Keys
 
 **Priority**: 🔴 **High** ⭐ *Highly requested in GitHub issues*
-**Status**: ❌ Not Implemented
+**Status**: ✅ **Implemented**
 **Inspiration**: [GitHub Issue #36015](https://github.com/dotnet/runtime/issues/36015)
 
-**Description**: Throw exceptions when required configuration keys are missing instead of silently setting properties to null/default.
+**Description**: Throw exceptions when required configuration sections are missing instead of silently binding to null/default values.
 
 **User Story**:
 > "As a developer, I want my application to fail at startup if critical configuration like database connection strings is missing, rather than failing in production with NullReferenceException."
@@ -310,36 +311,53 @@ services.AddOptions<StorageOptions>()
 [OptionsBinding("Database", ErrorOnMissingKeys = true, ValidateOnStart = true)]
 public partial class DatabaseOptions
 {
-    // If "Database:ConnectionString" is missing in appsettings.json,
-    // throw exception at startup instead of silently setting to null
+    [Required, MinLength(10)]
     public string ConnectionString { get; set; } = string.Empty;
 
-    public int MaxRetries { get; set; } = 5;
+    [Range(1, 10)]
+    public int MaxRetries { get; set; } = 3;
+
+    public int TimeoutSeconds { get; set; } = 30;
 }
 
-// Generated code with error checking:
+// Generated code with section existence check:
 services.AddOptions<DatabaseOptions>()
     .Bind(configuration.GetSection("Database"))
     .Validate(options =>
     {
-        if (string.IsNullOrEmpty(options.ConnectionString))
+        var section = configuration.GetSection("Database");
+        if (!section.Exists())
         {
-            throw new OptionsValidationException(
-                nameof(DatabaseOptions),
-                typeof(DatabaseOptions),
-                new[] { "ConnectionString is required but was not found in configuration" });
+            throw new global::System.InvalidOperationException(
+                "Configuration section 'Database' is missing. " +
+                "Ensure the section exists in your appsettings.json or other configuration sources.");
         }
+
         return true;
     })
+    .ValidateDataAnnotations()
     .ValidateOnStart();
 ```
 
-**Implementation Notes**:
+**Implementation Details**:
 
-- Add `ErrorOnMissingKeys` boolean parameter
-- Generate validation delegate that checks for null/default values
-- Combine with `ValidateOnStart = true` for startup failure
-- Consider making this opt-in per-property with attribute: `[Required]` from DataAnnotations
+- ✅ Added `ErrorOnMissingKeys` boolean parameter to `[OptionsBinding]` attribute
+- ✅ Generator checks `IConfigurationSection.Exists()` to detect missing sections
+- ✅ Throws `InvalidOperationException` with descriptive message including section name
+- ✅ Combines with `ValidateOnStart = true` for startup detection (recommended)
+- ✅ Works with all validation options (DataAnnotations, custom validators)
+- ✅ Section name included in error message for easy troubleshooting
+- ⚠️ Named options do NOT support ErrorOnMissingKeys (named options use simpler Configure pattern)
+
+**Testing**:
+- ✅ 11 comprehensive unit tests covering all scenarios
+- ✅ Sample project updated: DatabaseOptions demonstrates ErrorOnMissingKeys
+- ✅ PetStore.Api sample: PetStoreOptions uses ErrorOnMissingKeys for critical configuration
+
+**Best Practices**:
+- Always combine with `ValidateOnStart = true` to catch missing configuration at startup
+- Use for production-critical configuration (databases, external services, API keys)
+- Avoid for optional configuration with reasonable defaults
 
 ---
 
@@ -766,7 +784,7 @@ Based on priority, user demand, and implementation complexity:
 
 ---
 
-**Last Updated**: 2025-01-17
-**Version**: 1.0
+**Last Updated**: 2025-01-19
+**Version**: 1.1
 **Research Date**: January 2025 (.NET 8/9 Options Pattern)
 **Maintained By**: Atc.SourceGenerators Team

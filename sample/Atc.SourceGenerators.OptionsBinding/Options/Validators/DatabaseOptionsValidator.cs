@@ -6,7 +6,9 @@ namespace Atc.SourceGenerators.OptionsBinding.Options.Validators;
 /// </summary>
 public class DatabaseOptionsValidator : IValidateOptions<DatabaseOptions>
 {
-    public ValidateOptionsResult Validate(string? name, DatabaseOptions options)
+    public ValidateOptionsResult Validate(
+        string? name,
+        DatabaseOptions options)
     {
         var failures = new List<string>();
 
@@ -20,7 +22,8 @@ public class DatabaseOptionsValidator : IValidateOptions<DatabaseOptions>
         if (!string.IsNullOrWhiteSpace(options.ConnectionString))
         {
             var connStr = options.ConnectionString.ToLowerInvariant();
-            if (!connStr.Contains("server=") && !connStr.Contains("data source="))
+            if (!connStr.Contains("server=", StringComparison.Ordinal) &&
+                !connStr.Contains("data source=", StringComparison.Ordinal))
             {
                 failures.Add("ConnectionString must contain 'Server=' or 'Data Source=' parameter");
             }
