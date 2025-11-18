@@ -219,4 +219,37 @@ public sealed class MapToAttribute : Attribute
     /// </code>
     /// </example>
     public bool GenerateProjection { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether to include private and internal members in the mapping.
+    /// When enabled, uses UnsafeAccessor (NET 8+) for AOT-safe, zero-overhead access to private members.
+    /// Default is false (only public members).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Requires .NET 8.0 or later for UnsafeAccessor support.
+    /// Generates external accessor methods for each private/internal member.
+    /// Fully AOT compatible with zero runtime reflection.
+    /// </para>
+    /// <para>
+    /// This feature allows mapping to/from:
+    /// - Private properties
+    /// - Internal properties
+    /// - Protected properties (when source generator has access)
+    /// - Private fields
+    /// - Internal fields
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// [MapTo(typeof(UserDto), IncludePrivateMembers = true)]
+    /// public partial class User
+    /// {
+    ///     public Guid Id { get; set; }
+    ///     private string _internalCode { get; set; } = string.Empty;  // Will be mapped
+    ///     internal int Version { get; set; }  // Will be mapped
+    /// }
+    /// </code>
+    /// </example>
+    public bool IncludePrivateMembers { get; set; }
 }

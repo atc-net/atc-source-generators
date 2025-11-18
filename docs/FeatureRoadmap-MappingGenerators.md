@@ -76,7 +76,7 @@ This roadmap is based on comprehensive analysis of:
 | ✅ | [IQueryable Projections](#13-iqueryable-projections) | 🟢 Low-Medium | v1.2 |
 | ✅ | [Generic Mappers](#14-generic-mappers) | 🟢 Low | v1.2 |
 | ❌ | [Reference Handling / Circular Dependencies](#12-reference-handling--circular-dependencies) | 🟢 Low | - |
-| ❌ | [Private Member Access](#15-private-member-access) | 🟢 Low | - |
+| ✅ | [Private Member Access](#15-private-member-access) | 🟢 Low | v1.2 |
 | ❌ | [Multi-Source Consolidation](#16-multi-source-consolidation) | 🟢 Low-Medium | - |
 | ❌ | [Value Converters](#17-value-converters) | 🟢 Low-Medium | - |
 | ❌ | [Format Providers](#18-format-providers) | 🟢 Low | - |
@@ -1276,9 +1276,92 @@ public static PagedResultDto<T> MapToPagedResultDto<T>(
 ### 15. Private Member Access
 
 **Priority**: 🟢 **Low**
-**Status**: ❌ Not Implemented
+**Status**: ✅ **Implemented** (v1.2)
 
-**Description**: Map to/from private properties and fields using reflection emit or source generation.
+**Description**: Map to/from private and internal properties using UnsafeAccessor for AOT-safe, zero-overhead access without reflection.
+
+**Benefits**:
+- ✅ **AOT Compatible** - Uses .NET 8+ UnsafeAccessor (no reflection)
+- ✅ **Zero Overhead** - Direct method calls at runtime
+- ✅ **Compile-Time Safety** - Errors detected during build, not runtime
+- ✅ **Encapsulation** - Map internal/domain models with private state
+- ✅ **Clean API** - Simple boolean flag to enable the feature
+
+**Example**:
+
+```csharp
+[MapTo(typeof(SecureAccountDto), IncludePrivateMembers = true)]
+public partial class SecureAccount
+{
+    public Guid Id { get; set; }
+    public string AccountNumber { get; set; } = string.Empty;
+
+    // Private property - will be mapped using UnsafeAccessor
+    private string InternalCode { get; set; } = string.Empty;
+
+    // Internal property - will be mapped using UnsafeAccessor
+    internal int SecurityLevel { get; set; }
+}
+
+public partial class SecureAccountDto
+{
+    public Guid Id { get; set; }
+    public string AccountNumber { get; set; } = string.Empty;
+    public string InternalCode { get; set; } = string.Empty;
+    public int SecurityLevel { get; set; }
+}
+```
+
+**Generated Code**:
+
+```csharp
+public static class ObjectMappingExtensions
+{
+    // UnsafeAccessor methods for reading private members
+    [UnsafeAccessor(UnsafeAccessorKind.Method, Name = "get_InternalCode")]
+    private static extern string UnsafeGetSecureAccount_InternalCode(SecureAccount instance);
+
+    [UnsafeAccessor(UnsafeAccessorKind.Method, Name = "get_SecurityLevel")]
+    private static extern int UnsafeGetSecureAccount_SecurityLevel(SecureAccount instance);
+
+    // UnsafeAccessor methods for writing to private members
+    [UnsafeAccessor(UnsafeAccessorKind.Method, Name = "set_InternalCode")]
+    private static extern void UnsafeSetSecureAccountDto_InternalCode(SecureAccountDto instance, string value);
+
+    [UnsafeAccessor(UnsafeAccessorKind.Method, Name = "set_SecurityLevel")]
+    private static extern void UnsafeSetSecureAccountDto_SecurityLevel(SecureAccountDto instance, int value);
+
+    public static SecureAccountDto MapToSecureAccountDto(this SecureAccount source)
+    {
+        if (source is null)
+        {
+            return default!;
+        }
+
+        return new SecureAccountDto
+        {
+            Id = source.Id,
+            AccountNumber = source.AccountNumber,
+            InternalCode = UnsafeGetSecureAccount_InternalCode(source),
+            SecurityLevel = UnsafeGetSecureAccount_SecurityLevel(source)
+        };
+    }
+}
+```
+
+**Implementation Details**:
+
+- **Accessibility Detection**: Automatically detects which properties require UnsafeAccessor based on property/method accessibility
+- **Getter Accessors**: Generated for reading from private/internal source properties
+- **Setter Accessors**: Generated for writing to private/internal target properties (used in UpdateTarget pattern)
+- **Deduplication**: Accessor methods are deduplicated to avoid generating duplicates
+- **Seamless Integration**: Works with all existing features (nested objects, collections, enums, etc.)
+- **Fallback Attribute**: `IncludePrivateMembers` property included in fallback MapToAttribute generation
+
+**Requirements**:
+
+- .NET 8.0 or later (for UnsafeAccessor support)
+- Default is `false` - only public members are mapped unless explicitly enabled
 
 ---
 

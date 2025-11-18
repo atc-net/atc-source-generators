@@ -11,4 +11,6 @@ internal sealed record PropertyMapping(
     string? CollectionTargetType,
     bool IsFlattened,
     IPropertySymbol? FlattenedNestedProperty,
-    bool IsBuiltInTypeConversion);
+    bool IsBuiltInTypeConversion,
+    bool SourceRequiresUnsafeAccessor,
+    bool TargetRequiresUnsafeAccessor);
