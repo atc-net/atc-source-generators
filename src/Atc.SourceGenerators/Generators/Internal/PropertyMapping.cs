@@ -10,4 +10,5 @@ internal sealed record PropertyMapping(
     ITypeSymbol? CollectionElementType,
     string? CollectionTargetType,
     bool IsFlattened,
-    IPropertySymbol? FlattenedNestedProperty);
+    IPropertySymbol? FlattenedNestedProperty,
+    bool IsBuiltInTypeConversion);

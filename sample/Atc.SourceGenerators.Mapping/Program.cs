@@ -83,4 +83,41 @@ app
     .WithDescription("Demonstrates property flattening feature where nested Address.City becomes AddressCity, Address.Street becomes AddressStreet, etc.")
     .Produces<List<UserFlatDto>>(StatusCodes.Status200OK);
 
+app
+    .MapGet("/events", () =>
+    {
+        // ✨ Demonstrate built-in type conversion: Strong types → String DTOs
+        // Shows automatic conversion of Guid, DateTimeOffset, int, and bool to string
+        var events = new List<UserEvent>
+        {
+            new()
+            {
+                EventId = Guid.NewGuid(),
+                UserId = Guid.NewGuid(),
+                EventType = "Login",
+                Timestamp = DateTimeOffset.UtcNow,
+                DurationSeconds = 5,
+                Success = true,
+            },
+            new()
+            {
+                EventId = Guid.NewGuid(),
+                UserId = Guid.NewGuid(),
+                EventType = "Logout",
+                Timestamp = DateTimeOffset.UtcNow.AddMinutes(-10),
+                DurationSeconds = 2,
+                Success = true,
+            },
+        };
+
+        var data = events
+            .Select(e => e.MapToUserEventDto())
+            .ToList();
+        return Results.Ok(data);
+    })
+    .WithName("GetAllEvents")
+    .WithSummary("Get user events with type conversion")
+    .WithDescription("Demonstrates built-in type conversion where Guid → string, DateTimeOffset → string (ISO 8601), int → string, bool → string")
+    .Produces<List<UserEventDto>>(StatusCodes.Status200OK);
+
 await app.RunAsync();

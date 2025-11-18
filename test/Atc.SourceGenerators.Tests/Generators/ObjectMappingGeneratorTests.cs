@@ -1347,4 +1347,182 @@ public class ObjectMappingGeneratorTests
         // Should handle nullable source with null-conditional operator
         Assert.Contains("AddressCity = source.Address?.City", output, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void Generator_Should_Convert_DateTime_To_String()
+    {
+        // Arrange
+        const string source = """
+            namespace TestNamespace;
+
+            using Atc.SourceGenerators.Annotations;
+            using System;
+
+            [MapTo(typeof(EventDto))]
+            public partial class Event
+            {
+                public Guid Id { get; set; }
+                public DateTime StartTime { get; set; }
+                public DateTimeOffset CreatedAt { get; set; }
+            }
+
+            public class EventDto
+            {
+                public string Id { get; set; } = string.Empty;
+                public string StartTime { get; set; } = string.Empty;
+                public string CreatedAt { get; set; } = string.Empty;
+            }
+            """;
+
+        // Act
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        // Assert
+        Assert.Empty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+        Assert.Contains("MapToEventDto", output, StringComparison.Ordinal);
+
+        // Should convert DateTime to string using ISO 8601 format
+        Assert.Contains("StartTime = source.StartTime.ToString(\"O\"", output, StringComparison.Ordinal);
+
+        // Should convert DateTimeOffset to string using ISO 8601 format
+        Assert.Contains("CreatedAt = source.CreatedAt.ToString(\"O\"", output, StringComparison.Ordinal);
+
+        // Should convert Guid to string
+        Assert.Contains("Id = source.Id.ToString()", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generator_Should_Convert_String_To_DateTime()
+    {
+        // Arrange
+        const string source = """
+            namespace TestNamespace;
+
+            using Atc.SourceGenerators.Annotations;
+            using System;
+
+            [MapTo(typeof(Event))]
+            public partial class EventDto
+            {
+                public string Id { get; set; } = string.Empty;
+                public string StartTime { get; set; } = string.Empty;
+                public string CreatedAt { get; set; } = string.Empty;
+            }
+
+            public class Event
+            {
+                public Guid Id { get; set; }
+                public DateTime StartTime { get; set; }
+                public DateTimeOffset CreatedAt { get; set; }
+            }
+            """;
+
+        // Act
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        // Assert
+        Assert.Empty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+        Assert.Contains("MapToEvent", output, StringComparison.Ordinal);
+
+        // Should convert string to DateTime
+        Assert.Contains("StartTime = global::System.DateTime.Parse(source.StartTime, global::System.Globalization.CultureInfo.InvariantCulture)", output, StringComparison.Ordinal);
+
+        // Should convert string to DateTimeOffset
+        Assert.Contains("CreatedAt = global::System.DateTimeOffset.Parse(source.CreatedAt, global::System.Globalization.CultureInfo.InvariantCulture)", output, StringComparison.Ordinal);
+
+        // Should convert string to Guid
+        Assert.Contains("Id = global::System.Guid.Parse(source.Id)", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generator_Should_Convert_Numeric_Types_To_String()
+    {
+        // Arrange
+        const string source = """
+            namespace TestNamespace;
+
+            using Atc.SourceGenerators.Annotations;
+
+            [MapTo(typeof(ProductDto))]
+            public partial class Product
+            {
+                public int Quantity { get; set; }
+                public long StockNumber { get; set; }
+                public decimal Price { get; set; }
+                public double Weight { get; set; }
+                public bool IsAvailable { get; set; }
+            }
+
+            public class ProductDto
+            {
+                public string Quantity { get; set; } = string.Empty;
+                public string StockNumber { get; set; } = string.Empty;
+                public string Price { get; set; } = string.Empty;
+                public string Weight { get; set; } = string.Empty;
+                public string IsAvailable { get; set; } = string.Empty;
+            }
+            """;
+
+        // Act
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        // Assert
+        Assert.Empty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+        Assert.Contains("MapToProductDto", output, StringComparison.Ordinal);
+
+        // Should convert numeric types to string using invariant culture
+        Assert.Contains("Quantity = source.Quantity.ToString(global::System.Globalization.CultureInfo.InvariantCulture)", output, StringComparison.Ordinal);
+        Assert.Contains("StockNumber = source.StockNumber.ToString(global::System.Globalization.CultureInfo.InvariantCulture)", output, StringComparison.Ordinal);
+        Assert.Contains("Price = source.Price.ToString(global::System.Globalization.CultureInfo.InvariantCulture)", output, StringComparison.Ordinal);
+        Assert.Contains("Weight = source.Weight.ToString(global::System.Globalization.CultureInfo.InvariantCulture)", output, StringComparison.Ordinal);
+
+        // Should convert bool to string
+        Assert.Contains("IsAvailable = source.IsAvailable.ToString()", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generator_Should_Convert_String_To_Numeric_Types()
+    {
+        // Arrange
+        const string source = """
+            namespace TestNamespace;
+
+            using Atc.SourceGenerators.Annotations;
+
+            [MapTo(typeof(Product))]
+            public partial class ProductDto
+            {
+                public string Quantity { get; set; } = string.Empty;
+                public string StockNumber { get; set; } = string.Empty;
+                public string Price { get; set; } = string.Empty;
+                public string Weight { get; set; } = string.Empty;
+                public string IsAvailable { get; set; } = string.Empty;
+            }
+
+            public class Product
+            {
+                public int Quantity { get; set; }
+                public long StockNumber { get; set; }
+                public decimal Price { get; set; }
+                public double Weight { get; set; }
+                public bool IsAvailable { get; set; }
+            }
+            """;
+
+        // Act
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        // Assert
+        Assert.Empty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+        Assert.Contains("MapToProduct", output, StringComparison.Ordinal);
+
+        // Should convert string to numeric types using invariant culture
+        Assert.Contains("Quantity = int.Parse(source.Quantity, global::System.Globalization.CultureInfo.InvariantCulture)", output, StringComparison.Ordinal);
+        Assert.Contains("StockNumber = long.Parse(source.StockNumber, global::System.Globalization.CultureInfo.InvariantCulture)", output, StringComparison.Ordinal);
+        Assert.Contains("Price = decimal.Parse(source.Price, global::System.Globalization.CultureInfo.InvariantCulture)", output, StringComparison.Ordinal);
+        Assert.Contains("Weight = double.Parse(source.Weight, global::System.Globalization.CultureInfo.InvariantCulture)", output, StringComparison.Ordinal);
+
+        // Should convert string to bool
+        Assert.Contains("IsAvailable = bool.Parse(source.IsAvailable)", output, StringComparison.Ordinal);
+    }
 }

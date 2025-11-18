@@ -283,7 +283,8 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                     CollectionElementType: null,
                     CollectionTargetType: null,
                     IsFlattened: false,
-                    FlattenedNestedProperty: null));
+                    FlattenedNestedProperty: null,
+                    IsBuiltInTypeConversion: false));
             }
             else
             {
@@ -308,16 +309,18 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                             CollectionElementType: targetElementType,
                             CollectionTargetType: GetCollectionTargetType(targetProp.Type),
                             IsFlattened: false,
-                            FlattenedNestedProperty: null));
+                            FlattenedNestedProperty: null,
+                            IsBuiltInTypeConversion: false));
                     }
                     else
                     {
-                        // Check for enum conversion or nested mapping
+                        // Check for enum conversion, nested mapping, or built-in type conversion
                         var requiresConversion = IsEnumConversion(sourceProp.Type, targetProp.Type);
                         var isNested = IsNestedMapping(sourceProp.Type, targetProp.Type);
                         var hasEnumMapping = requiresConversion && HasEnumMappingAttribute(sourceProp.Type, targetProp.Type);
+                        var isBuiltInTypeConversion = IsBuiltInTypeConversion(sourceProp.Type, targetProp.Type);
 
-                        if (requiresConversion || isNested)
+                        if (requiresConversion || isNested || isBuiltInTypeConversion)
                         {
                             mappings.Add(new PropertyMapping(
                                 SourceProperty: sourceProp,
@@ -329,7 +332,8 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                                 CollectionElementType: null,
                                 CollectionTargetType: null,
                                 IsFlattened: false,
-                                FlattenedNestedProperty: null));
+                                FlattenedNestedProperty: null,
+                                IsBuiltInTypeConversion: isBuiltInTypeConversion));
                         }
                     }
                 }
@@ -389,7 +393,8 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                             CollectionElementType: null,
                             CollectionTargetType: null,
                             IsFlattened: true,
-                            FlattenedNestedProperty: nestedProp));
+                            FlattenedNestedProperty: nestedProp,
+                            IsBuiltInTypeConversion: false));
                     }
                 }
             }
@@ -481,6 +486,71 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                !st.StartsWith("System", StringComparison.Ordinal) &&
                !tt.StartsWith("System", StringComparison.Ordinal);
     }
+
+    private static bool IsBuiltInTypeConversion(
+        ITypeSymbol sourceType,
+        ITypeSymbol targetType)
+    {
+        var sourceTypeName = sourceType.ToDisplayString();
+        var targetTypeName = targetType.ToDisplayString();
+
+        // DateTime/DateTimeOffset → string
+        if ((sourceTypeName is "System.DateTime" or "System.DateTimeOffset") &&
+            targetTypeName == "string")
+        {
+            return true;
+        }
+
+        // string → DateTime/DateTimeOffset
+        if (sourceTypeName == "string" &&
+            (targetTypeName is "System.DateTime" or "System.DateTimeOffset"))
+        {
+            return true;
+        }
+
+        // Guid → string
+        if (sourceTypeName == "System.Guid" && targetTypeName == "string")
+        {
+            return true;
+        }
+
+        // string → Guid
+        if (sourceTypeName == "string" && targetTypeName == "System.Guid")
+        {
+            return true;
+        }
+
+        // Numeric types → string
+        if (IsNumericType(sourceTypeName) && targetTypeName == "string")
+        {
+            return true;
+        }
+
+        // string → Numeric types
+        if (sourceTypeName == "string" && IsNumericType(targetTypeName))
+        {
+            return true;
+        }
+
+        // bool → string
+        if (sourceTypeName == "bool" && targetTypeName == "string")
+        {
+            return true;
+        }
+
+        // string → bool
+        if (sourceTypeName == "string" && targetTypeName == "bool")
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool IsNumericType(string typeName)
+        => typeName is "int" or "long" or "short" or "byte" or "sbyte" or
+           "uint" or "ulong" or "ushort" or
+           "decimal" or "double" or "float";
 
     private static bool IsCollectionType(
         ITypeSymbol type,
@@ -851,6 +921,12 @@ public class ObjectMappingGenerator : IIncrementalGenerator
             return $"{sourceVariable}.{prop.SourceProperty.Name}.{prop.FlattenedNestedProperty.Name}";
         }
 
+        if (prop.IsBuiltInTypeConversion)
+        {
+            // Built-in type conversion (DateTime ↔ string, Guid ↔ string, numeric ↔ string, bool ↔ string)
+            return GenerateBuiltInTypeConversion(prop, sourceVariable);
+        }
+
         if (prop.IsCollection)
         {
             // Collection mapping
@@ -900,6 +976,81 @@ public class ObjectMappingGenerator : IIncrementalGenerator
 
         // Direct property mapping
         return $"{sourceVariable}.{prop.SourceProperty.Name}";
+    }
+
+    private static string GenerateBuiltInTypeConversion(
+        PropertyMapping prop,
+        string sourceVariable)
+    {
+        var sourceTypeName = prop.SourceProperty.Type.ToDisplayString();
+        var targetTypeName = prop.TargetProperty.Type.ToDisplayString();
+        var sourcePropertyAccess = $"{sourceVariable}.{prop.SourceProperty.Name}";
+
+        // DateTime → string (ISO 8601 format)
+        if (sourceTypeName == "System.DateTime" && targetTypeName == "string")
+        {
+            return $"{sourcePropertyAccess}.ToString(\"O\", global::System.Globalization.CultureInfo.InvariantCulture)";
+        }
+
+        // DateTimeOffset → string (ISO 8601 format)
+        if (sourceTypeName == "System.DateTimeOffset" && targetTypeName == "string")
+        {
+            return $"{sourcePropertyAccess}.ToString(\"O\", global::System.Globalization.CultureInfo.InvariantCulture)";
+        }
+
+        // string → DateTime
+        if (sourceTypeName == "string" && targetTypeName == "System.DateTime")
+        {
+            return $"global::System.DateTime.Parse({sourcePropertyAccess}, global::System.Globalization.CultureInfo.InvariantCulture)";
+        }
+
+        // string → DateTimeOffset
+        if (sourceTypeName == "string" && targetTypeName == "System.DateTimeOffset")
+        {
+            return $"global::System.DateTimeOffset.Parse({sourcePropertyAccess}, global::System.Globalization.CultureInfo.InvariantCulture)";
+        }
+
+        // Guid → string
+        if (sourceTypeName == "System.Guid" && targetTypeName == "string")
+        {
+            return $"{sourcePropertyAccess}.ToString()";
+        }
+
+        // string → Guid
+        if (sourceTypeName == "string" && targetTypeName == "System.Guid")
+        {
+            return $"global::System.Guid.Parse({sourcePropertyAccess})";
+        }
+
+        // Numeric types → string
+        if (IsNumericType(sourceTypeName) && targetTypeName == "string")
+        {
+            return $"{sourcePropertyAccess}.ToString(global::System.Globalization.CultureInfo.InvariantCulture)";
+        }
+
+        // string → Numeric types
+        if (sourceTypeName == "string" && IsNumericType(targetTypeName))
+        {
+            // Get just the type name without namespace
+            var parts = targetTypeName.Split('.');
+            var simpleTypeName = parts[parts.Length - 1];
+            return $"{simpleTypeName}.Parse({sourcePropertyAccess}, global::System.Globalization.CultureInfo.InvariantCulture)";
+        }
+
+        // bool → string
+        if (sourceTypeName == "bool" && targetTypeName == "string")
+        {
+            return $"{sourcePropertyAccess}.ToString()";
+        }
+
+        // string → bool
+        if (sourceTypeName == "string" && targetTypeName == "bool")
+        {
+            return $"bool.Parse({sourcePropertyAccess})";
+        }
+
+        // Fallback (should not reach here if IsBuiltInTypeConversion is correct)
+        return sourcePropertyAccess;
     }
 
     private static string GenerateAttributeSource()

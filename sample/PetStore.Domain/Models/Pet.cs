@@ -5,6 +5,7 @@ namespace PetStore.Domain.Models;
 /// </summary>
 [MapTo(typeof(PetResponse))]
 [MapTo(typeof(PetSummaryResponse), EnableFlattening = true)]
+[MapTo(typeof(PetDetailsDto))]
 [MapTo(typeof(PetEntity), Bidirectional = true)]
 public partial class Pet
 {
