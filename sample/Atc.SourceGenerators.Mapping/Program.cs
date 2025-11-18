@@ -66,4 +66,21 @@ app
     .WithName("GetAllUsers")
     .Produces<List<UserDto>>(StatusCodes.Status200OK);
 
+app
+    .MapGet("/users/flat", (UserService userService) =>
+    {
+        // ✨ Use generated flattening mapping: Domain → Flattened DTO
+        // Demonstrates property flattening where nested Address properties are flattened
+        // to AddressCity, AddressStreet, etc. in the target DTO
+        var data = userService
+            .GetAll()
+            .Select(u => u.MapToUserFlatDto())
+            .ToList();
+        return Results.Ok(data);
+    })
+    .WithName("GetAllUsersFlat")
+    .WithSummary("Get all users with flattened address properties")
+    .WithDescription("Demonstrates property flattening feature where nested Address.City becomes AddressCity, Address.Street becomes AddressStreet, etc.")
+    .Produces<List<UserFlatDto>>(StatusCodes.Status200OK);
+
 await app.RunAsync();

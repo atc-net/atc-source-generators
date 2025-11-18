@@ -5,5 +5,6 @@ internal sealed record MappingInfo(
     INamedTypeSymbol TargetType,
     List<PropertyMapping> PropertyMappings,
     bool Bidirectional,
+    bool EnableFlattening,
     IMethodSymbol? Constructor,
     List<string> ConstructorParameterNames);

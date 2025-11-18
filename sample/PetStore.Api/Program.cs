@@ -91,6 +91,23 @@ app
     .Produces<IEnumerable<PetResponse>>(StatusCodes.Status200OK);
 
 app
+    .MapGet("/pets/summary", (IPetService petService) =>
+    {
+        var pets = petService.GetAll();
+
+        // ✨ Use generated flattening mapping: Pet → PetSummaryResponse
+        // Demonstrates property flattening where nested Owner properties are flattened
+        // to OwnerName, OwnerEmail, OwnerPhone in the target DTO
+        var response = pets.Select(p => p.MapToPetSummaryResponse());
+
+        return Results.Ok(response);
+    })
+    .WithName("GetAllPetsSummary")
+    .WithSummary("Get all pets with flattened owner properties")
+    .WithDescription("Demonstrates property flattening feature where nested Owner.Name becomes OwnerName, Owner.Email becomes OwnerEmail, etc.")
+    .Produces<IEnumerable<PetSummaryResponse>>(StatusCodes.Status200OK);
+
+app
     .MapPost("/pets", ([FromBody] CreatePetRequest request, IPetService petService) =>
     {
         var pet = petService.CreatePet(request);

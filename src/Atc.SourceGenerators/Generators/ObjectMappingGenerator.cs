@@ -185,19 +185,23 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                 continue;
             }
 
-            // Extract Bidirectional property
+            // Extract Bidirectional and EnableFlattening properties
             var bidirectional = false;
+            var enableFlattening = false;
             foreach (var namedArg in attribute.NamedArguments)
             {
                 if (namedArg.Key == "Bidirectional")
                 {
                     bidirectional = namedArg.Value.Value as bool? ?? false;
-                    break;
+                }
+                else if (namedArg.Key == "EnableFlattening")
+                {
+                    enableFlattening = namedArg.Value.Value as bool? ?? false;
                 }
             }
 
             // Get property mappings
-            var propertyMappings = GetPropertyMappings(classSymbol, targetType, context);
+            var propertyMappings = GetPropertyMappings(classSymbol, targetType, enableFlattening, context);
 
             // Find best matching constructor
             var (constructor, constructorParameterNames) = FindBestConstructor(classSymbol, targetType);
@@ -207,6 +211,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                 TargetType: targetType,
                 PropertyMappings: propertyMappings,
                 Bidirectional: bidirectional,
+                EnableFlattening: enableFlattening,
                 Constructor: constructor,
                 ConstructorParameterNames: constructorParameterNames));
         }
@@ -217,6 +222,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
     private static List<PropertyMapping> GetPropertyMappings(
         INamedTypeSymbol sourceType,
         INamedTypeSymbol targetType,
+        bool enableFlattening,
         SourceProductionContext? context = null)
     {
         var mappings = new List<PropertyMapping>();
@@ -275,7 +281,9 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                     HasEnumMapping: false,
                     IsCollection: false,
                     CollectionElementType: null,
-                    CollectionTargetType: null));
+                    CollectionTargetType: null,
+                    IsFlattened: false,
+                    FlattenedNestedProperty: null));
             }
             else
             {
@@ -298,7 +306,9 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                             HasEnumMapping: false,
                             IsCollection: true,
                             CollectionElementType: targetElementType,
-                            CollectionTargetType: GetCollectionTargetType(targetProp.Type)));
+                            CollectionTargetType: GetCollectionTargetType(targetProp.Type),
+                            IsFlattened: false,
+                            FlattenedNestedProperty: null));
                     }
                     else
                     {
@@ -317,8 +327,69 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                                 HasEnumMapping: hasEnumMapping,
                                 IsCollection: false,
                                 CollectionElementType: null,
-                                CollectionTargetType: null));
+                                CollectionTargetType: null,
+                                IsFlattened: false,
+                                FlattenedNestedProperty: null));
                         }
+                    }
+                }
+            }
+        }
+
+        // Handle flattening if enabled
+        if (enableFlattening)
+        {
+            foreach (var sourceProp in sourceProperties)
+            {
+                // Skip properties that are already mapped or ignored
+                if (HasMapIgnoreAttribute(sourceProp))
+                {
+                    continue;
+                }
+
+                // Only flatten class/struct types (nested objects)
+                if (sourceProp.Type is not INamedTypeSymbol namedType ||
+                    (namedType.TypeKind != TypeKind.Class && namedType.TypeKind != TypeKind.Struct))
+                {
+                    continue;
+                }
+
+                // Skip if the property type is from System namespace (e.g., string, DateTime)
+                var typeStr = namedType.SpecialType.ToString();
+                if (typeStr.StartsWith("System", StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                // Get properties from the nested object
+                var nestedProperties = namedType
+                    .GetMembers()
+                    .OfType<IPropertySymbol>()
+                    .Where(p => p.GetMethod is not null && !HasMapIgnoreAttribute(p))
+                    .ToList();
+
+                // Try to match flattened properties: {PropertyName}{NestedPropertyName}
+                foreach (var nestedProp in nestedProperties)
+                {
+                    var flattenedName = $"{sourceProp.Name}{nestedProp.Name}";
+                    var targetProp = targetProperties.FirstOrDefault(t =>
+                        string.Equals(t.Name, flattenedName, StringComparison.OrdinalIgnoreCase) &&
+                        SymbolEqualityComparer.Default.Equals(t.Type, nestedProp.Type));
+
+                    if (targetProp is not null)
+                    {
+                        // Add flattened mapping
+                        mappings.Add(new PropertyMapping(
+                            SourceProperty: sourceProp,
+                            TargetProperty: targetProp,
+                            RequiresConversion: false,
+                            IsNested: false,
+                            HasEnumMapping: false,
+                            IsCollection: false,
+                            CollectionElementType: null,
+                            CollectionTargetType: null,
+                            IsFlattened: true,
+                            FlattenedNestedProperty: nestedProp));
                     }
                 }
             }
@@ -632,7 +703,8 @@ public class ObjectMappingGenerator : IIncrementalGenerator
             {
                 var reverseMappings = GetPropertyMappings(
                     sourceType: mapping.TargetType,
-                    targetType: mapping.SourceType);
+                    targetType: mapping.SourceType,
+                    enableFlattening: mapping.EnableFlattening);
 
                 // Find best matching constructor for reverse mapping
                 var (reverseConstructor, reverseConstructorParams) = FindBestConstructor(mapping.TargetType, mapping.SourceType);
@@ -642,6 +714,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                     TargetType: mapping.SourceType,
                     PropertyMappings: reverseMappings,
                     Bidirectional: false, // Don't generate reverse of reverse
+                    EnableFlattening: mapping.EnableFlattening,
                     Constructor: reverseConstructor,
                     ConstructorParameterNames: reverseConstructorParams);
 
@@ -763,6 +836,21 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         PropertyMapping prop,
         string sourceVariable)
     {
+        if (prop.IsFlattened && prop.FlattenedNestedProperty is not null)
+        {
+            // Flattened property mapping: source.Address.City → target.AddressCity
+            // Handle nullable nested objects with null-conditional operator
+            var isNullable = prop.SourceProperty.Type.NullableAnnotation == NullableAnnotation.Annotated ||
+                             !prop.SourceProperty.Type.IsValueType;
+
+            if (isNullable)
+            {
+                return $"{sourceVariable}.{prop.SourceProperty.Name}?.{prop.FlattenedNestedProperty.Name}!";
+            }
+
+            return $"{sourceVariable}.{prop.SourceProperty.Name}.{prop.FlattenedNestedProperty.Name}";
+        }
+
         if (prop.IsCollection)
         {
             // Collection mapping
@@ -851,6 +939,14 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                    /// Default is false.
                    /// </summary>
                    public bool Bidirectional { get; set; }
+
+                   /// <summary>
+                   /// Gets or sets a value indicating whether to enable property flattening.
+                   /// When enabled, nested object properties are flattened using naming convention {PropertyName}{NestedPropertyName}.
+                   /// For example, source.Address.City maps to target.AddressCity.
+                   /// Default is false.
+                   /// </summary>
+                   public bool EnableFlattening { get; set; }
                }
            }
            """;
