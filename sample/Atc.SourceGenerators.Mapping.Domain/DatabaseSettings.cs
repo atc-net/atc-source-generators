@@ -31,4 +31,3 @@ public partial class DatabaseSettings
     /// </summary>
     public bool EnableSsl { get; set; }
 }
-

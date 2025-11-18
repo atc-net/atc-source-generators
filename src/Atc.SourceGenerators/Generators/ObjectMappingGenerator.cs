@@ -339,21 +339,11 @@ public class ObjectMappingGenerator : IIncrementalGenerator
     {
         var mappings = new List<PropertyMapping>();
 
-        var sourceProperties = sourceType
-            .GetMembers()
-            .OfType<IPropertySymbol>()
-            .Where(p => p.GetMethod is not null &&
-                        !HasMapIgnoreAttribute(p) &&
-                        (includePrivateMembers || p.DeclaredAccessibility == Accessibility.Public))
-            .ToList();
+        // Collect properties from the source type including inherited properties from base classes
+        var sourceProperties = GetAllProperties(sourceType, includePrivateMembers);
 
-        var targetProperties = targetType
-            .GetMembers()
-            .OfType<IPropertySymbol>()
-            .Where(p => (p.SetMethod is not null || targetType.TypeKind == TypeKind.Struct) &&
-                        !HasMapIgnoreAttribute(p) &&
-                        (includePrivateMembers || p.DeclaredAccessibility == Accessibility.Public))
-            .ToList();
+        // Collect properties from the target type including inherited properties
+        var targetProperties = GetAllProperties(targetType, includePrivateMembers, requireSetter: true);
 
         foreach (var sourceProp in sourceProperties)
         {
@@ -859,6 +849,77 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         }
 
         return "List";
+    }
+
+    /// <summary>
+    /// Gets all properties from a type including inherited properties from base classes.
+    /// </summary>
+    /// <param name="type">The type to get properties from.</param>
+    /// <param name="includePrivateMembers">Whether to include private members.</param>
+    /// <param name="requireSetter">Whether to require a setter (for target types).</param>
+    /// <returns>List of properties with duplicates removed (most derived version kept).</returns>
+    private static List<IPropertySymbol> GetAllProperties(
+        INamedTypeSymbol type,
+        bool includePrivateMembers,
+        bool requireSetter = false)
+    {
+        var properties = new List<IPropertySymbol>();
+        var propertyNames = new HashSet<string>();
+        var currentType = type;
+
+        // Traverse the inheritance hierarchy from most derived to least derived
+        while (currentType is not null &&
+               currentType.SpecialType != SpecialType.System_Object &&
+               currentType.ToDisplayString() != "object")
+        {
+            var typeProperties = currentType
+                .GetMembers()
+                .OfType<IPropertySymbol>()
+                .Where(p =>
+                {
+                    // Must have a getter
+                    if (p.GetMethod is null)
+                    {
+                        return false;
+                    }
+
+                    // If requireSetter is true, must have a setter (or be a struct)
+                    if (requireSetter && p.SetMethod is null && currentType.TypeKind != TypeKind.Struct)
+                    {
+                        return false;
+                    }
+
+                    // Respect MapIgnore attribute
+                    if (HasMapIgnoreAttribute(p))
+                    {
+                        return false;
+                    }
+
+                    // Check accessibility
+                    if (!includePrivateMembers && p.DeclaredAccessibility != Accessibility.Public)
+                    {
+                        return false;
+                    }
+
+                    return true;
+                })
+                .ToList();
+
+            // Add properties that haven't been seen yet (to handle overrides properly)
+            // We traverse from most derived to least derived, so we keep the most derived version
+            foreach (var prop in typeProperties)
+            {
+                if (!propertyNames.Contains(prop.Name))
+                {
+                    properties.Add(prop);
+                    propertyNames.Add(prop.Name);
+                }
+            }
+
+            currentType = currentType.BaseType;
+        }
+
+        return properties;
     }
 
     private static bool HasMapIgnoreAttribute(IPropertySymbol property)

@@ -1749,6 +1749,225 @@ app.MapGet("/notifications", () =>
 - **Document types** - Map different document formats (PDF, Word, Excel) to DTOs
 - **Event sourcing** - Map different event types from domain events to event DTOs
 
+### 🧬 Base Class Property Inheritance
+
+The generator automatically includes properties from base classes when generating mappings. This eliminates the need to manually specify inherited properties and is particularly useful for entity base classes with common audit fields like `Id`, `CreatedAt`, `UpdatedAt`, etc.
+
+#### Basic Example
+
+```csharp
+// Base entity class with common properties
+public abstract partial class BaseEntity
+{
+    public Guid Id { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+}
+
+// Derived entity inherits Id and CreatedAt
+[MapTo(typeof(UserDto))]
+public partial class User : BaseEntity
+{
+    public string Name { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+}
+
+// DTO receives properties from all levels of the hierarchy
+public class UserDto
+{
+    public Guid Id { get; set; }          // From BaseEntity
+    public DateTimeOffset CreatedAt { get; set; } // From BaseEntity
+    public string Name { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+}
+```
+
+**Generated mapping:**
+
+```csharp
+public static UserDto MapToUserDto(this User source)
+{
+    if (source is null)
+    {
+        return default!;
+    }
+
+    return new UserDto
+    {
+        Id = source.Id,                // ✅ Automatically included from BaseEntity
+        CreatedAt = source.CreatedAt,  // ✅ Automatically included from BaseEntity
+        Name = source.Name,
+        Email = source.Email,
+    };
+}
+```
+
+#### Multi-Level Inheritance
+
+The generator traverses the entire inheritance hierarchy, supporting multiple levels of base classes:
+
+```csharp
+// Level 1: Base entity
+public abstract partial class Entity
+{
+    public Guid Id { get; set; }
+}
+
+// Level 2: Auditable entity
+public abstract partial class AuditableEntity : Entity
+{
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset? UpdatedAt { get; set; }
+    public string? UpdatedBy { get; set; }
+}
+
+// Level 3: Concrete entity
+[MapTo(typeof(BookDto))]
+public partial class Book : AuditableEntity
+{
+    public string Title { get; set; } = string.Empty;
+    public string Author { get; set; } = string.Empty;
+    public decimal Price { get; set; }
+}
+
+// DTO includes properties from all three levels
+public class BookDto
+{
+    public Guid Id { get; set; }                   // From Entity
+    public DateTimeOffset CreatedAt { get; set; }   // From AuditableEntity
+    public DateTimeOffset? UpdatedAt { get; set; }  // From AuditableEntity
+    public string? UpdatedBy { get; set; }          // From AuditableEntity
+    public string Title { get; set; } = string.Empty;
+    public string Author { get; set; } = string.Empty;
+    public decimal Price { get; set; }
+}
+```
+
+#### Property Overrides
+
+When a derived class overrides a base class property, only the overridden version is mapped (avoiding duplicates):
+
+```csharp
+public abstract partial class Animal
+{
+    public virtual string Name { get; set; } = string.Empty;
+    public int Age { get; set; }
+}
+
+[MapTo(typeof(DogDto))]
+public partial class Dog : Animal
+{
+    public override string Name { get; set; } = "Dog"; // Overrides base property
+    public string Breed { get; set; } = string.Empty;
+}
+
+public class DogDto
+{
+    public string Name { get; set; } = string.Empty;  // Mapped from Dog.Name (override)
+    public int Age { get; set; }                       // Mapped from Animal.Age
+    public string Breed { get; set; } = string.Empty;
+}
+```
+
+**Generated mapping includes only one `Name` assignment (the overridden version).**
+
+#### Respecting [MapIgnore] on Base Properties
+
+The `[MapIgnore]` attribute works on base class properties:
+
+```csharp
+public abstract partial class BaseEntity
+{
+    public Guid Id { get; set; }
+
+    [MapIgnore] // ❌ Won't be included in mappings
+    public DateTimeOffset InternalTimestamp { get; set; }
+}
+
+[MapTo(typeof(UserDto))]
+public partial class User : BaseEntity
+{
+    public string Name { get; set; } = string.Empty;
+}
+
+public class UserDto
+{
+    public Guid Id { get; set; }  // ✅ Included
+    public string Name { get; set; } = string.Empty;
+    // InternalTimestamp is NOT included
+}
+```
+
+#### Compatibility with Other Features
+
+Base class inheritance works seamlessly with all other mapping features:
+
+**With PropertyNameStrategy:**
+
+```csharp
+public abstract partial class BaseEntity
+{
+    public Guid EntityId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+}
+
+[MapTo(typeof(UserDto), PropertyNameStrategy = PropertyNameStrategy.CamelCase)]
+public partial class User : BaseEntity
+{
+    public string UserName { get; set; } = string.Empty;
+}
+
+public class UserDto
+{
+    #pragma warning disable IDE1006
+    public Guid entityId { get; set; }         // Converted to camelCase
+    public DateTimeOffset createdAt { get; set; } // Converted to camelCase
+    public string userName { get; set; } = string.Empty;
+    #pragma warning restore IDE1006
+}
+```
+
+**With Bidirectional Mapping:**
+
+```csharp
+public abstract partial class Entity
+{
+    public Guid Id { get; set; }
+}
+
+[MapTo(typeof(UserDto), Bidirectional = true)]
+public partial class User : Entity
+{
+    public string Name { get; set; } = string.Empty;
+}
+
+public partial class UserDto
+{
+    public Guid Id { get; set; }  // Mapped in both directions
+    public string Name { get; set; } = string.Empty;
+}
+
+// ✅ Both mappings include Id from Entity:
+// user.MapToUserDto() → includes Id
+// userDto.MapToUser() → includes Id
+```
+
+**Key Features:**
+
+- **Automatic traversal** - Walks up the entire inheritance hierarchy to `System.Object`
+- **Multi-level support** - Handles any depth of inheritance (Entity → AuditableEntity → ConcreteEntity)
+- **Override handling** - Properly handles `virtual`/`override` properties (no duplicates)
+- **[MapIgnore] support** - Respects exclusion attributes on base class properties
+- **Full integration** - Works with PropertyNameStrategy, Bidirectional, [MapProperty], and all other features
+- **Zero boilerplate** - No need to manually specify inherited properties
+
+**Use Cases:**
+
+- **Entity base classes** - Common pattern for Id, CreatedAt, UpdatedAt audit fields
+- **DDD value objects** - Base classes with common value object properties
+- **Multi-tenancy** - Base classes with TenantId or OrganizationId
+- **Soft delete pattern** - Base classes with IsDeleted, DeletedAt, DeletedBy
+- **Versioning** - Base classes with Version or RowVersion for optimistic concurrency
+
 ### 🏗️ Constructor Mapping
 
 The generator automatically detects and uses constructors when mapping to records or classes with primary constructors (C# 12+). This provides a more natural mapping approach for immutable types.
