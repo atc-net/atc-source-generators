@@ -297,7 +297,7 @@ services.AddDependencyRegistrationsFromDomain(
   3. `public const string NameTitle`
   4. `public const string Name`
   5. Auto-inferred from class name
-- Supports validation: `ValidateDataAnnotations`, `ValidateOnStart`
+- Supports validation: `ValidateDataAnnotations`, `ValidateOnStart`, Custom validators (`IValidateOptions<T>`)
 - Supports lifetime selection: Singleton (IOptions), Scoped (IOptionsSnapshot), Monitor (IOptionsMonitor)
 - Requires classes to be declared `partial`
 - **Smart naming** - uses short suffix if unique, full name if conflicts exist
@@ -311,6 +311,18 @@ services.AddOptions<DatabaseOptions>()
     .Bind(configuration.GetSection("Database"))
     .ValidateDataAnnotations()
     .ValidateOnStart();
+
+// Input with custom validator:
+[OptionsBinding("Database", ValidateDataAnnotations = true, Validator = typeof(DatabaseOptionsValidator))]
+public partial class DatabaseOptions { }
+
+// Output with custom validator:
+services.AddOptions<DatabaseOptions>()
+    .Bind(configuration.GetSection("Database"))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+
+services.AddSingleton<IValidateOptions<DatabaseOptions>, DatabaseOptionsValidator>();
 ```
 
 **Smart Naming:**

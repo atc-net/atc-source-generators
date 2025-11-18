@@ -10,6 +10,7 @@ This sample demonstrates the **OptionsBindingGenerator** in a multi-project cons
 - **Multiple configuration sources** (appsettings.json, environment variables)
 - **Options lifetime management** (IOptions, IOptionsSnapshot, IOptionsMonitor)
 - **Validation at startup** with Data Annotations
+- **Custom validation** using IValidateOptions<T> for complex business rules
 
 ## 📁 Sample Projects
 

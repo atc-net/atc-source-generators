@@ -259,7 +259,7 @@ Get errors at compile time, not runtime:
 
 ### ⚙️ OptionsBindingGenerator
 
-Eliminate boilerplate configuration binding code. Decorate your options classes with `[OptionsBinding]` and let the generator create type-safe configuration bindings automatically.
+Eliminate boilerplate configuration binding code. Decorate your options classes with `[OptionsBinding]` and let the generator create type-safe configuration bindings automatically. Supports DataAnnotations validation, startup validation, and custom `IValidateOptions<T>` validators for complex business rules.
 
 #### 📚 Documentation
 

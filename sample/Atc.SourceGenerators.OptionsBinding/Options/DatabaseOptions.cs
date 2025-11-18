@@ -4,7 +4,7 @@ namespace Atc.SourceGenerators.OptionsBinding.Options;
 /// Database configuration options with validation.
 /// Explicitly binds to "Database" section in appsettings.json.
 /// </summary>
-[OptionsBinding("Database", ValidateDataAnnotations = true, ValidateOnStart = true)]
+[OptionsBinding("Database", ValidateDataAnnotations = true, ValidateOnStart = true, Validator = typeof(Validators.DatabaseOptionsValidator))]
 public partial class DatabaseOptions
 {
     [Required]
