@@ -224,6 +224,54 @@ app
     .WithDescription("Demonstrates polymorphic mapping where abstract Animal base class maps to derived Dog/Cat types using type pattern matching.")
     .Produces<List<AnimalDto>>(StatusCodes.Status200OK);
 
+app
+    .MapGet("/config/api", () =>
+    {
+        // ✨ Demonstrate PropertyNameStrategy.CamelCase: PascalCase → camelCase
+        // Shows automatic property name conversion for JavaScript/JSON APIs
+        var config = new ApiConfiguration
+        {
+            ApiEndpoint = "https://api.example.com/v1",
+            ApiKey = "sk_test_1234567890",
+            TimeoutSeconds = 30,
+            EnableRetry = true,
+            MaxRetryAttempts = 3,
+        };
+
+        // Generated mapping converts PascalCase properties to camelCase
+        // ApiEndpoint → apiEndpoint, ApiKey → apiKey, etc.
+        var data = config.MapToApiConfigurationDto();
+        return Results.Ok(data);
+    })
+    .WithName("GetApiConfiguration")
+    .WithSummary("Get API configuration with camelCase property names")
+    .WithDescription("Demonstrates PropertyNameStrategy.CamelCase where PascalCase domain properties (ApiEndpoint, ApiKey) are automatically mapped to camelCase DTO properties (apiEndpoint, apiKey) for JavaScript/JSON compatibility.")
+    .Produces<ApiConfigurationDto>(StatusCodes.Status200OK);
+
+app
+    .MapGet("/config/database", () =>
+    {
+        // ✨ Demonstrate PropertyNameStrategy.SnakeCase: PascalCase → snake_case
+        // Shows automatic property name conversion for PostgreSQL/Python APIs
+        var settings = new DatabaseSettings
+        {
+            DatabaseHost = "localhost",
+            DatabasePort = 5432,
+            DatabaseName = "myapp_production",
+            ConnectionTimeout = 60,
+            EnableSsl = true,
+        };
+
+        // Generated mapping converts PascalCase properties to snake_case
+        // DatabaseHost → database_host, DatabasePort → database_port, etc.
+        var data = settings.MapToDatabaseSettingsDto();
+        return Results.Ok(data);
+    })
+    .WithName("GetDatabaseConfiguration")
+    .WithSummary("Get database configuration with snake_case property names")
+    .WithDescription("Demonstrates PropertyNameStrategy.SnakeCase where PascalCase domain properties (DatabaseHost, DatabasePort) are automatically mapped to snake_case DTO properties (database_host, database_port) for PostgreSQL/Python compatibility.")
+    .Produces<DatabaseSettingsDto>(StatusCodes.Status200OK);
+
 await app
     .RunAsync()
     .ConfigureAwait(false);

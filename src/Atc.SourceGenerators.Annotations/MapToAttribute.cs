@@ -252,4 +252,46 @@ public sealed class MapToAttribute : Attribute
     /// </code>
     /// </example>
     public bool IncludePrivateMembers { get; set; }
+
+    /// <summary>
+    /// Gets or sets the naming strategy for property name conversion during mapping.
+    /// Allows automatic mapping between different naming conventions (PascalCase, camelCase, snake_case, kebab-case).
+    /// Default is PascalCase (no transformation - exact match).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Use this property to map between properties with different naming conventions without manually
+    /// specifying each property mapping with <see cref="MapPropertyAttribute"/>.
+    /// </para>
+    /// <para>
+    /// Common use cases:
+    /// - Mapping to/from JSON APIs that use snake_case or camelCase
+    /// - Integrating with external systems with different naming standards
+    /// - Database entities using different conventions than domain models
+    /// </para>
+    /// <para>
+    /// The strategy applies to source property names when matching with target properties.
+    /// Explicit mappings using <see cref="MapPropertyAttribute"/> always take precedence.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Map PascalCase domain model to snake_case DTO
+    /// [MapTo(typeof(UserDto), PropertyNameStrategy = PropertyNameStrategy.SnakeCase)]
+    /// public partial class User
+    /// {
+    ///     public string FirstName { get; set; } = string.Empty;  // → first_name
+    ///     public string LastName { get; set; } = string.Empty;   // → last_name
+    ///     public DateTime DateOfBirth { get; set; }              // → date_of_birth
+    /// }
+    ///
+    /// public class UserDto
+    /// {
+    ///     public string first_name { get; set; } = string.Empty;
+    ///     public string last_name { get; set; } = string.Empty;
+    ///     public DateTime date_of_birth { get; set; }
+    /// }
+    /// </code>
+    /// </example>
+    public PropertyNameStrategy PropertyNameStrategy { get; set; } = PropertyNameStrategy.PascalCase;
 }

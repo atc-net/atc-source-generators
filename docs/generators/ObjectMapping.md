@@ -49,6 +49,7 @@ public static UserDto MapToUserDto(this User source) =>
   - [📦 Collection Mapping](#-collection-mapping)
   - [🔁 Multi-Layer Mapping](#-multi-layer-mapping)
   - [🚫 Excluding Properties with `[MapIgnore]`](#-excluding-properties-with-mapignore)
+  - [🔤 Property Name Casing Strategies](#-property-name-casing-strategies)
   - [🏷️ Custom Property Name Mapping with `[MapProperty]`](#️-custom-property-name-mapping-with-mapproperty)
   - [🔄 Property Flattening](#-property-flattening)
   - [🔀 Built-in Type Conversion](#-built-in-type-conversion)
@@ -1045,6 +1046,155 @@ public static UserDto MapToUserDto(this User source)
 - Nested objects (ignored properties in nested objects are also excluded)
 - Bidirectional mappings (properties can be ignored in either direction)
 - Constructor mappings (ignored properties are excluded from constructor parameters)
+
+### 🔤 Property Name Casing Strategies
+
+When integrating with external APIs or different system layers, property names often follow different naming conventions. The `PropertyNameStrategy` parameter enables automatic conversion between casing styles without manually renaming properties or using `[MapProperty]` on every field.
+
+**Supported Strategies:**
+- **PascalCase** (default) - `FirstName`, `LastName`, `DateOfBirth`
+- **CamelCase** - `firstName`, `lastName`, `dateOfBirth`
+- **SnakeCase** - `first_name`, `last_name`, `date_of_birth`
+- **KebabCase** - `first-name`, `last-name`, `date-of-birth`
+
+#### Example: Mapping to JSON API (camelCase)
+
+```csharp
+using Atc.SourceGenerators.Annotations;
+
+// Domain model (PascalCase)
+[MapTo(typeof(UserApiDto), PropertyNameStrategy = PropertyNameStrategy.CamelCase)]
+public partial class User
+{
+    public Guid Id { get; set; }
+    public string FirstName { get; set; } = string.Empty;
+    public string LastName { get; set; } = string.Empty;
+    public int Age { get; set; }
+}
+
+// API DTO (camelCase - typical for JSON APIs)
+public class UserApiDto
+{
+    public Guid id { get; set; }
+    public string firstName { get; set; } = string.Empty;
+    public string lastName { get; set; } = string.Empty;
+    public int age { get; set; }
+}
+
+// Generated mapping code
+public static UserApiDto MapToUserApiDto(this User source)
+{
+    if (source is null)
+    {
+        return default!;
+    }
+
+    return new UserApiDto
+    {
+        id = source.Id,              // ✨ Id → id
+        firstName = source.FirstName, // ✨ FirstName → firstName
+        lastName = source.LastName,   // ✨ LastName → lastName
+        age = source.Age              // ✨ Age → age
+    };
+}
+```
+
+#### Example: Mapping to Database (snake_case)
+
+```csharp
+// Domain model (PascalCase)
+[MapTo(typeof(UserEntity), PropertyNameStrategy = PropertyNameStrategy.SnakeCase)]
+public partial class User
+{
+    public Guid UserId { get; set; }
+    public string FirstName { get; set; } = string.Empty;
+    public string LastName { get; set; } = string.Empty;
+    public DateTimeOffset DateOfBirth { get; set; }
+}
+
+// Database entity (snake_case - typical for PostgreSQL)
+public class UserEntity
+{
+    public Guid user_id { get; set; }
+    public string first_name { get; set; } = string.Empty;
+    public string last_name { get; set; } = string.Empty;
+    public DateTimeOffset date_of_birth { get; set; }
+}
+
+// Generated: Automatic snake_case conversion
+// UserId → user_id
+// FirstName → first_name
+// LastName → last_name
+// DateOfBirth → date_of_birth
+```
+
+#### Example: Bidirectional Mapping with Strategy
+
+PropertyNameStrategy works seamlessly with `Bidirectional = true`:
+
+```csharp
+[MapTo(typeof(ProductDto), PropertyNameStrategy = PropertyNameStrategy.CamelCase, Bidirectional = true)]
+public partial class Product
+{
+    public Guid ProductId { get; set; }
+    public string ProductName { get; set; } = string.Empty;
+    public decimal UnitPrice { get; set; }
+}
+
+public partial class ProductDto
+{
+    public Guid productId { get; set; }
+    public string productName { get; set; } = string.Empty;
+    public decimal unitPrice { get; set; }
+}
+
+// Generated methods:
+// Product.MapToProductDto()  (PascalCase → camelCase)
+// ProductDto.MapToProduct()  (camelCase → PascalCase)
+```
+
+#### Example: Override with `[MapProperty]`
+
+For individual properties, `[MapProperty]` always takes precedence over `PropertyNameStrategy`:
+
+```csharp
+[MapTo(typeof(UserDto), PropertyNameStrategy = PropertyNameStrategy.SnakeCase)]
+public partial class User
+{
+    public string FirstName { get; set; } = string.Empty;
+
+    // Strategy would convert to last_name, but override to special_field
+    [MapProperty("special_field")]
+    public string LastName { get; set; } = string.Empty;
+}
+
+public class UserDto
+{
+    public string first_name { get; set; } = string.Empty;     // ✅ Auto snake_case
+    public string special_field { get; set; } = string.Empty;  // ✅ Manual override
+}
+
+// Generated:
+// first_name = source.FirstName    (PropertyNameStrategy applied)
+// special_field = source.LastName  (MapProperty override)
+```
+
+**Use Cases:**
+- 🌐 **REST APIs** - Map PascalCase domain models to camelCase JSON DTOs
+- 🗄️ **PostgreSQL** - Map to snake_case column names without changing C# properties
+- 🔗 **External Systems** - Integrate with kebab-case or snake_case APIs
+- 🏢 **Multi-Layer Architecture** - Keep consistent casing within each layer
+
+**Works with:**
+- Simple properties (automatic conversion)
+- Nested objects (strategy applies recursively)
+- Bidirectional mappings (reverse conversion is automatic)
+- All other features (collections, enums, constructors, hooks, etc.)
+
+**Validation:**
+- ✅ Compile-time conversion - zero runtime overhead
+- ✅ Works with all MapToAttribute features
+- ✅ `[MapProperty]` overrides strategy for specific properties
 
 ### 🏷️ Custom Property Name Mapping with `[MapProperty]`
 
@@ -3039,6 +3189,7 @@ The `MapToAttribute` accepts the following parameters:
 | `targetType` | `Type` | ✅ Yes | - | The type to map to |
 | `Bidirectional` | `bool` | ❌ No | `false` | Generate bidirectional mappings (both Source → Target and Target → Source) |
 | `EnableFlattening` | `bool` | ❌ No | `false` | Enable property flattening (nested properties are flattened using {PropertyName}{NestedPropertyName} convention) |
+| `PropertyNameStrategy` | `PropertyNameStrategy` | ❌ No | `PascalCase` | Naming strategy for automatic property name conversion. Enables mapping between different naming conventions (PascalCase ↔ camelCase ↔ snake_case ↔ kebab-case). Use `[MapProperty]` to override for specific properties |
 | `BeforeMap` | `string?` | ❌ No | `null` | Name of a static method to call before performing the mapping. Signature: `static void MethodName(SourceType source)` |
 | `AfterMap` | `string?` | ❌ No | `null` | Name of a static method to call after performing the mapping. Signature: `static void MethodName(SourceType source, TargetType target)` |
 | `Factory` | `string?` | ❌ No | `null` | Name of a static factory method to use for creating the target instance. Signature: `static TargetType MethodName()` |
