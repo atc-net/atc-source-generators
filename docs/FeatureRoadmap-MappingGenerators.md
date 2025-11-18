@@ -899,25 +899,127 @@ public static UserDto MapToUserDto(this User source)
 ### 11. Map to Existing Target Instance
 
 **Priority**: 🟢 **Low-Medium**
-**Status**: ❌ Not Implemented
+**Status**: ✅ **Implemented**
 
 **Description**: Update an existing object instead of creating a new one (useful for EF Core tracked entities).
 
-**Example**:
+**User Story**:
+> "As a developer working with EF Core, I want to update existing tracked entities without creating new instances, so that EF Core's change tracking works correctly and I can efficiently update database records."
+
+**Implementation Details**:
+
+When `UpdateTarget = true` is specified in the `MapToAttribute`, the generator creates **two methods**:
+
+1. **Standard method** - Creates and returns a new instance:
+   ```csharp
+   public static TargetType MapToTargetType(this SourceType source)
+   ```
+
+2. **Update method** - Updates an existing instance (void return):
+   ```csharp
+   public static void MapToTargetType(this SourceType source, TargetType target)
+   ```
+
+**Generated Code Pattern**:
 
 ```csharp
-// Generated method:
-public static void MapToUserDto(this User source, UserDto target)
+// Input:
+[MapTo(typeof(UserDto), UpdateTarget = true)]
+public partial class User
 {
-    target.Id = source.Id;
-    target.Name = source.Name;
-    // ... update existing instance
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
 }
 
-// Usage:
-var existingDto = repository.GetDto(id);
-user.MapToUserDto(existingDto);  // Update existing instance
+// Generated output (both methods):
+public static UserDto MapToUserDto(this User source)
+{
+    if (source is null) return default!;
+
+    return new UserDto
+    {
+        Id = source.Id,
+        Name = source.Name,
+        Email = source.Email
+    };
+}
+
+public static void MapToUserDto(this User source, UserDto target)
+{
+    if (source is null) return;
+    if (target is null) return;
+
+    target.Id = source.Id;
+    target.Name = source.Name;
+    target.Email = source.Email;
+}
 ```
+
+**Testing Status**:
+- ✅ Unit tests added (`Generator_Should_Generate_Update_Target_Method`)
+- ✅ Unit tests added (`Generator_Should_Not_Generate_Update_Target_Method_When_False`)
+- ✅ Unit tests added (`Generator_Should_Include_Hooks_In_Update_Target_Method`)
+- ✅ All tests passing (171 succeeded, 13 skipped)
+
+**Sample Code Locations**:
+- `sample/Atc.SourceGenerators.Mapping.Domain/Settings.cs` - Simple update target example
+- `sample/PetStore.Domain/Models/Pet.cs` - EF Core entity update example (with `Bidirectional = true`)
+
+**Use Cases**:
+
+1. **EF Core Tracked Entities**:
+   ```csharp
+   // Fetch tracked entity from database
+   var existingPet = await dbContext.Pets.FindAsync(petId);
+
+   // Update it with new data (EF Core tracks changes)
+   domainPet.MapToPetEntity(existingPet);
+
+   // Save changes (only modified properties are updated in database)
+   await dbContext.SaveChangesAsync();
+   ```
+
+2. **Reduce Object Allocations**:
+   ```csharp
+   // Reuse existing DTO instance
+   var settingsDto = new SettingsDto();
+
+   settings1.MapToSettingsDto(settingsDto);
+   // ... use settingsDto
+
+   settings2.MapToSettingsDto(settingsDto);  // Reuse same instance
+   // ... use settingsDto
+   ```
+
+3. **Update UI ViewModels**:
+   ```csharp
+   // Update existing ViewModel without creating new instance
+   var viewModel = this.DataContext as UserViewModel;
+   updatedUser.MapToUserViewModel(viewModel);
+   ```
+
+**Important Notes**:
+
+- The update method performs **null checks** for both source and target
+- The update method has a **void return type** (no return value)
+- **BeforeMap** and **AfterMap** hooks are fully supported in both methods
+- The update method **does not use Factory** (factory is only for creating new instances)
+- Works seamlessly with **Bidirectional = true** (both directions get update overloads)
+- All properties are updated, including nullable properties
+
+**When to Use**:
+
+- ✅ Updating EF Core tracked entities
+- ✅ Reducing allocations for frequently mapped objects
+- ✅ Updating existing ViewModels or DTOs
+- ✅ Scenarios where you need to preserve object identity
+
+**When NOT to Use**:
+
+- ❌ When you always need new instances
+- ❌ With immutable types (records with init-only properties)
+- ❌ When Factory method is needed (factory creates new instances)
 
 ---
 

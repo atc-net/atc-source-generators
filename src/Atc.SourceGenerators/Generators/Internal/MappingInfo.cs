@@ -11,4 +11,5 @@ internal sealed record MappingInfo(
     List<DerivedTypeMapping> DerivedTypeMappings,
     string? BeforeMap,
     string? AfterMap,
-    string? Factory);
+    string? Factory,
+    bool UpdateTarget);

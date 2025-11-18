@@ -194,12 +194,13 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                 continue;
             }
 
-            // Extract Bidirectional, EnableFlattening, BeforeMap, AfterMap, and Factory properties
+            // Extract Bidirectional, EnableFlattening, BeforeMap, AfterMap, Factory, and UpdateTarget properties
             var bidirectional = false;
             var enableFlattening = false;
             string? beforeMap = null;
             string? afterMap = null;
             string? factory = null;
+            var updateTarget = false;
             foreach (var namedArg in attribute.NamedArguments)
             {
                 if (namedArg.Key == "Bidirectional")
@@ -221,6 +222,10 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                 else if (namedArg.Key == "Factory")
                 {
                     factory = namedArg.Value.Value as string;
+                }
+                else if (namedArg.Key == "UpdateTarget")
+                {
+                    updateTarget = namedArg.Value.Value as bool? ?? false;
                 }
             }
 
@@ -244,7 +249,8 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                 DerivedTypeMappings: derivedTypeMappings,
                 BeforeMap: beforeMap,
                 AfterMap: afterMap,
-                Factory: factory));
+                Factory: factory,
+                UpdateTarget: updateTarget));
         }
 
         return mappings.Count > 0 ? mappings : null;
@@ -907,7 +913,8 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                     DerivedTypeMappings: new List<DerivedTypeMapping>(), // No derived type mappings for reverse
                     BeforeMap: null, // No hooks for reverse mapping
                     AfterMap: null, // No hooks for reverse mapping
-                    Factory: null); // No factory for reverse mapping
+                    Factory: null, // No factory for reverse mapping
+                    UpdateTarget: false); // No update target for reverse mapping
 
                 GenerateMappingMethod(sb, reverseMapping);
             }
@@ -1069,6 +1076,61 @@ public class ObjectMappingGenerator : IIncrementalGenerator
 
             sb.AppendLineLf();
             sb.AppendLineLf("        return target;");
+        }
+
+        sb.AppendLineLf("    }");
+        sb.AppendLineLf();
+
+        // Generate additional update target method if requested
+        if (mapping.UpdateTarget)
+        {
+            GenerateUpdateTargetMethod(sb, mapping);
+        }
+    }
+
+    private static void GenerateUpdateTargetMethod(
+        StringBuilder sb,
+        MappingInfo mapping)
+    {
+        var methodName = $"MapTo{mapping.TargetType.Name}";
+
+        sb.AppendLineLf("    /// <summary>");
+        sb.AppendLineLf($"    /// Maps <see cref=\"{mapping.SourceType.ToDisplayString()}\"/> to an existing <see cref=\"{mapping.TargetType.ToDisplayString()}\"/> instance.");
+        sb.AppendLineLf("    /// </summary>");
+        sb.AppendLineLf($"    public static void {methodName}(");
+        sb.AppendLineLf($"        this {mapping.SourceType.ToDisplayString()} source,");
+        sb.AppendLineLf($"        {mapping.TargetType.ToDisplayString()} target)");
+        sb.AppendLineLf("    {");
+        sb.AppendLineLf("        if (source is null)");
+        sb.AppendLineLf("        {");
+        sb.AppendLineLf("            return;");
+        sb.AppendLineLf("        }");
+        sb.AppendLineLf();
+        sb.AppendLineLf("        if (target is null)");
+        sb.AppendLineLf("        {");
+        sb.AppendLineLf("            return;");
+        sb.AppendLineLf("        }");
+        sb.AppendLineLf();
+
+        // Generate BeforeMap hook call
+        if (!string.IsNullOrWhiteSpace(mapping.BeforeMap))
+        {
+            sb.AppendLineLf($"        {mapping.SourceType.ToDisplayString()}.{mapping.BeforeMap}(source);");
+            sb.AppendLineLf();
+        }
+
+        // Update properties on existing target
+        foreach (var prop in mapping.PropertyMappings)
+        {
+            var value = GeneratePropertyMappingValue(prop, "source");
+            sb.AppendLineLf($"        target.{prop.TargetProperty.Name} = {value};");
+        }
+
+        // Generate AfterMap hook call
+        if (!string.IsNullOrWhiteSpace(mapping.AfterMap))
+        {
+            sb.AppendLineLf();
+            sb.AppendLineLf($"        {mapping.SourceType.ToDisplayString()}.{mapping.AfterMap}(source, target);");
         }
 
         sb.AppendLineLf("    }");
@@ -1334,6 +1396,12 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                    /// The method must have the signature: static TargetType MethodName().
                    /// </summary>
                    public string? Factory { get; set; }
+
+                   /// <summary>
+                   /// Gets or sets a value indicating whether to generate an additional method overload
+                   /// that updates an existing target instance instead of creating a new one.
+                   /// </summary>
+                   public bool UpdateTarget { get; set; }
                }
            }
            """;

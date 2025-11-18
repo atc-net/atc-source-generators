@@ -141,4 +141,31 @@ public sealed class MapToAttribute : Attribute
     /// </code>
     /// </example>
     public string? Factory { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether to generate an additional method overload
+    /// that updates an existing target instance instead of creating a new one.
+    /// When enabled, generates both MapToX() and MapToX(target) methods.
+    /// Useful for updating EF Core tracked entities.
+    /// Default is false.
+    /// </summary>
+    /// <example>
+    /// <code>
+    /// [MapTo(typeof(UserDto), UpdateTarget = true)]
+    /// public partial class User
+    /// {
+    ///     public Guid Id { get; set; }
+    ///     public string Name { get; set; } = string.Empty;
+    /// }
+    ///
+    /// // Generated methods:
+    /// // 1. public static UserDto MapToUserDto(this User source) { ... }
+    /// // 2. public static void MapToUserDto(this User source, UserDto target) { ... }
+    ///
+    /// // Usage for updating existing instance:
+    /// var existingDto = repository.GetDto(id);
+    /// user.MapToUserDto(existingDto);  // Updates existing instance
+    /// </code>
+    /// </example>
+    public bool UpdateTarget { get; set; }
 }
