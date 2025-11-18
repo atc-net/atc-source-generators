@@ -33,7 +33,7 @@ app
             return Task.CompletedTask;
         }
 
-        return context.Response.WriteAsync("PetStore API is running!");
+        return context.Response.WriteAsync("PetStore API is running!", CancellationToken.None);
     });
 
 app
@@ -121,6 +121,53 @@ app
     .Produces<List<UserEventDto>>(StatusCodes.Status200OK);
 
 app
+    .MapGet("/result", () =>
+    {
+        // ✨ Demonstrate generic type mapping: Result<T> → ResultDto<T>
+        // Shows generic mappers preserving type parameters
+        var result = new Result<string>
+        {
+            Data = "Success!",
+            Success = true,
+            Message = "Operation completed successfully",
+            ErrorCode = null,
+        };
+
+        // The generated MapToResultDto<T>() preserves the type parameter
+        var data = result.MapToResultDto();
+        return Results.Ok(data);
+    })
+    .WithName("GetResult")
+    .WithSummary("Get a result with generic type mapping")
+    .WithDescription("Demonstrates generic type mapping where Result<T> maps to ResultDto<T> preserving the type parameter.")
+    .Produces<ResultDto<string>>(StatusCodes.Status200OK);
+
+app
+    .MapGet("/users/paged", (UserService userService) =>
+    {
+        // ✨ Demonstrate generic type mapping with constraints: PagedResult<T> → PagedResultDto<T>
+        // Shows generic mappers with 'where T : class' constraint
+        var users = userService.GetAll();
+        var userList = users.ToList();
+        var firstPage = userList.Take(10);
+        var pagedResult = new PagedResult<User>
+        {
+            Items = firstPage.ToList(),
+            TotalCount = userList.Count,
+            PageNumber = 1,
+            PageSize = 10,
+        };
+
+        // The generated MapToPagedResultDto<T>() preserves type parameter and constraints
+        var data = pagedResult.MapToPagedResultDto();
+        return Results.Ok(data);
+    })
+    .WithName("GetPagedUsers")
+    .WithSummary("Get paged users with generic type mapping")
+    .WithDescription("Demonstrates generic type mapping with constraints where PagedResult<T> maps to PagedResultDto<T> with 'where T : class' constraint.")
+    .Produces<PagedResultDto<UserDto>>(StatusCodes.Status200OK);
+
+app
     .MapPost("/register", (UserRegistration registration) =>
     {
         // ✨ Use generated mapping with required property validation: Domain → DTO
@@ -177,4 +224,6 @@ app
     .WithDescription("Demonstrates polymorphic mapping where abstract Animal base class maps to derived Dog/Cat types using type pattern matching.")
     .Produces<List<AnimalDto>>(StatusCodes.Status200OK);
 
-await app.RunAsync();
+await app
+    .RunAsync()
+    .ConfigureAwait(false);

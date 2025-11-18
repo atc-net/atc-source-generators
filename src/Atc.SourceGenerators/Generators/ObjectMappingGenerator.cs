@@ -243,20 +243,51 @@ public class ObjectMappingGenerator : IIncrementalGenerator
             // Extract derived type mappings from MapDerivedType attributes
             var derivedTypeMappings = GetDerivedTypeMappings(classSymbol);
 
+            // Detect if this is a generic mapping
+            // A generic mapping occurs when:
+            // 1. The source type has type parameters (e.g., Result<T>)
+            // 2. The target type is an unbound generic type (e.g., typeof(ResultDto<>))
+            // 3. The arity (number of type parameters) matches
+            var isGenericMapping = classSymbol.IsGenericType &&
+                                   targetType.IsUnboundGenericType &&
+                                   classSymbol.TypeParameters.Length == targetType.TypeParameters.Length;
+
+            // For generic mappings, construct the target type with source's type parameters
+            // This allows property mapping to work correctly
+            var targetTypeForMapping = targetType;
+            if (isGenericMapping)
+            {
+                var typeArguments = classSymbol.TypeParameters
+                    .Cast<ITypeSymbol>()
+                    .ToArray();
+                targetTypeForMapping = targetType.ConstructedFrom.Construct(typeArguments);
+            }
+
+            // Get property mappings (using constructed target type for generics)
+            var mappingsForGeneric = isGenericMapping ?
+                GetPropertyMappings(classSymbol, targetTypeForMapping, enableFlattening, context) :
+                propertyMappings;
+
+            // Find best matching constructor (using constructed target type for generics)
+            var (constructorForGeneric, constructorParamsForGeneric) = isGenericMapping ?
+                FindBestConstructor(classSymbol, targetTypeForMapping) :
+                (constructor, constructorParameterNames);
+
             mappings.Add(new MappingInfo(
                 SourceType: classSymbol,
                 TargetType: targetType,
-                PropertyMappings: propertyMappings,
+                PropertyMappings: isGenericMapping ? mappingsForGeneric : propertyMappings,
                 Bidirectional: bidirectional,
                 EnableFlattening: enableFlattening,
-                Constructor: constructor,
-                ConstructorParameterNames: constructorParameterNames,
+                Constructor: isGenericMapping ? constructorForGeneric : constructor,
+                ConstructorParameterNames: isGenericMapping ? constructorParamsForGeneric : constructorParameterNames,
                 DerivedTypeMappings: derivedTypeMappings,
                 BeforeMap: beforeMap,
                 AfterMap: afterMap,
                 Factory: factory,
                 UpdateTarget: updateTarget,
-                GenerateProjection: generateProjection));
+                GenerateProjection: generateProjection,
+                IsGeneric: isGenericMapping));
         }
 
         return mappings.Count > 0 ? mappings : null;
@@ -906,16 +937,26 @@ public class ObjectMappingGenerator : IIncrementalGenerator
             // Generate reverse mapping if bidirectional
             if (mapping.Bidirectional)
             {
+                // For generic mappings, construct the reverse source type with type parameters
+                var reverseSourceType = mapping.TargetType;
+                if (mapping.IsGeneric)
+                {
+                    var typeArguments = mapping.SourceType.TypeParameters
+                        .Cast<ITypeSymbol>()
+                        .ToArray();
+                    reverseSourceType = mapping.TargetType.ConstructedFrom.Construct(typeArguments);
+                }
+
                 var reverseMappings = GetPropertyMappings(
-                    sourceType: mapping.TargetType,
+                    sourceType: reverseSourceType,
                     targetType: mapping.SourceType,
                     enableFlattening: mapping.EnableFlattening);
 
                 // Find best matching constructor for reverse mapping
-                var (reverseConstructor, reverseConstructorParams) = FindBestConstructor(mapping.TargetType, mapping.SourceType);
+                var (reverseConstructor, reverseConstructorParams) = FindBestConstructor(reverseSourceType, mapping.SourceType);
 
                 var reverseMapping = new MappingInfo(
-                    SourceType: mapping.TargetType,
+                    SourceType: reverseSourceType,
                     TargetType: mapping.SourceType,
                     PropertyMappings: reverseMappings,
                     Bidirectional: false, // Don't generate reverse of reverse
@@ -927,7 +968,8 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                     AfterMap: null, // No hooks for reverse mapping
                     Factory: null, // No factory for reverse mapping
                     UpdateTarget: false, // No update target for reverse mapping
-                    GenerateProjection: false); // No projection for reverse mapping
+                    GenerateProjection: false, // No projection for reverse mapping
+                    IsGeneric: mapping.IsGeneric); // Preserve generic flag for reverse mapping
 
                 GenerateMappingMethod(sb, reverseMapping);
             }
@@ -944,11 +986,66 @@ public class ObjectMappingGenerator : IIncrementalGenerator
     {
         var methodName = $"MapTo{mapping.TargetType.Name}";
 
+        // Build type parameter list for generic methods
+        var typeParamList = string.Empty;
+        var typeConstraints = new List<string>();
+        var targetTypeName = mapping.TargetType.ToDisplayString();
+
+        if (mapping.IsGeneric)
+        {
+            var typeParams = mapping.SourceType.TypeParameters;
+            typeParamList = $"<{string.Join(", ", typeParams.Select(tp => tp.Name))}>";
+
+            // For generic types, get the base name without type parameters
+            var targetBaseTypeName = mapping.TargetType.Name;
+            targetTypeName = $"{mapping.TargetType.ContainingNamespace}.{targetBaseTypeName}";
+
+            // Collect type parameter constraints
+            foreach (var typeParam in typeParams)
+            {
+                var constraints = new List<string>();
+
+                // Check for class/struct constraint
+                if (typeParam.HasReferenceTypeConstraint)
+                {
+                    constraints.Add("class");
+                }
+                else if (typeParam.HasValueTypeConstraint)
+                {
+                    constraints.Add("struct");
+                }
+
+                // Add type constraints
+                foreach (var constraintType in typeParam.ConstraintTypes)
+                {
+                    constraints.Add(constraintType.ToDisplayString());
+                }
+
+                // Check for new() constraint
+                if (typeParam.HasConstructorConstraint && !typeParam.HasValueTypeConstraint)
+                {
+                    constraints.Add("new()");
+                }
+
+                if (constraints.Count > 0)
+                {
+                    typeConstraints.Add($"        where {typeParam.Name} : {string.Join(", ", constraints)}");
+                }
+            }
+        }
+
         sb.AppendLineLf("    /// <summary>");
-        sb.AppendLineLf($"    /// Maps <see cref=\"{mapping.SourceType.ToDisplayString()}\"/> to <see cref=\"{mapping.TargetType.ToDisplayString()}\"/>.");
+        sb.AppendLineLf($"    /// Maps <see cref=\"{mapping.SourceType.ToDisplayString()}\"/> to <see cref=\"{targetTypeName}{typeParamList}\"/>.");
         sb.AppendLineLf("    /// </summary>");
-        sb.AppendLineLf($"    public static {mapping.TargetType.ToDisplayString()} {methodName}(");
+        sb.AppendLineLf($"    public static {targetTypeName}{typeParamList} {methodName}{typeParamList}(");
         sb.AppendLineLf($"        this {mapping.SourceType.ToDisplayString()} source)");
+
+        // Add type parameter constraints
+        foreach (var constraint in typeConstraints)
+        {
+            sb.AppendLineLf(constraint);
+        }
+
         sb.AppendLineLf("    {");
         sb.AppendLineLf("        if (source is null)");
         sb.AppendLineLf("        {");
@@ -1031,11 +1128,11 @@ public class ObjectMappingGenerator : IIncrementalGenerator
             // Generate constructor call
             if (needsTargetVariable)
             {
-                sb.AppendLineLf($"        var target = new {mapping.TargetType.ToDisplayString()}(");
+                sb.AppendLineLf($"        var target = new {targetTypeName}{typeParamList}(");
             }
             else
             {
-                sb.AppendLineLf($"        return new {mapping.TargetType.ToDisplayString()}(");
+                sb.AppendLineLf($"        return new {targetTypeName}{typeParamList}(");
             }
 
             for (var i = 0; i < orderedConstructorProps.Count; i++)
@@ -1065,11 +1162,11 @@ public class ObjectMappingGenerator : IIncrementalGenerator
             // Use object initializer syntax
             if (needsTargetVariable)
             {
-                sb.AppendLineLf($"        var target = new {mapping.TargetType.ToDisplayString()}");
+                sb.AppendLineLf($"        var target = new {targetTypeName}{typeParamList}");
             }
             else
             {
-                sb.AppendLineLf($"        return new {mapping.TargetType.ToDisplayString()}");
+                sb.AppendLineLf($"        return new {targetTypeName}{typeParamList}");
             }
 
             sb.AppendLineLf("        {");
@@ -1107,12 +1204,67 @@ public class ObjectMappingGenerator : IIncrementalGenerator
     {
         var methodName = $"MapTo{mapping.TargetType.Name}";
 
+        // Build type parameter list for generic methods
+        var typeParamList = string.Empty;
+        var typeConstraints = new List<string>();
+        var targetTypeName = mapping.TargetType.ToDisplayString();
+
+        if (mapping.IsGeneric)
+        {
+            var typeParams = mapping.SourceType.TypeParameters;
+            typeParamList = $"<{string.Join(", ", typeParams.Select(tp => tp.Name))}>";
+
+            // For generic types, get the base name without type parameters
+            var targetBaseTypeName = mapping.TargetType.Name;
+            targetTypeName = $"{mapping.TargetType.ContainingNamespace}.{targetBaseTypeName}";
+
+            // Collect type parameter constraints
+            foreach (var typeParam in typeParams)
+            {
+                var constraints = new List<string>();
+
+                // Check for class/struct constraint
+                if (typeParam.HasReferenceTypeConstraint)
+                {
+                    constraints.Add("class");
+                }
+                else if (typeParam.HasValueTypeConstraint)
+                {
+                    constraints.Add("struct");
+                }
+
+                // Add type constraints
+                foreach (var constraintType in typeParam.ConstraintTypes)
+                {
+                    constraints.Add(constraintType.ToDisplayString());
+                }
+
+                // Check for new() constraint
+                if (typeParam.HasConstructorConstraint && !typeParam.HasValueTypeConstraint)
+                {
+                    constraints.Add("new()");
+                }
+
+                if (constraints.Count > 0)
+                {
+                    typeConstraints.Add($"        where {typeParam.Name} : {string.Join(", ", constraints)}");
+                }
+            }
+        }
+
         sb.AppendLineLf("    /// <summary>");
-        sb.AppendLineLf($"    /// Maps <see cref=\"{mapping.SourceType.ToDisplayString()}\"/> to an existing <see cref=\"{mapping.TargetType.ToDisplayString()}\"/> instance.");
+        sb.AppendLineLf($"    /// Maps <see cref=\"{mapping.SourceType.ToDisplayString()}\"/> to an existing <see cref=\"{targetTypeName}{typeParamList}\"/> instance.");
         sb.AppendLineLf("    /// </summary>");
-        sb.AppendLineLf($"    public static void {methodName}(");
+        sb.AppendLineLf($"    public static void {methodName}{typeParamList}(");
         sb.AppendLineLf($"        this {mapping.SourceType.ToDisplayString()} source,");
-        sb.AppendLineLf($"        {mapping.TargetType.ToDisplayString()} target)");
+        sb.AppendLineLf($"        {targetTypeName}{typeParamList} target)");
+
+        // Add type parameter constraints
+        foreach (var constraint in typeConstraints)
+        {
+            sb.AppendLineLf(constraint);
+        }
+
         sb.AppendLineLf("    {");
         sb.AppendLineLf("        if (source is null)");
         sb.AppendLineLf("        {");

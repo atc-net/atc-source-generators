@@ -13,4 +13,5 @@ internal sealed record MappingInfo(
     string? AfterMap,
     string? Factory,
     bool UpdateTarget,
-    bool GenerateProjection);
+    bool GenerateProjection,
+    bool IsGeneric);
