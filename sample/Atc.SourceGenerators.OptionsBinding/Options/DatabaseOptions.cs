@@ -3,8 +3,9 @@ namespace Atc.SourceGenerators.OptionsBinding.Options;
 /// <summary>
 /// Database configuration options with validation.
 /// Explicitly binds to "Database" section in appsettings.json.
+/// Demonstrates ErrorOnMissingKeys to fail fast if configuration is missing.
 /// </summary>
-[OptionsBinding("Database", ValidateDataAnnotations = true, ValidateOnStart = true, Validator = typeof(Validators.DatabaseOptionsValidator))]
+[OptionsBinding("Database", ValidateDataAnnotations = true, ValidateOnStart = true, ErrorOnMissingKeys = true, Validator = typeof(Validators.DatabaseOptionsValidator))]
 public partial class DatabaseOptions
 {
     [Required]

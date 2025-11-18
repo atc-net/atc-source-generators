@@ -19,7 +19,7 @@ var serviceProvider = services.BuildServiceProvider();
 
 Console.WriteLine("1. Testing DatabaseOptions (with validation):");
 Console.WriteLine("   - Section: \"Database\"");
-Console.WriteLine("   - Validation: DataAnnotations + ValidateOnStart");
+Console.WriteLine("   - Validation: DataAnnotations + ValidateOnStart + ErrorOnMissingKeys");
 
 try
 {

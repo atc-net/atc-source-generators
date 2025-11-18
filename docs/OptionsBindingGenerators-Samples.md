@@ -167,7 +167,8 @@ using System.ComponentModel.DataAnnotations;
 namespace Atc.SourceGenerators.OptionsBinding.Domain;
 
 // Explicit section name (highest priority)
-[OptionsBinding("Database", ValidateDataAnnotations = true, ValidateOnStart = true)]
+// Demonstrates fail-fast validation when configuration section is missing
+[OptionsBinding("Database", ValidateDataAnnotations = true, ValidateOnStart = true, ErrorOnMissingKeys = true)]
 public partial class DatabaseOptions
 {
     [Required]
@@ -595,7 +596,8 @@ public class EmailService
 5. **Multi-Project**: Each project gets its own `AddOptionsFromXXX()` method
 6. **Flexible Lifetimes**: Choose between Singleton, Scoped, or Monitor
 7. **Startup Validation**: Catch configuration errors before runtime
-8. **Named Options**: Multiple configurations of the same type for fallback/multi-tenant scenarios
+8. **Error on Missing Keys**: Fail-fast validation when configuration sections are missing
+9. **Named Options**: Multiple configurations of the same type for fallback/multi-tenant scenarios
 
 ## 🔗 Related Documentation
 

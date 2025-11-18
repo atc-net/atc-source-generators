@@ -74,6 +74,8 @@ services.AddOptions<DatabaseOptions>()
       - [🏷️ Data Annotations Validation](#️-data-annotations-validation)
       - [🚀 Validate on Startup](#-validate-on-startup)
       - [🔗 Combined Validation](#-combined-validation)
+      - [🎯 Custom Validation (IValidateOptions)](#-custom-validation-ivalidateoptions)
+      - [🚨 Error on Missing Configuration Keys](#-error-on-missing-configuration-keys)
     - [⏱️ Options Lifetimes](#️-options-lifetimes)
   - [🔧 How It Works](#-how-it-works)
     - [1️⃣ Attribute Detection](#1️⃣-attribute-detection)
@@ -741,6 +743,7 @@ Console.WriteLine($"Other interval: {otherOptions.Value.RepeatIntervalInSeconds}
 - **🧠 Automatic section name inference** - Smart resolution from explicit names, const fields (`SectionName`, `NameTitle`, `Name`), or auto-inferred from class names
 - **🔒 Built-in validation** - Integrated DataAnnotations validation (`ValidateDataAnnotations`) and startup validation (`ValidateOnStart`)
 - **🎯 Custom validation** - Support for `IValidateOptions<T>` for complex business rules beyond DataAnnotations
+- **🚨 Error on missing keys** - Fail-fast validation when configuration sections are missing (`ErrorOnMissingKeys`) to catch deployment issues at startup
 - **📛 Named options** - Multiple configurations of the same options type with different names (e.g., Primary/Secondary email servers)
 - **🎯 Explicit section paths** - Support for nested sections like `"App:Database"` or `"Services:Email"`
 - **📦 Multiple options classes** - Register multiple configuration sections in a single assembly with one method call
@@ -1027,6 +1030,75 @@ services.AddSingleton<global::Microsoft.Extensions.Options.IValidateOptions<glob
 - Runs during options validation pipeline
 - Can validate cross-property dependencies
 - Returns detailed failure messages
+
+#### 🚨 Error on Missing Configuration Keys
+
+The `ErrorOnMissingKeys` feature provides fail-fast validation when configuration sections are missing, preventing runtime errors from invalid or missing configuration.
+
+**When to use:**
+- Critical configuration that must be present (database connections, API keys, etc.)
+- Detect configuration issues at application startup instead of later at runtime
+- Ensure deployment validation catches missing configuration files or sections
+
+**Example:**
+
+```csharp
+using System.ComponentModel.DataAnnotations;
+
+[OptionsBinding("Database",
+    ValidateDataAnnotations = true,
+    ValidateOnStart = true,
+    ErrorOnMissingKeys = true)]
+public partial class DatabaseOptions
+{
+    [Required, MinLength(10)]
+    public string ConnectionString { get; set; } = string.Empty;
+
+    [Range(1, 10)]
+    public int MaxRetries { get; set; } = 3;
+
+    public int TimeoutSeconds { get; set; } = 30;
+}
+```
+
+**Generated Code:**
+
+```csharp
+services.AddOptions<global::MyApp.Options.DatabaseOptions>()
+    .Bind(configuration.GetSection("Database"))
+    .Validate(options =>
+    {
+        var section = configuration.GetSection("Database");
+        if (!section.Exists())
+        {
+            throw new global::System.InvalidOperationException(
+                "Configuration section 'Database' is missing. " +
+                "Ensure the section exists in your appsettings.json or other configuration sources.");
+        }
+
+        return true;
+    })
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+```
+
+**Behavior:**
+- Validates that the configuration section exists using `IConfigurationSection.Exists()`
+- Throws `InvalidOperationException` with descriptive message if section is missing
+- Combines with `ValidateOnStart = true` to fail at startup (recommended)
+- Error message includes the section name for easy troubleshooting
+
+**Best Practices:**
+- Always combine with `ValidateOnStart = true` to catch missing configuration at startup
+- Use for production-critical configuration (databases, external services, etc.)
+- Avoid for optional configuration with reasonable defaults
+- Ensure deployment processes validate configuration files exist
+
+**Example Error Message:**
+```
+System.InvalidOperationException: Configuration section 'Database' is missing.
+Ensure the section exists in your appsettings.json or other configuration sources.
+```
 
 ### ⏱️ Options Lifetimes
 

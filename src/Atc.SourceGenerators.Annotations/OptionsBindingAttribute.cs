@@ -70,4 +70,12 @@ public sealed class OptionsBindingAttribute : Attribute
     /// Default is null (unnamed options).
     /// </summary>
     public string? Name { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether to throw an exception if the configuration section is missing or empty.
+    /// When true, generates validation that ensures the configuration section exists and contains data.
+    /// Recommended to combine with <c>ValidateOnStart = true</c> to detect missing configuration at application startup.
+    /// Default is false.
+    /// </summary>
+    public bool ErrorOnMissingKeys { get; set; }
 }
