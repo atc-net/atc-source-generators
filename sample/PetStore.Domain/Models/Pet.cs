@@ -4,6 +4,7 @@ namespace PetStore.Domain.Models;
 /// Domain model for a pet.
 /// </summary>
 [MapTo(typeof(PetResponse))]
+[MapTo(typeof(PetSummaryResponse), EnableFlattening = true)]
 [MapTo(typeof(PetEntity), Bidirectional = true)]
 public partial class Pet
 {
@@ -43,6 +44,11 @@ public partial class Pet
     /// Gets or sets the pet's status.
     /// </summary>
     public PetStatus Status { get; set; }
+
+    /// <summary>
+    /// Gets or sets the pet's owner information.
+    /// </summary>
+    public Owner? Owner { get; set; }
 
     /// <summary>
     /// Gets or sets when the pet was added to the system.

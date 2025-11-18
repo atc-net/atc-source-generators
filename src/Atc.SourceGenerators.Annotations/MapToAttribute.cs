@@ -66,4 +66,12 @@ public sealed class MapToAttribute : Attribute
     /// Default is false.
     /// </summary>
     public bool Bidirectional { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether to enable property flattening.
+    /// When enabled, nested object properties are flattened using naming convention {PropertyName}{NestedPropertyName}.
+    /// For example, source.Address.City maps to target.AddressCity.
+    /// Default is false.
+    /// </summary>
+    public bool EnableFlattening { get; set; }
 }

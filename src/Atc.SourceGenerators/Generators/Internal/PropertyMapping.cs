@@ -8,4 +8,6 @@ internal sealed record PropertyMapping(
     bool HasEnumMapping,
     bool IsCollection,
     ITypeSymbol? CollectionElementType,
-    string? CollectionTargetType);
+    string? CollectionTargetType,
+    bool IsFlattened,
+    IPropertySymbol? FlattenedNestedProperty);

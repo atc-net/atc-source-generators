@@ -1162,4 +1162,189 @@ public class ObjectMappingGeneratorTests
         // Should map Address → HomeAddress with nested mapping
         Assert.Contains("HomeAddress = source.Address?.MapToAddressDto()!", output, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void Generator_Should_Flatten_Nested_Properties_When_EnableFlattening_Is_True()
+    {
+        // Arrange
+        const string source = """
+            namespace TestNamespace;
+
+            using Atc.SourceGenerators.Annotations;
+
+            [MapTo(typeof(UserDto), EnableFlattening = true)]
+            public partial class User
+            {
+                public int Id { get; set; }
+                public string Name { get; set; } = string.Empty;
+                public Address Address { get; set; } = new();
+            }
+
+            public class Address
+            {
+                public string City { get; set; } = string.Empty;
+                public string Street { get; set; } = string.Empty;
+                public string PostalCode { get; set; } = string.Empty;
+            }
+
+            public class UserDto
+            {
+                public int Id { get; set; }
+                public string Name { get; set; } = string.Empty;
+                public string AddressCity { get; set; } = string.Empty;
+                public string AddressStreet { get; set; } = string.Empty;
+                public string AddressPostalCode { get; set; } = string.Empty;
+            }
+            """;
+
+        // Act
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        // Assert
+        Assert.Empty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+        Assert.Contains("MapToUserDto", output, StringComparison.Ordinal);
+
+        // Should flatten Address.City → AddressCity
+        Assert.Contains("AddressCity = source.Address?.City", output, StringComparison.Ordinal);
+
+        // Should flatten Address.Street → AddressStreet
+        Assert.Contains("AddressStreet = source.Address?.Street", output, StringComparison.Ordinal);
+
+        // Should flatten Address.PostalCode → AddressPostalCode
+        Assert.Contains("AddressPostalCode = source.Address?.PostalCode", output, StringComparison.Ordinal);
+
+        // Should still map direct properties
+        Assert.Contains("Id = source.Id", output, StringComparison.Ordinal);
+        Assert.Contains("Name = source.Name", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generator_Should_Not_Flatten_When_EnableFlattening_Is_False()
+    {
+        // Arrange
+        const string source = """
+            namespace TestNamespace;
+
+            using Atc.SourceGenerators.Annotations;
+
+            [MapTo(typeof(UserDto))]
+            public partial class User
+            {
+                public int Id { get; set; }
+                public string Name { get; set; } = string.Empty;
+                public Address Address { get; set; } = new();
+            }
+
+            public class Address
+            {
+                public string City { get; set; } = string.Empty;
+            }
+
+            public class UserDto
+            {
+                public int Id { get; set; }
+                public string Name { get; set; } = string.Empty;
+                public string AddressCity { get; set; } = string.Empty;
+            }
+            """;
+
+        // Act
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        // Assert
+        Assert.Empty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+        Assert.Contains("MapToUserDto", output, StringComparison.Ordinal);
+
+        // Should NOT flatten when EnableFlattening is false (default)
+        // Check that the mapping method doesn't contain AddressCity assignment
+        Assert.DoesNotContain("AddressCity =", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generator_Should_Flatten_Multiple_Nested_Objects()
+    {
+        // Arrange
+        const string source = """
+            namespace TestNamespace;
+
+            using Atc.SourceGenerators.Annotations;
+
+            [MapTo(typeof(PersonDto), EnableFlattening = true)]
+            public partial class Person
+            {
+                public int Id { get; set; }
+                public Address HomeAddress { get; set; } = new();
+                public Address WorkAddress { get; set; } = new();
+            }
+
+            public class Address
+            {
+                public string City { get; set; } = string.Empty;
+                public string Street { get; set; } = string.Empty;
+            }
+
+            public class PersonDto
+            {
+                public int Id { get; set; }
+                public string HomeAddressCity { get; set; } = string.Empty;
+                public string HomeAddressStreet { get; set; } = string.Empty;
+                public string WorkAddressCity { get; set; } = string.Empty;
+                public string WorkAddressStreet { get; set; } = string.Empty;
+            }
+            """;
+
+        // Act
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        // Assert
+        Assert.Empty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+        Assert.Contains("MapToPersonDto", output, StringComparison.Ordinal);
+
+        // Should flatten HomeAddress properties
+        Assert.Contains("HomeAddressCity = source.HomeAddress?.City", output, StringComparison.Ordinal);
+        Assert.Contains("HomeAddressStreet = source.HomeAddress?.Street", output, StringComparison.Ordinal);
+
+        // Should flatten WorkAddress properties
+        Assert.Contains("WorkAddressCity = source.WorkAddress?.City", output, StringComparison.Ordinal);
+        Assert.Contains("WorkAddressStreet = source.WorkAddress?.Street", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generator_Should_Flatten_With_Nullable_Nested_Objects()
+    {
+        // Arrange
+        const string source = """
+            namespace TestNamespace;
+
+            using Atc.SourceGenerators.Annotations;
+
+            [MapTo(typeof(UserDto), EnableFlattening = true)]
+            public partial class User
+            {
+                public int Id { get; set; }
+                public Address? Address { get; set; }
+            }
+
+            public class Address
+            {
+                public string City { get; set; } = string.Empty;
+            }
+
+            public class UserDto
+            {
+                public int Id { get; set; }
+                public string? AddressCity { get; set; }
+            }
+            """;
+
+        // Act
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        // Assert
+        Assert.Empty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+        Assert.Contains("MapToUserDto", output, StringComparison.Ordinal);
+
+        // Should handle nullable source with null-conditional operator
+        Assert.Contains("AddressCity = source.Address?.City", output, StringComparison.Ordinal);
+    }
 }

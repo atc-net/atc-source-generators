@@ -50,6 +50,7 @@ public static UserDto MapToUserDto(this User source) =>
   - [🔁 Multi-Layer Mapping](#-multi-layer-mapping)
   - [🚫 Excluding Properties with `[MapIgnore]`](#-excluding-properties-with-mapignore)
   - [🏷️ Custom Property Name Mapping with `[MapProperty]`](#️-custom-property-name-mapping-with-mapproperty)
+  - [🔄 Property Flattening](#-property-flattening)
   - [🏗️ Constructor Mapping](#️-constructor-mapping)
 - [⚙️ MapToAttribute Parameters](#️-maptoattribute-parameters)
 - [🛡️ Diagnostics](#️-diagnostics)
@@ -1107,6 +1108,111 @@ public static UserDto MapToUserDto(this User source)
 - ✅ Compile-time validation ensures target properties exist
 - ❌ `ATCMAP003` diagnostic if target property name is not found
 
+### 🔄 Property Flattening
+
+When working with nested objects that need to be flattened into a simpler DTO structure, use `EnableFlattening = true` to automatically map nested properties using a naming convention.
+
+**Example:**
+
+```csharp
+using Atc.SourceGenerators.Annotations;
+
+// Nested object
+public class Address
+{
+    public string Street { get; set; } = string.Empty;
+    public string City { get; set; } = string.Empty;
+    public string PostalCode { get; set; } = string.Empty;
+}
+
+// Source with nested object
+[MapTo(typeof(UserFlatDto), EnableFlattening = true)]
+public partial class User
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public Address? Address { get; set; }  // Nested object
+}
+
+// Flattened target DTO
+public class UserFlatDto
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+
+    // Flattened properties using {PropertyName}{NestedPropertyName} convention
+    public string? AddressStreet { get; set; }
+    public string? AddressCity { get; set; }
+    public string? AddressPostalCode { get; set; }
+}
+
+// Generated: Automatic property flattening with null-safety
+public static UserFlatDto MapToUserFlatDto(this User source)
+{
+    if (source is null)
+    {
+        return default!;
+    }
+
+    return new UserFlatDto
+    {
+        Id = source.Id,
+        Name = source.Name,
+        AddressStreet = source.Address?.Street!,   // Null-safe flattening
+        AddressCity = source.Address?.City!,
+        AddressPostalCode = source.Address?.PostalCode!
+    };
+}
+```
+
+**Naming Convention:**
+- Pattern: `{PropertyName}{NestedPropertyName}`
+- Examples:
+  - `Address.City` → `AddressCity`
+  - `Address.Street` → `AddressStreet`
+  - `HomeAddress.City` → `HomeAddressCity`
+  - `WorkAddress.City` → `WorkAddressCity`
+
+**Multiple Nested Objects:**
+
+```csharp
+[MapTo(typeof(PersonDto), EnableFlattening = true)]
+public partial class Person
+{
+    public int Id { get; set; }
+    public Address HomeAddress { get; set; } = new();
+    public Address WorkAddress { get; set; } = new();
+}
+
+public class PersonDto
+{
+    public int Id { get; set; }
+    // Home address flattened
+    public string HomeAddressCity { get; set; } = string.Empty;
+    public string HomeAddressStreet { get; set; } = string.Empty;
+    // Work address flattened
+    public string WorkAddressCity { get; set; } = string.Empty;
+    public string WorkAddressStreet { get; set; } = string.Empty;
+}
+```
+
+**Null Safety:**
+- Nullable nested objects automatically use null-conditional operator (`?.`)
+- Non-nullable nested objects use direct property access
+- Flattened properties are marked as nullable if the source nested object is nullable
+
+**Works with:**
+- One-level deep nesting (can be extended in future)
+- Multiple nested objects of the same type
+- Bidirectional mappings (both directions support flattening)
+- Other mapping features (MapIgnore, MapProperty, etc.)
+
+**Use Cases:**
+- **API responses** - Simplify complex domain models for client consumption
+- **Report generation** - Flatten hierarchical data for tabular export
+- **Legacy integration** - Map to flat database schemas or external APIs
+- **Performance optimization** - Reduce object graph complexity in data transfer
+
 ### 🏗️ Constructor Mapping
 
 The generator automatically detects and uses constructors when mapping to records or classes with primary constructors (C# 12+). This provides a more natural mapping approach for immutable types.
@@ -1233,6 +1339,7 @@ The `MapToAttribute` accepts the following parameters:
 |-----------|------|----------|---------|-------------|
 | `targetType` | `Type` | ✅ Yes | - | The type to map to |
 | `Bidirectional` | `bool` | ❌ No | `false` | Generate bidirectional mappings (both Source → Target and Target → Source) |
+| `EnableFlattening` | `bool` | ❌ No | `false` | Enable property flattening (nested properties are flattened using {PropertyName}{NestedPropertyName} convention) |
 
 **Example:**
 ```csharp

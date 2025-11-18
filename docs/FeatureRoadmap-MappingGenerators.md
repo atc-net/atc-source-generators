@@ -365,7 +365,7 @@ Age = source.YearsOld
 
 **Priority**: 🟡 **Medium**
 **Generator**: ObjectMappingGenerator
-**Status**: ❌ Not Implemented
+**Status**: ✅ **Implemented** (v1.1 - January 2025)
 
 **Description**: Automatically flatten nested properties into a flat structure using naming conventions.
 
@@ -388,7 +388,7 @@ public class Address
     public string Street { get; set; } = string.Empty;
 }
 
-public class UserDto
+public class UserFlatDto
 {
     public string Name { get; set; } = string.Empty;
     // Flattened properties (convention: {PropertyName}{NestedPropertyName})
@@ -398,16 +398,47 @@ public class UserDto
 
 // Generated code:
 Name = source.Name,
-AddressCity = source.Address.City,
-AddressStreet = source.Address.Street
+AddressCity = source.Address?.City!,
+AddressStreet = source.Address?.Street!
 ```
 
-**Implementation Notes**:
+**Implementation Details**:
 
-- Opt-in via `EnableFlattening = true` parameter on `[MapTo]`
-- Use naming convention: `{PropertyName}{NestedPropertyName}`
-- Only flatten one level deep initially (can expand later)
-- Handle null nested objects gracefully
+✅ **Flattening Detection**:
+- Opt-in via `EnableFlattening = true` parameter on `[MapTo]` attribute
+- Naming convention: `{PropertyName}{NestedPropertyName}` (e.g., `Address.City` → `AddressCity`)
+- Case-insensitive matching for flattened property names
+- Only flattens class/struct types (not primitive types like string, DateTime)
+
+✅ **Null Safety**:
+- Automatically handles nullable nested objects with null-conditional operator (`?.`)
+- Generates `source.Address?.City!` for nullable nested objects
+- Generates `source.Address.City` for non-nullable nested objects
+
+✅ **Features**:
+- One-level deep flattening (can be extended to multi-level in future)
+- Works with bidirectional mappings
+- Supports multiple nested objects of the same type (e.g., `HomeAddress`, `WorkAddress`)
+- Compatible with other mapping features (MapIgnore, MapProperty, etc.)
+- Full Native AOT compatibility
+
+✅ **Testing**:
+- 4 comprehensive unit tests covering all scenarios:
+  - Basic flattening with multiple properties
+  - Default behavior (no flattening when disabled)
+  - Multiple nested objects of same type
+  - Nullable nested objects
+
+✅ **Documentation**:
+- Added comprehensive section in `docs/generators/ObjectMapping.md`
+- Updated CLAUDE.md with flattening information
+- Includes examples and use cases
+
+✅ **Sample Code**:
+- Added `UserFlatDto` in `sample/Atc.SourceGenerators.Mapping.Contract`
+- Added `PetSummaryResponse` in `sample/PetStore.Api.Contract`
+- Added `Owner` model in `sample/PetStore.Domain`
+- Demonstrates realistic usage with address and owner information
 
 ---
 
