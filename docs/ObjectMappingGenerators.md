@@ -3,6 +3,7 @@
 Automatically generate type-safe object-to-object mapping code using attributes. The generator creates efficient mapping extension methods at compile time, eliminating manual mapping boilerplate and reducing errors.
 
 **Key Benefits:**
+
 - 🎯 **Zero boilerplate** - No manual property copying or constructor calls
 - 🔗 **Automatic chaining** - Nested objects map automatically when mappings exist
 - 🧩 **Constructor support** - Maps to classes with primary constructors or parameter-based constructors
@@ -10,6 +11,7 @@ Automatically generate type-safe object-to-object mapping code using attributes.
 - ⚡ **Native AOT ready** - Pure compile-time generation with zero reflection
 
 **Quick Example:**
+
 ```csharp
 // Input: Decorate your domain model
 [MapTo(typeof(UserDto))]
@@ -24,51 +26,133 @@ public static UserDto MapToUserDto(this User source) =>
     new UserDto { Id = source.Id, Name = source.Name };
 ```
 
+## 📖 Documentation Navigation
+
+- **[📋 Feature Roadmap](ObjectMappingGenerators-FeatureRoadmap.md)** - See all implemented and planned features
+- **[🎯 Sample Projects](ObjectMappingGenerators-Samples.md)** - Working code examples with architecture diagrams
+
 ## 📑 Table of Contents
 
-- [🚀 Get Started - Quick Guide](#-get-started---quick-guide)
-  - [📂 Project Structure](#-project-structure)
-  - [1️⃣ Setup Projects](#️-setup-projects)
-  - [2️⃣ Data Access Layer](#️-data-access-layer-userapp-dataaccess-)
-  - [3️⃣ Domain Layer](#️-domain-layer-userapp-domain-)
-  - [4️⃣ API Layer](#️-api-layer-userapp-api-)
-  - [5️⃣ Program.cs](#️-programcs-minimal-api-setup-)
-  - [🎨 What Gets Generated](#-what-gets-generated)
-  - [6️⃣ Testing the Application](#️-testing-the-application-)
-  - [🔍 Viewing Generated Code](#-viewing-generated-code-optional)
-  - [🎯 Key Takeaways](#-key-takeaways)
-- [✨ Features](#-features)
-- [📦 Installation](#-installation)
-- [💡 Basic Usage](#-basic-usage)
-  - [1️⃣ Add Using Directives](#️-add-using-directives)
-  - [2️⃣ Decorate Your Classes](#️-decorate-your-classes)
-  - [3️⃣ Use Generated Mappings](#️-use-generated-mappings)
-- [🏗️ Advanced Scenarios](#️-advanced-scenarios)
-  - [🔄 Enum Conversion](#-enum-conversion)
-  - [🪆 Nested Object Mapping](#-nested-object-mapping)
-  - [📦 Collection Mapping](#-collection-mapping)
-  - [🔁 Multi-Layer Mapping](#-multi-layer-mapping)
-  - [🚫 Excluding Properties with `[MapIgnore]`](#-excluding-properties-with-mapignore)
-  - [🔤 Property Name Casing Strategies](#-property-name-casing-strategies)
-  - [🏷️ Custom Property Name Mapping with `[MapProperty]`](#️-custom-property-name-mapping-with-mapproperty)
-  - [🔄 Property Flattening](#-property-flattening)
-  - [🔀 Built-in Type Conversion](#-built-in-type-conversion)
-  - [✅ Required Property Validation](#-required-property-validation)
-  - [🌳 Polymorphic / Derived Type Mapping](#-polymorphic--derived-type-mapping)
-  - [🏗️ Constructor Mapping](#️-constructor-mapping)
-  - [🪝 Before/After Mapping Hooks](#-beforeafter-mapping-hooks)
-  - [🏭 Object Factories](#-object-factories)
-  - [🔄 Update Existing Target Instance](#-update-existing-target-instance)
+- [🗺️ Object Mapping Generator](#️-object-mapping-generator)
+  - [📖 Documentation Navigation](#-documentation-navigation)
+  - [📑 Table of Contents](#-table-of-contents)
+  - [🚀 Get Started - Quick Guide](#-get-started---quick-guide)
+    - [📂 Project Structure](#-project-structure)
+    - [1️⃣ Setup Projects](#1️⃣-setup-projects)
+    - [2️⃣ Data Access Layer (`UserApp.DataAccess`)](#2️⃣-data-access-layer-userappdataaccess)
+    - [3️⃣ Domain Layer (`UserApp.Domain`)](#3️⃣-domain-layer-userappdomain)
+    - [4️⃣ API Layer (`UserApp.Api`)](#4️⃣-api-layer-userappapi)
+    - [🎨 What Gets Generated](#-what-gets-generated)
+    - [6️⃣ Testing the Application](#6️⃣-testing-the-application)
+    - [🔍 Viewing Generated Code (Optional)](#-viewing-generated-code-optional)
+    - [🎯 Key Takeaways](#-key-takeaways)
+  - [✨ Features](#-features)
+  - [📦 Installation](#-installation)
+  - [💡 Basic Usage](#-basic-usage)
+    - [1️⃣ Add Using Directives](#1️⃣-add-using-directives)
+    - [2️⃣ Decorate Your Classes](#2️⃣-decorate-your-classes)
+    - [3️⃣ Use Generated Mappings](#3️⃣-use-generated-mappings)
+  - [🏗️ Advanced Scenarios](#️-advanced-scenarios)
+    - [🔄 Enum Conversion](#-enum-conversion)
+      - [🎯 Safe Enum Mapping (Recommended)](#-safe-enum-mapping-recommended)
+      - [⚠️ Enum Cast (Fallback)](#️-enum-cast-fallback)
+    - [🪆 Nested Object Mapping](#-nested-object-mapping)
+    - [📦 Collection Mapping](#-collection-mapping)
+    - [🔁 Multi-Layer Mapping](#-multi-layer-mapping)
+    - [🚫 Excluding Properties with `[MapIgnore]`](#-excluding-properties-with-mapignore)
+    - [🔤 Property Name Casing Strategies](#-property-name-casing-strategies)
+      - [Example: Mapping to JSON API (camelCase)](#example-mapping-to-json-api-camelcase)
+      - [Example: Mapping to Database (snake\_case)](#example-mapping-to-database-snake_case)
+      - [Example: Bidirectional Mapping with Strategy](#example-bidirectional-mapping-with-strategy)
+      - [Example: Override with `[MapProperty]`](#example-override-with-mapproperty)
+    - [🏷️ Custom Property Name Mapping with `[MapProperty]`](#️-custom-property-name-mapping-with-mapproperty)
+    - [🔄 Property Flattening](#-property-flattening)
+    - [🔀 Built-in Type Conversion](#-built-in-type-conversion)
+    - [✅ Required Property Validation](#-required-property-validation)
+      - [Basic Example](#basic-example)
+      - [Correct Implementation](#correct-implementation)
+      - [Validation Behavior](#validation-behavior)
+      - [Elevating to Error](#elevating-to-error)
+    - [🌳 Polymorphic / Derived Type Mapping](#-polymorphic--derived-type-mapping)
+      - [Basic Example](#basic-example-1)
+      - [How It Works](#how-it-works)
+      - [Real-World Example - Notification System](#real-world-example---notification-system)
+      - [Key Features](#key-features)
+    - [🧬 Base Class Property Inheritance](#-base-class-property-inheritance)
+      - [Basic Example](#basic-example-2)
+      - [Multi-Level Inheritance](#multi-level-inheritance)
+      - [Property Overrides](#property-overrides)
+      - [Respecting \[MapIgnore\] on Base Properties](#respecting-mapignore-on-base-properties)
+      - [Compatibility with Other Features](#compatibility-with-other-features)
+    - [🏗️ Constructor Mapping](#️-constructor-mapping)
+      - [Simple Record Mapping](#simple-record-mapping)
+      - [Bidirectional Record Mapping](#bidirectional-record-mapping)
+      - [Mixed Constructor + Initializer](#mixed-constructor--initializer)
+      - [Case-Insensitive Parameter Matching](#case-insensitive-parameter-matching)
+    - [🪝 Before/After Mapping Hooks](#-beforeafter-mapping-hooks)
+      - [Basic Usage](#basic-usage)
+      - [Hook Signatures](#hook-signatures)
+      - [Execution Order](#execution-order)
+      - [Using Only BeforeMap](#using-only-beforemap)
+      - [Using Only AfterMap](#using-only-aftermap)
+      - [Hooks with Constructor Mapping](#hooks-with-constructor-mapping)
+      - [Use Cases](#use-cases)
+      - [Important Notes](#important-notes)
+      - [Hooks in Bidirectional Mappings](#hooks-in-bidirectional-mappings)
+    - [🏭 Object Factories](#-object-factories)
+      - [Basic Usage](#basic-usage-1)
+      - [Factory Method Signature](#factory-method-signature)
+      - [Execution Order](#execution-order-1)
+      - [Factory with Hooks](#factory-with-hooks)
+      - [Use Cases](#use-cases-1)
+      - [Important Notes](#important-notes-1)
+      - [Factories in Bidirectional Mappings](#factories-in-bidirectional-mappings)
+  - [Update Existing Target Instance](#update-existing-target-instance)
+    - [Basic Usage](#basic-usage-2)
+    - [EF Core Tracked Entities](#ef-core-tracked-entities)
+    - [Update with Hooks](#update-with-hooks)
+    - [Reduce Object Allocations](#reduce-object-allocations)
+    - [Important Notes](#important-notes-2)
+    - [When to Use UpdateTarget](#when-to-use-updatetarget)
+    - [Comparison with Standard Mapping](#comparison-with-standard-mapping)
   - [📊 IQueryable Projections](#-iqueryable-projections)
+    - [When to Use IQueryable Projections](#when-to-use-iqueryable-projections)
+    - [Basic Example](#basic-example-3)
+    - [Projection Limitations](#projection-limitations)
+    - [What Gets Included in Projections](#what-gets-included-in-projections)
+    - [Comparison: Standard Mapping vs. Projection](#comparison-standard-mapping-vs-projection)
+    - [Performance Benefits](#performance-benefits)
+    - [Real-World Example: Pet Store List View](#real-world-example-pet-store-list-view)
+    - [Best Practices](#best-practices)
+    - [Troubleshooting](#troubleshooting)
   - [🔐 Private Member Access](#-private-member-access)
-- [⚙️ MapToAttribute Parameters](#️-maptoattribute-parameters)
-- [🛡️ Diagnostics](#️-diagnostics)
-  - [❌ ATCMAP001: Mapping Class Must Be Partial](#-atcmap001-mapping-class-must-be-partial)
-  - [❌ ATCMAP002: Target Type Must Be Class or Struct](#-atcmap002-target-type-must-be-class-or-struct)
-  - [❌ ATCMAP003: MapProperty Target Property Not Found](#-atcmap003-mapproperty-target-property-not-found)
-  - [⚠️ ATCMAP004: Required Property Not Mapped](#️-atcmap004-required-property-not-mapped)
-- [🚀 Native AOT Compatibility](#-native-aot-compatibility)
-- [📚 Additional Examples](#-additional-examples)
+    - [When to Use Private Member Access](#when-to-use-private-member-access)
+    - [Basic Example](#basic-example-4)
+    - [How It Works](#how-it-works-1)
+    - [UpdateTarget with Private Members](#updatetarget-with-private-members)
+    - [Bidirectional Mapping with Private Members](#bidirectional-mapping-with-private-members)
+    - [Mixing Public and Private Properties](#mixing-public-and-private-properties)
+    - [Compatibility with Other Features](#compatibility-with-other-features-1)
+    - [Requirements](#requirements)
+    - [Real-World Example: Secure Domain Model](#real-world-example-secure-domain-model)
+    - [Performance Characteristics](#performance-characteristics)
+    - [Best Practices](#best-practices-1)
+  - [⚙️ MapToAttribute Parameters](#️-maptoattribute-parameters)
+  - [🛡️ Diagnostics](#️-diagnostics)
+    - [❌ ATCMAP001: Mapping Class Must Be Partial](#-atcmap001-mapping-class-must-be-partial)
+    - [❌ ATCMAP002: Target Type Must Be Class or Struct](#-atcmap002-target-type-must-be-class-or-struct)
+    - [❌ ATCMAP003: MapProperty Target Property Not Found](#-atcmap003-mapproperty-target-property-not-found)
+    - [⚠️ ATCMAP004: Required Property Not Mapped](#️-atcmap004-required-property-not-mapped)
+  - [🚀 Native AOT Compatibility](#-native-aot-compatibility)
+    - [✅ AOT-Safe Features](#-aot-safe-features)
+    - [🏗️ How It Works](#️-how-it-works)
+    - [📋 Example Generated Code](#-example-generated-code)
+    - [🎯 Multi-Layer AOT Support](#-multi-layer-aot-support)
+  - [📚 Additional Examples](#-additional-examples)
+    - [Example 1: Simple POCO Mapping](#example-1-simple-poco-mapping)
+    - [Example 2: Record Types](#example-2-record-types)
+    - [Example 3: Complex Nested Structure](#example-3-complex-nested-structure)
+    - [Example 4: Working with Collections](#example-4-working-with-collections)
 
 ---
 
@@ -88,6 +172,7 @@ UserApp.sln
 ### 1️⃣ Setup Projects
 
 **UserApp.DataAccess.csproj** (Base layer):
+
 ```xml
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
@@ -108,6 +193,7 @@ UserApp.sln
 ```
 
 **UserApp.Domain.csproj** (Middle layer):
+
 ```xml
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
@@ -124,6 +210,7 @@ UserApp.sln
 ```
 
 **UserApp.Api.csproj** (Top layer):
+
 ```xml
 <Project Sdk="Microsoft.NET.Sdk.Web">
   <PropertyGroup>
@@ -141,6 +228,7 @@ UserApp.sln
 ### 2️⃣ Data Access Layer (`UserApp.DataAccess`)
 
 **Entities/UserEntity.cs** - Database entity with mapping attribute:
+
 ```csharp
 using Atc.SourceGenerators.Annotations;
 using UserApp.Domain;
@@ -211,6 +299,7 @@ public partial class UserEntity
 ```
 
 **Entities/AddressEntity.cs** - Nested entity with mapping:
+
 ```csharp
 using Atc.SourceGenerators.Annotations;
 using UserApp.Domain;
@@ -235,6 +324,7 @@ public partial class AddressEntity
 ```
 
 **Entities/UserStatusEntity.cs** - Enum matching domain enum:
+
 ```csharp
 namespace UserApp.DataAccess.Entities;
 
@@ -253,6 +343,7 @@ public enum UserStatusEntity
 ### 3️⃣ Domain Layer (`UserApp.Domain`)
 
 **User.cs** - Domain model with mapping to DTO:
+
 ```csharp
 using Atc.SourceGenerators.Annotations;
 
@@ -276,6 +367,7 @@ public partial class User
 ```
 
 **Address.cs** - Nested domain model:
+
 ```csharp
 using Atc.SourceGenerators.Annotations;
 
@@ -293,6 +385,7 @@ public partial class Address
 ```
 
 **UserStatus.cs** - Domain enum:
+
 ```csharp
 namespace UserApp.Domain;
 
@@ -306,6 +399,7 @@ public enum UserStatus
 ```
 
 **UserDto.cs** - API DTO:
+
 ```csharp
 namespace UserApp.Domain;
 
@@ -323,6 +417,7 @@ public class UserDto
 ```
 
 **AddressDto.cs** - Nested DTO:
+
 ```csharp
 namespace UserApp.Domain;
 
@@ -337,6 +432,7 @@ public class AddressDto
 ```
 
 **UserStatusDto.cs** - DTO enum:
+
 ```csharp
 namespace UserApp.Domain;
 
@@ -352,6 +448,7 @@ public enum UserStatusDto
 ### 4️⃣ API Layer (`UserApp.Api`)
 
 **Program.cs** - Using generated mappings:
+
 ```csharp
 using Atc.Mapping;
 using UserApp.Domain;
@@ -419,6 +516,7 @@ app.Run();
 The generator automatically creates extension methods in the `Atc.Mapping` namespace:
 
 **For Data Access → Domain:**
+
 ```csharp
 namespace Atc.Mapping;
 
@@ -466,6 +564,7 @@ public static class ObjectMappingExtensions
 ```
 
 **For Domain → DTOs:**
+
 ```csharp
 namespace Atc.Mapping;
 
@@ -524,6 +623,7 @@ curl https://localhost:7000/users/550e8400-e29b-41d4-a716-446655440000
 ```
 
 **Example Response:**
+
 ```json
 {
   "id": "550e8400-e29b-41d4-a716-446655440000",
@@ -556,16 +656,19 @@ Then look in `obj/Debug/net10.0/Atc.SourceGenerators/Atc.SourceGenerators.Object
 ### 🎯 Key Takeaways
 
 ✅ **3-Layer Architecture:**
+
 - **Data Access Layer:** `UserEntity` (with database-specific fields)
 - **Domain Layer:** `User` (clean domain model)
 - **API Layer:** `UserDto` (API contract)
 
 ✅ **Automatic Mapping Chain:**
-```
+
+```text
 UserEntity → User → UserDto
 ```
 
 ✅ **Features Demonstrated:**
+
 - Enum conversion
 - Nested object mapping
 - Null safety
@@ -573,6 +676,7 @@ UserEntity → User → UserDto
 - DateTimeOffset/DateTime handling
 
 ✅ **Benefits:**
+
 - 🚀 No manual mapping code
 - ✅ Compile-time type safety
 - 🎯 Zero runtime overhead
@@ -583,10 +687,12 @@ UserEntity → User → UserDto
 ## ✨ Features
 
 🎯 **Attribute-Based Configuration**
+
 - Declarative mapping using `[MapTo(typeof(TargetType))]`
 - Clean and readable code
 
 🔄 **Automatic Type Handling**
+
 - Direct property mapping (same name and type, case-insensitive)
 - **Constructor mapping** - Automatically detects and uses constructors for records and classes with primary constructors
 - Mixed initialization support (constructor + object initializer for remaining properties)
@@ -598,15 +704,18 @@ UserEntity → User → UserDto
 - Null safety built-in
 
 ⚡ **Compile-Time Generation**
+
 - Zero runtime reflection
 - Zero performance overhead
 - Type-safe extension methods
 
 🏗️ **Multi-Layer Support**
+
 - Entity → Domain → DTO chains
 - Automatic chaining of nested mappings
 
 🛡️ **Comprehensive Diagnostics**
+
 - Clear error messages
 - Build-time validation
 - Helpful suggestions
@@ -616,11 +725,13 @@ UserEntity → User → UserDto
 ## 📦 Installation
 
 **Required:**
+
 ```bash
 dotnet add package Atc.SourceGenerators
 ```
 
 **Optional (recommended for better IntelliSense):**
+
 ```bash
 dotnet add package Atc.SourceGenerators.Annotations
 ```
@@ -736,6 +847,7 @@ public class UserDto
 ```
 
 **Generated code:**
+
 ```csharp
 public static UserDto MapToUserDto(this User source)
 {
@@ -754,6 +866,7 @@ public static UserDto MapToUserDto(this User source)
 ```
 
 **Benefits:**
+
 - ✅ Type-safe with `ArgumentOutOfRangeException` for unmapped values
 - ✅ Special case handling (None → Unknown, etc.)
 - ✅ Compile-time warnings for unmapped enum values
@@ -776,6 +889,7 @@ public partial class Task
 ```
 
 **Generated code:**
+
 ```csharp
 public static TaskDto MapToTaskDto(this Task source)
 {
@@ -789,11 +903,12 @@ public static TaskDto MapToTaskDto(this Task source)
 ```
 
 **Limitations:**
+
 - ⚠️ No runtime validation
 - ⚠️ No special case handling
 - ⚠️ Silent failures if enum values don't match
 
-**Recommendation:** Always use `[MapTo]` on enums to enable safe mapping. See the [EnumMapping Guide](EnumMapping.md) for details.
+**Recommendation:** Always use `[MapTo]` on enums to enable safe mapping. See the [EnumMapping Guide](EnumMappingGenerators.md) for details.
 
 ### 🪆 Nested Object Mapping
 
@@ -828,6 +943,7 @@ public class PersonDto
 ```
 
 **Generated code:**
+
 ```csharp
 public static PersonDto MapToPersonDto(this Person source)
 {
@@ -850,6 +966,7 @@ public static PersonDto MapToPersonDto(this Person source)
 The generator automatically maps collections using LINQ `.Select()` and generates appropriate conversion methods for different collection types.
 
 **Supported Collection Types:**
+
 - `List<T>` / `IList<T>`
 - `IEnumerable<T>`
 - `ICollection<T>` / `IReadOnlyCollection<T>`
@@ -886,6 +1003,7 @@ public class PostDto
 ```
 
 **Generated code:**
+
 ```csharp
 public static PostDto MapToPostDto(this Post source)
 {
@@ -904,6 +1022,7 @@ public static PostDto MapToPostDto(this Post source)
 ```
 
 **Collection Conversion Rules:**
+
 - **`List<T>`, `IList<T>`, `IEnumerable<T>`, `ICollection<T>`, `IReadOnlyList<T>`, `IReadOnlyCollection<T>`** → Uses `.ToList()`
 - **`T[]` (arrays)** → Uses `.ToArray()`
 - **`Collection<T>`** → Uses `new Collection<T>(source.Items?.Select(...).ToList()!)`
@@ -913,7 +1032,7 @@ public static PostDto MapToPostDto(this Post source)
 
 See the PetStore.Api sample which demonstrates collection mapping across 3 layers:
 
-```
+```text
 PetEntity (DataAccess)    → ICollection<PetEntity> Children
     ↓ .MapToPet()
 Pet (Domain)              → IList<Pet> Children
@@ -927,11 +1046,12 @@ Each layer automatically converts collections while preserving the element mappi
 
 Build complex mapping chains across multiple layers:
 
-```
+```text
 Database Entity → Domain Model → API DTO
 ```
 
 **Layer 1 (Data Access):**
+
 ```csharp
 namespace DataAccess;
 
@@ -947,6 +1067,7 @@ public partial class ProductEntity
 ```
 
 **Layer 2 (Domain):**
+
 ```csharp
 namespace Domain;
 
@@ -967,6 +1088,7 @@ public class ProductDto
 ```
 
 **Usage:**
+
 ```csharp
 using Atc.Mapping;
 
@@ -1036,12 +1158,14 @@ public static UserDto MapToUserDto(this User source)
 ```
 
 **Use Cases:**
+
 - **Sensitive data** - Password hashes, API keys, tokens
 - **Audit fields** - CreatedAt, UpdatedAt, ModifiedBy
 - **Internal state** - Cache values, computed fields, temporary flags
 - **Navigation properties** - Complex relationships managed separately
 
 **Works with:**
+
 - Simple properties
 - Nested objects (ignored properties in nested objects are also excluded)
 - Bidirectional mappings (properties can be ignored in either direction)
@@ -1052,6 +1176,7 @@ public static UserDto MapToUserDto(this User source)
 When integrating with external APIs or different system layers, property names often follow different naming conventions. The `PropertyNameStrategy` parameter enables automatic conversion between casing styles without manually renaming properties or using `[MapProperty]` on every field.
 
 **Supported Strategies:**
+
 - **PascalCase** (default) - `FirstName`, `LastName`, `DateOfBirth`
 - **CamelCase** - `firstName`, `lastName`, `dateOfBirth`
 - **SnakeCase** - `first_name`, `last_name`, `date_of_birth`
@@ -1180,18 +1305,21 @@ public class UserDto
 ```
 
 **Use Cases:**
+
 - 🌐 **REST APIs** - Map PascalCase domain models to camelCase JSON DTOs
 - 🗄️ **PostgreSQL** - Map to snake_case column names without changing C# properties
 - 🔗 **External Systems** - Integrate with kebab-case or snake_case APIs
 - 🏢 **Multi-Layer Architecture** - Keep consistent casing within each layer
 
 **Works with:**
+
 - Simple properties (automatic conversion)
 - Nested objects (strategy applies recursively)
 - Bidirectional mappings (reverse conversion is automatic)
 - All other features (collections, enums, constructors, hooks, etc.)
 
 **Validation:**
+
 - ✅ Compile-time conversion - zero runtime overhead
 - ✅ Works with all MapToAttribute features
 - ✅ `[MapProperty]` overrides strategy for specific properties
@@ -1252,18 +1380,21 @@ public static UserDto MapToUserDto(this User source)
 ```
 
 **Use Cases:**
+
 - 🔌 **API Integration** - Match external API property names without modifying your domain models
 - 🏛️ **Legacy Systems** - Adapt to existing database column names or legacy DTOs
 - 🌍 **Naming Conventions** - Bridge different naming conventions between layers (e.g., `firstName` ↔ `FirstName`)
 - 📦 **Domain Clarity** - Keep meaningful domain property names while exposing simplified DTO names
 
 **Works with:**
+
 - Simple properties (strings, numbers, dates, etc.)
 - Nested objects (custom property names on nested object references)
 - Bidirectional mappings (apply `[MapProperty]` on both sides for reverse mapping)
 - Constructor mappings (custom names are resolved when matching constructor parameters)
 
 **Validation:**
+
 - ✅ Compile-time validation ensures target properties exist
 - ❌ `ATCMAP003` diagnostic if target property name is not found
 
@@ -1325,6 +1456,7 @@ public static UserFlatDto MapToUserFlatDto(this User source)
 ```
 
 **Naming Convention:**
+
 - Pattern: `{PropertyName}{NestedPropertyName}`
 - Examples:
   - `Address.City` → `AddressCity`
@@ -1356,17 +1488,20 @@ public class PersonDto
 ```
 
 **Null Safety:**
+
 - Nullable nested objects automatically use null-conditional operator (`?.`)
 - Non-nullable nested objects use direct property access
 - Flattened properties are marked as nullable if the source nested object is nullable
 
 **Works with:**
+
 - One-level deep nesting (can be extended in future)
 - Multiple nested objects of the same type
 - Bidirectional mappings (both directions support flattening)
 - Other mapping features (MapIgnore, MapProperty, etc.)
 
 **Use Cases:**
+
 - **API responses** - Simplify complex domain models for client consumption
 - **Report generation** - Flatten hierarchical data for tabular export
 - **Legacy integration** - Map to flat database schemas or external APIs
@@ -1458,16 +1593,19 @@ DurationSeconds = int.Parse(source.DurationSeconds, global::System.Globalization
 ```
 
 **Culture and Format:**
+
 - All numeric and DateTime conversions use `InvariantCulture` for consistency
 - DateTime/DateTimeOffset use ISO 8601 format ("O") for string conversion
 - This ensures the generated mappings are culture-independent and portable
 
 **Works with:**
+
 - Bidirectional mappings (automatic conversion in both directions)
 - Nullable types (proper null handling for both source and target)
 - Other mapping features (MapIgnore, MapProperty, constructor mapping, etc.)
 
 **Use Cases:**
+
 - **API boundaries** - Convert strongly-typed domain models to string-based JSON DTOs
 - **Database mappings** - Map between typed entities and string-based legacy schemas
 - **Configuration** - Convert configuration values between types
@@ -1542,16 +1680,19 @@ public static UserRegistrationDto MapToUserRegistrationDto(this UserRegistration
 #### Validation Behavior
 
 **When ATCMAP004 is Generated:**
+
 - Target property has the `required` modifier (C# 11+)
 - No corresponding property exists in the source type
 - Property is not marked with `[MapIgnore]`
 
 **When No Warning is Generated:**
+
 - All required properties have mappings (by name or via `[MapProperty]`)
 - Target property is NOT required (no `required` keyword)
 - Target property is marked with `[MapIgnore]`
 
 **Diagnostic Details:**
+
 - **ID**: ATCMAP004
 - **Severity**: Warning (can be elevated to Error in `.editorconfig`)
 - **Message**: "Required property '{PropertyName}' on target type '{TargetType}' has no mapping from source type '{SourceType}'"
@@ -1561,12 +1702,14 @@ public static UserRegistrationDto MapToUserRegistrationDto(this UserRegistration
 You can configure the diagnostic as an error to enforce strict mapping validation:
 
 **.editorconfig:**
+
 ```ini
 # Treat missing required property mappings as compilation errors
 dotnet_diagnostic.ATCMAP004.severity = error
 ```
 
 **Project file:**
+
 ```xml
 <PropertyGroup>
   <WarningsAsErrors>$(WarningsAsErrors);ATCMAP004</WarningsAsErrors>
@@ -1574,6 +1717,7 @@ dotnet_diagnostic.ATCMAP004.severity = error
 ```
 
 **Works With:**
+
 - Type conversions (built-in and enum mappings)
 - Nested object mappings
 - Collection mappings
@@ -1582,6 +1726,7 @@ dotnet_diagnostic.ATCMAP004.severity = error
 - Constructor mappings
 
 **Use Cases:**
+
 - **API contracts** - Ensure all required fields in request/response DTOs are mapped
 - **Data validation** - Catch missing required properties at compile time instead of runtime
 - **Refactoring safety** - Adding `required` to a DTO property immediately flags all unmapped sources
@@ -1720,29 +1865,35 @@ app.MapGet("/notifications", () =>
 #### Key Features
 
 **Compile-Time Validation:**
+
 - Verifies that each derived type mapping has a corresponding `MapTo` attribute
 - Ensures the target types match the declared derived type mappings
 
 **Type Safety:**
+
 - All type checking happens at compile time
 - No reflection or runtime type discovery
 - Switch expressions provide exhaustive type coverage
 
 **Performance:**
+
 - Zero runtime overhead - pure switch expressions
 - No dictionary lookups or type caching
 - Native AOT compatible
 
 **Null Safety:**
+
 - Generated code includes proper null checks
 - Follows nullable reference type annotations
 
 **Extensibility:**
+
 - Support for arbitrary numbers of derived types
 - Works with deep inheritance hierarchies
 - Can be combined with other mapping features (collections, nesting, etc.)
 
 **Use Cases:**
+
 - **Polymorphic API responses** - Return different DTO types based on domain object type
 - **Notification systems** - Map different notification types (Email, SMS, Push) from domain to DTOs
 - **Payment processing** - Handle different payment method types (CreditCard, PayPal, BankTransfer)
@@ -2152,12 +2303,14 @@ public static UserDto MapToUserDto(this User source)
 #### Hook Signatures
 
 **BeforeMap Hook:**
+
 - **Signature**: `static void MethodName(SourceType source)`
 - **When called**: After null check, before object creation
 - **Parameters**: Source object only
 - **Purpose**: Validation, preprocessing, logging
 
 **AfterMap Hook:**
+
 - **Signature**: `static void MethodName(SourceType source, TargetType target)`
 - **When called**: After object creation, before return
 - **Parameters**: Both source and target objects
@@ -2311,6 +2464,7 @@ public static PersonDto MapToPersonDto(this Person source)
 #### Use Cases
 
 **Validation (BeforeMap):**
+
 ```csharp
 private static void ValidateUser(User source)
 {
@@ -2327,6 +2481,7 @@ private static void ValidateUser(User source)
 ```
 
 **Logging (BeforeMap or AfterMap):**
+
 ```csharp
 private static void LogMapping(User source, UserDto target)
 {
@@ -2335,6 +2490,7 @@ private static void LogMapping(User source, UserDto target)
 ```
 
 **Enrichment (AfterMap):**
+
 ```csharp
 private static void EnrichUserDto(User source, UserDto target)
 {
@@ -2344,6 +2500,7 @@ private static void EnrichUserDto(User source, UserDto target)
 ```
 
 **Auditing (AfterMap):**
+
 ```csharp
 private static void AuditMapping(Order source, OrderDto target)
 {
@@ -2353,6 +2510,7 @@ private static void AuditMapping(Order source, OrderDto target)
 ```
 
 **Side Effects (AfterMap):**
+
 ```csharp
 private static void UpdateCache(Product source, ProductDto target)
 {
@@ -2559,6 +2717,7 @@ public static OrderDto MapToOrderDto(this Order source)
 #### Use Cases
 
 **Default Values:**
+
 ```csharp
 internal static ProductDto CreateProductDto()
 {
@@ -2572,6 +2731,7 @@ internal static ProductDto CreateProductDto()
 ```
 
 **Object Pooling:**
+
 ```csharp
 private static readonly ObjectPool<UserDto> _userDtoPool = new();
 
@@ -2582,6 +2742,7 @@ internal static UserDto CreateUserDto()
 ```
 
 **Dependency Injection (Service Locator):**
+
 ```csharp
 internal static NotificationDto CreateNotificationDto()
 {
@@ -2591,6 +2752,7 @@ internal static NotificationDto CreateNotificationDto()
 ```
 
 **Complex Initialization:**
+
 ```csharp
 internal static ReportDto CreateReportDto()
 {
@@ -2678,6 +2840,7 @@ public partial class User
 ```
 
 **Generated Code:**
+
 ```csharp
 // Method 1: Standard method (creates new instance)
 public static UserDto MapToUserDto(this User source)
@@ -2765,6 +2928,7 @@ updatedOrder.MapToOrderDto(existingDto);  // Validates, updates, then enriches
 ```
 
 **Execution Order for Update Method:**
+
 1. Null check for source
 2. Null check for target
 3. Execute `BeforeMap(source)` hook (if specified)
@@ -2805,6 +2969,7 @@ ProcessSettings(settingsDto);
 ### When to Use UpdateTarget
 
 ✅ **Use when:**
+
 - Updating EF Core tracked entities
 - Reducing allocations for frequently mapped objects
 - Updating existing ViewModels or DTOs
@@ -2812,6 +2977,7 @@ ProcessSettings(settingsDto);
 - Working with object pools
 
 ❌ **Don't use when:**
+
 - You always need new instances
 - Working with immutable types (records with init-only properties)
 - Factory method is needed (factory creates new instances)
@@ -2840,6 +3006,7 @@ Generate `Expression<Func<TSource, TTarget>>` for use with EF Core `.Select()` q
 ### When to Use IQueryable Projections
 
 ✅ **Use projections when:**
+
 - Fetching data for list/grid views where you need minimal fields
 - Optimizing database query performance
 - Reducing network traffic between application and database
@@ -2847,6 +3014,7 @@ Generate `Expression<Func<TSource, TTarget>>` for use with EF Core `.Select()` q
 - Need server-side filtering and sorting with minimal data transfer
 
 ❌ **Don't use projections when:**
+
 - You need BeforeMap/AfterMap hooks (not supported in expressions)
 - You need Factory methods (not supported in expressions)
 - You have nested objects or collections (require method calls)
@@ -2938,6 +3106,7 @@ The generator **automatically excludes** the following from projection expressio
 4. **Properties marked with `[MapIgnore]`** - Excluded from all mappings
 
 **Only simple properties are included:**
+
 - Primitive types (`int`, `string`, `Guid`, `DateTime`, `DateTimeOffset`, etc.)
 - Enums (converted via simple casts)
 - Value types (`decimal`, `bool`, etc.)
@@ -2967,12 +3136,14 @@ var dtos = await dbContext.Users
 ### Performance Benefits
 
 **Database Query Optimization:**
+
 - ✅ Reduced data transfer (only selected columns)
 - ✅ Smaller result sets (fewer bytes over network)
 - ✅ Faster queries (database processes less data)
 - ✅ Better index usage (covering indexes possible)
 
 **Memory Optimization:**
+
 - ✅ Less memory allocated (no full entity objects)
 - ✅ Fewer GC collections (smaller object graphs)
 - ✅ Better cache locality (smaller DTO objects)
@@ -3032,6 +3203,7 @@ app.MapGet("/pets", async (PetDbContext db) =>
 ### Best Practices
 
 **1. Create Dedicated DTOs for Projections**
+
 ```csharp
 // ✅ Good: Lightweight DTO designed for projections
 public class UserSummaryDto
@@ -3051,6 +3223,7 @@ public class UserDetailsDto
 ```
 
 **2. Use Standard Mapping for Complex Scenarios**
+
 ```csharp
 // For read-only lists: Use projection
 var summary = await db.Users.Select(User.ProjectToUserSummaryDto()).ToListAsync();
@@ -3060,6 +3233,7 @@ var userDto = user.MapToUserDto();  // Supports hooks, factory, etc.
 ```
 
 **3. Combine Projections with EF Core Features**
+
 ```csharp
 // Filtering, sorting, paging - all on the server
 var results = await db.Pets
@@ -3088,6 +3262,7 @@ A: Expression trees (which projections use) can only contain expressions that EF
 **Q: The generator excluded all my properties from the projection!**
 
 A: Check that:
+
 1. Target DTO properties match source properties by name (case-insensitive)
 2. Properties are simple types (not classes, collections, or complex types)
 3. Properties aren't marked with `[MapIgnore]`
@@ -3102,6 +3277,7 @@ Access private and internal members during mapping using `UnsafeAccessor` (.NET 
 ### When to Use Private Member Access
 
 ✅ **Use private member access when:**
+
 - Domain models use encapsulation with private setters
 - Mapping from database entities with private fields
 - Working with legacy code that uses internal properties
@@ -3109,6 +3285,7 @@ Access private and internal members during mapping using `UnsafeAccessor` (.NET 
 - Want zero-overhead access without reflection
 
 ❌ **Don't use private member access when:**
+
 - Public properties are available (use standard mapping)
 - Targeting .NET versions earlier than .NET 8
 - The members are truly private implementation details that shouldn't be mapped
@@ -3177,6 +3354,7 @@ The generator uses the **UnsafeAccessor attribute** (.NET 8+) to generate compil
 5. **Type-safe**: Compile-time validation of property names and types
 
 **Naming Convention:**
+
 - Getters: `UnsafeGet{TypeName}_{PropertyName}`
 - Setters: `UnsafeSet{TypeName}_{PropertyName}`
 
@@ -3336,6 +3514,7 @@ var dto = order.MapToOrderDto();  // Mapping accesses private members for serial
 ### Performance Characteristics
 
 **UnsafeAccessor Performance:**
+
 - ✅ **Zero overhead** - Direct method calls (same as public access)
 - ✅ **No reflection** - Compile-time code generation
 - ✅ **AOT-friendly** - Works with Native AOT compilation
@@ -3343,6 +3522,7 @@ var dto = order.MapToOrderDto();  // Mapping accesses private members for serial
 - ✅ **Cache-friendly** - No dictionary lookups or metadata queries
 
 **Comparison:**
+
 ```
 Direct Access (public):    ~1 ns
 UnsafeAccessor (private):  ~1 ns  ✅ Same performance!
@@ -3352,6 +3532,7 @@ Reflection (GetProperty):  ~80 ns ❌ 80x slower
 ### Best Practices
 
 **1. Use IncludePrivateMembers Sparingly**
+
 ```csharp
 // ✅ Good: Only when needed for encapsulation
 [MapTo(typeof(AccountDto), IncludePrivateMembers = true)]
@@ -3370,6 +3551,7 @@ public partial class User
 ```
 
 **2. Consider Encapsulation Boundaries**
+
 ```csharp
 // ✅ Good: DTOs expose data, domain preserves invariants
 public partial class Order  // Encapsulated
@@ -3385,6 +3567,7 @@ public class OrderDto  // Public DTO for API
 ```
 
 **3. Document Why Members Are Private**
+
 ```csharp
 [MapTo(typeof(LegacyDto), IncludePrivateMembers = true)]
 public partial class LegacyEntity
@@ -3417,6 +3600,7 @@ The `MapToAttribute` accepts the following parameters:
 | `IncludePrivateMembers` | `bool` | ❌ No | `false` | Include private and internal members in the mapping. Uses UnsafeAccessor (.NET 8+) for AOT-safe, zero-overhead access to private members. Compatible with all other features (nested mappings, collections, enums, etc.) |
 
 **Example:**
+
 ```csharp
 // Basic mapping (one-way)
 [MapTo(typeof(PersonDto))]
@@ -3440,6 +3624,7 @@ The generator provides helpful diagnostics during compilation.
 **Error:** The class decorated with `[MapTo]` is not marked as `partial`.
 
 **Example:**
+
 ```csharp
 [MapTo(typeof(PersonDto))]
 public class Person  // ❌ Missing 'partial' keyword
@@ -3449,6 +3634,7 @@ public class Person  // ❌ Missing 'partial' keyword
 ```
 
 **Fix:**
+
 ```csharp
 [MapTo(typeof(PersonDto))]
 public partial class Person  // ✅ Added 'partial'
@@ -3466,12 +3652,14 @@ public partial class Person  // ✅ Added 'partial'
 **Error:** The target type specified in `[MapTo(typeof(...))]` is not a class or struct.
 
 **Example:**
+
 ```csharp
 [MapTo(typeof(IPerson))]  // ❌ Interface
 public partial class Person { }
 ```
 
 **Fix:**
+
 ```csharp
 [MapTo(typeof(PersonDto))]  // ✅ Class
 public partial class Person { }
@@ -3486,6 +3674,7 @@ public partial class Person { }
 **Error:** The target property specified in `[MapProperty("PropertyName")]` does not exist on the target type.
 
 **Example:**
+
 ```csharp
 [MapTo(typeof(UserDto))]
 public partial class User
@@ -3504,6 +3693,7 @@ public class UserDto
 ```
 
 **Fix:**
+
 ```csharp
 [MapTo(typeof(UserDto))]
 public partial class User
@@ -3524,6 +3714,7 @@ public partial class User
 **Warning:** A required property on the target type has no corresponding mapping from the source type.
 
 **Example:**
+
 ```csharp
 [MapTo(typeof(UserRegistrationDto))]
 public partial class UserRegistration
@@ -3544,6 +3735,7 @@ public class UserRegistrationDto
 ```
 
 **Fix:**
+
 ```csharp
 [MapTo(typeof(UserRegistrationDto))]
 public partial class UserRegistration
@@ -3557,6 +3749,7 @@ public partial class UserRegistration
 **Why:** The generator validates at compile time that all `required` properties (C# 11+) on the target type have mappings. This catches missing required properties during development instead of discovering issues at runtime or during object initialization.
 
 **Elevating to Error:** You can configure this diagnostic as an error in `.editorconfig`:
+
 ```ini
 dotnet_diagnostic.ATCMAP004.severity = error
 ```
@@ -3606,6 +3799,7 @@ public static UserDto MapToUserDto(this User source)
 ```
 
 **Why This Is AOT-Safe:**
+
 - No `Activator.CreateInstance()` calls (reflection)
 - No dynamic property access via `PropertyInfo`
 - All property assignments are compile-time verified

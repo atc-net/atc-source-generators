@@ -4,7 +4,7 @@ This sample demonstrates the **EnumMappingGenerator** in action with realistic e
 
 ## 📂 Project Location
 
-```
+```text
 sample/Atc.SourceGenerators.EnumMapping/
 ```
 
@@ -16,7 +16,8 @@ dotnet run
 ```
 
 Expected output:
-```
+
+```text
 === Atc.SourceGenerators - Enum Mapping Sample ===
 
 1. Testing PetStatusEntity → PetStatusDto mapping:
@@ -55,6 +56,7 @@ Expected output:
 ### 1. Special Case Mapping: None → Unknown
 
 **PetStatusEntity.cs**:
+
 ```csharp
 [MapTo(typeof(PetStatusDto), Bidirectional = true)]
 public enum PetStatusEntity
@@ -67,6 +69,7 @@ public enum PetStatusEntity
 ```
 
 **PetStatusDto.cs**:
+
 ```csharp
 public enum PetStatusDto
 {
@@ -78,6 +81,7 @@ public enum PetStatusDto
 ```
 
 **Key Points**:
+
 - `None` automatically maps to `Unknown` (common pattern)
 - `Bidirectional = true` generates both forward and reverse mappings
 - All other values map by exact name match
@@ -85,6 +89,7 @@ public enum PetStatusDto
 ### 2. Exact Name Matching
 
 **FeatureState.cs**:
+
 ```csharp
 [MapTo(typeof(FeatureFlag))]
 public enum FeatureState
@@ -96,6 +101,7 @@ public enum FeatureState
 ```
 
 **FeatureFlag.cs**:
+
 ```csharp
 public enum FeatureFlag
 {
@@ -106,12 +112,13 @@ public enum FeatureFlag
 ```
 
 **Key Points**:
+
 - All values match by exact name
 - Unidirectional mapping (Bidirectional = false)
 
 ## 📁 Project Structure
 
-```
+```text
 sample/Atc.SourceGenerators.EnumMapping/
 ├── Atc.SourceGenerators.EnumMapping.csproj
 ├── GlobalUsings.cs
@@ -128,6 +135,7 @@ sample/Atc.SourceGenerators.EnumMapping/
 The source generator creates extension methods in the `Atc.Mapping` namespace:
 
 **EnumMappingExtensions.g.cs** (simplified):
+
 ```csharp
 namespace Atc.Mapping;
 
@@ -177,31 +185,57 @@ public static class EnumMappingExtensions
 
 ### ✅ Special Case Detection
 
-The generator automatically recognizes "zero/empty/null" state equivalents:
+The generator automatically recognizes common enum naming patterns:
 
-| Source Value | Target Value | Notes |
-|-------------|--------------|-------|
-| None | Unknown | Common default state mapping |
-| Unknown | None | Reverse mapping |
-| Default | None or Unknown | Alternative default state |
+| Pattern | Equivalent Values | Notes |
+|---------|------------------|-------|
+| **Zero/Null States** | None ↔ Unknown, Default, NotSet | Common default state mapping |
+| **Active States** | Active ↔ Enabled, On, Running | Service/feature activation |
+| **Inactive States** | Inactive ↔ Disabled, Off, Stopped | Service/feature deactivation |
+| **Deletion States** | Deleted ↔ Removed, Archived | Soft delete patterns |
+| **Pending States** | Pending ↔ InProgress, Processing | Async operation states |
+| **Completion States** | Completed ↔ Done, Finished | Task completion states |
 
-**Limited scope**: Only these three values are special-cased to avoid unexpected mappings. All other values use exact name matching.
+**Example:**
+
+```csharp
+// Database enum
+public enum ServiceStatusEntity
+{
+    None,      // Maps to Unknown in API
+    Active,    // Maps to Enabled in API
+    Inactive   // Maps to Disabled in API
+}
+
+// API enum
+public enum ServiceStatus
+{
+    Unknown,   // Maps from None in database
+    Enabled,   // Maps from Active in database
+    Disabled   // Maps from Inactive in database
+}
+```
+
+**Smart matching**: The generator uses exact name matching first, then falls back to case-insensitive matching, and finally checks for special case patterns. This ensures predictable behavior while supporting common enum naming variations.
 
 ### ✅ Bidirectional Mapping
 
 With `Bidirectional = true`:
+
 ```csharp
 [MapTo(typeof(PetStatusDto), Bidirectional = true)]
 public enum PetStatusEntity { ... }
 ```
 
 You get **two methods**:
+
 - `PetStatusEntity.MapToPetStatusDto()` (forward)
 - `PetStatusDto.MapToPetStatusEntity()` (reverse)
 
 ### ✅ Case-Insensitive Matching
 
 Enum values match regardless of casing:
+
 ```csharp
 // These all match:
 SourceEnum.ACTIVE    → TargetEnum.Active
@@ -213,13 +247,15 @@ SourceEnum.AcTiVe    → TargetEnum.Active
 ### ✅ Compile-Time Safety
 
 Unmapped values generate warnings:
-```
+
+```text
 Warning ATCENUM002: Enum value 'SourceStatus.Deleted' has no matching value in target enum 'TargetStatus'
 ```
 
 ### ✅ Runtime Safety
 
 Unmapped values throw at runtime:
+
 ```csharp
 var status = SourceStatus.Deleted;  // Unmapped value
 var dto = status.MapToTargetDto();  // Throws ArgumentOutOfRangeException
@@ -325,7 +361,7 @@ var internal = external.MapToInternalStatus();  // InternalStatus.Unknown
 
 This pattern is used in the [PetStore sample](PetStoreApi.md) to separate enum concerns across layers:
 
-```
+```text
 PetStatusEntity (DataAccess)
     ↓ MapToPetStatus()
 PetStatus (Domain)
@@ -344,11 +380,11 @@ Each layer has its own enum definition, and mappings are generated automatically
 
 ## 📖 Related Samples
 
-- [Object Mapping Sample](Mapping.md) - For class-to-class mappings
-- [PetStore Sample](PetStoreApi.md) - Complete application using all generators
-- [Dependency Registration Sample](DependencyRegistration.md) - DI registration
-- [Options Binding Sample](OptionsBinding.md) - Configuration binding
+- [Object Mapping Sample](ObjectMappingGenerators-Samples.md) - For class-to-class mappings
+- [PetStore Sample](PetStoreApi-Samples.md) - Complete application using all generators
+- [Dependency Registration Sample](DependencyRegistrationGenerators-Samples.md) - DI registration
+- [Options Binding Sample](OptionsBinding-Samples.md) - Configuration binding
 
 ---
 
-**Need more examples?** Check the [EnumMapping Generator documentation](../generators/EnumMapping.md) for comprehensive guides and patterns.
+**Need more examples?** Check the [EnumMapping Generator documentation](EnumMappingGenerators.md) for comprehensive guides and patterns.

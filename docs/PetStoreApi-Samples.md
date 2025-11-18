@@ -676,6 +676,14 @@ repository.GetByStatus((PetStatusEntity)status)
 Status = (Models.PetStatus)source.Status
 ```
 
+**Why simple casting instead of EnumMapping extension methods?**
+
+The PetStore sample uses simple enum casts because the enum values have identical names and underlying values across all layers. The MappingGenerator automatically uses:
+- **Simple casts** `(TargetEnum)source.Value` when enums don't have `[MapTo]` attributes (like in this sample)
+- **EnumMapping extension methods** `source.Value.MapToTargetEnum()` when enums have `[MapTo]` attributes (for special case handling like None → Unknown)
+
+For advanced enum mapping with special case detection, see the [EnumMapping sample](EnumMappingGenerators-Samples.md).
+
 **Benefit:** DataAccess layer has **NO** dependency on Api.Contract, maintaining clean architecture principles.
 
 ### 3. **Bidirectional Mapping**
@@ -857,9 +865,9 @@ This configuration prevents OpenAPI duplicate key errors while maintaining API d
 
 ## 🔗 Related Documentation
 
-- [DependencyRegistration Sample](DependencyRegistration.md) - DI registration deep dive
-- [OptionsBinding Sample](OptionsBinding.md) - Configuration binding deep dive
-- [Mapping Sample](Mapping.md) - Object mapping deep dive
-- [DependencyRegistration Generator Guide](../generators/DependencyRegistration.md)
-- [OptionsBinding Generator Guide](../generators/OptionsBinding.md)
-- [ObjectMapping Generator Guide](../generators/ObjectMapping.md)
+- [DependencyRegistration Sample](DependencyRegistrationGenerators-Samples.md) - DI registration deep dive
+- [OptionsBinding Sample](OptionsBinding-Samples.md) - Configuration binding deep dive
+- [Mapping Sample](ObjectMappingGenerators-Samples.md) - Object mapping deep dive
+- [DependencyRegistration Generator Guide](DependencyRegistrationGenerators.md)
+- [OptionsBinding Generator Guide](OptionsBindingGenerators.md)
+- [ObjectMapping Generator Guide](ObjectMappingGenerators.md)

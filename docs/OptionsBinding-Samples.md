@@ -458,7 +458,7 @@ public partial class LoggingOptions { }
 
 ## 🔗 Related Documentation
 
-- [OptionsBinding Generator Guide](../generators/OptionsBinding.md) - Full generator documentation
-- [DependencyRegistration Sample](DependencyRegistration.md) - DI registration example
-- [Mapping Sample](Mapping.md) - Object mapping example
-- [PetStore API Sample](PetStoreApi.md) - Complete application using all generators
+- [OptionsBinding Generator Guide](OptionsBindingGenerators.md) - Full generator documentation
+- [DependencyRegistration Sample](DependencyRegistrationGenerators-Samples.md) - DI registration example
+- [Mapping Sample](ObjectMappingGenerators-Samples.md) - Object mapping example
+- [PetStore API Sample](PetStoreApi-Samples.md) - Complete application using all generators

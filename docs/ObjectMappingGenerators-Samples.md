@@ -6,6 +6,7 @@ This sample demonstrates the **MappingGenerator** in a realistic 3-layer archite
 
 - **Type-safe object mapping** across application layers
 - **Multi-layer mapping chains** (Entity → Domain → DTO)
+- **Base class property inheritance** with audit fields (BaseEntity → AuditableEntity → Book)
 - **Automatic enum conversion** between compatible enum types
 - **Nested object mapping** with automatic chaining
 - **Null safety** for nullable reference types
@@ -365,6 +366,7 @@ public static partial class UserEntityExtensions
 ## ✨ Key Features Demonstrated
 
 ### 1. **Multi-Layer Mapping Chains**
+
 ```csharp
 var dto = entity
     .MapToUser()      // Entity → Domain
@@ -372,6 +374,7 @@ var dto = entity
 ```
 
 ### 2. **Automatic Enum Conversion**
+
 ```csharp
 // Simple cast (fallback when enums don't have [MapTo] attributes)
 Status = (Domain.UserStatus)source.Status
@@ -381,12 +384,14 @@ Status = (Domain.UserStatus)source.Status
 ```
 
 ### 3. **Nested Object Mapping**
+
 ```csharp
 // Automatically detects AddressEntity has MapToAddress() method
 Address = source.Address?.MapToAddress()!
 ```
 
 ### 4. **Null Safety**
+
 ```csharp
 // Built-in null checks
 if (source is null) return default!;
@@ -396,9 +401,64 @@ Address = source.Address?.MapToAddressDto()!
 ```
 
 ### 5. **Convention-Based**
+
 - Properties are matched by name
 - No manual configuration needed
 - Unmapped properties are simply skipped
+
+### 6. **Base Class Property Inheritance**
+
+The sample includes an inheritance demo showing how the generator automatically includes properties from base classes:
+
+```csharp
+// Base entity with common audit properties
+public abstract partial class BaseEntity
+{
+    public Guid Id { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+}
+
+// Auditable entity adds update tracking
+public abstract partial class AuditableEntity : BaseEntity
+{
+    public DateTimeOffset? UpdatedAt { get; set; }
+    public string? UpdatedBy { get; set; }
+}
+
+// Concrete entity with business properties
+[MapTo(typeof(BookDto))]
+public partial class Book : AuditableEntity
+{
+    public string Title { get; set; } = string.Empty;
+    public string Author { get; set; } = string.Empty;
+    public decimal Price { get; set; }
+}
+```
+
+**Generated mapping includes ALL properties from the inheritance hierarchy:**
+
+```csharp
+public static BookDto MapToBookDto(this Book source)
+{
+    return new BookDto
+    {
+        Id = source.Id,                    // ✨ From BaseEntity (2 levels up)
+        CreatedAt = source.CreatedAt,      // ✨ From BaseEntity
+        UpdatedAt = source.UpdatedAt,      // ✨ From AuditableEntity (1 level up)
+        UpdatedBy = source.UpdatedBy,      // ✨ From AuditableEntity
+        Title = source.Title,              // From Book
+        Author = source.Author,            // From Book
+        Price = source.Price               // From Book
+    };
+}
+```
+
+**Key Benefits:**
+
+- **No manual property listing** - inherited properties automatically included
+- **Unlimited depth** - works with any inheritance hierarchy depth
+- **Respects [MapIgnore]** - can exclude base class properties if needed
+- **Perfect for entity base classes** - ideal for common audit fields (Id, CreatedAt, UpdatedAt, etc.)
 
 ## 🎯 Benefits
 
@@ -411,7 +471,7 @@ Address = source.Address?.MapToAddressDto()!
 
 ## 🔗 Related Documentation
 
-- [ObjectMapping Generator Guide](../generators/ObjectMapping.md) - Full generator documentation
-- [DependencyRegistration Sample](DependencyRegistration.md) - DI registration example
-- [OptionsBinding Sample](OptionsBinding.md) - Configuration binding example
-- [PetStore API Sample](PetStoreApi.md) - Complete application using all generators
+- [ObjectMapping Generator Guide](ObjectMappingGenerators.md) - Full generator documentation
+- [DependencyRegistration Sample](DependencyRegistrationGenerators-Samples.md) - DI registration example
+- [OptionsBinding Sample](OptionsBinding-Samples.md) - Configuration binding example
+- [PetStore API Sample](PetStoreApi-Samples.md) - Complete application using all generators

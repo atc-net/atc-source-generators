@@ -229,7 +229,7 @@ public static class ServiceCollectionExtensions
 
 ## 🔗 Related Documentation
 
-- [DependencyRegistration Generator Guide](../generators/DependencyRegistration.md) - Full generator documentation
-- [Mapping Sample](Mapping.md) - Object mapping example
-- [OptionsBinding Sample](OptionsBinding.md) - Configuration binding example
-- [PetStore API Sample](PetStoreApi.md) - Complete application using all generators
+- [DependencyRegistration Generator Guide](DependencyRegistrationGenerators.md) - Full generator documentation
+- [Mapping Sample](ObjectMappingGenerators-Samples.md) - Object mapping example
+- [OptionsBinding Sample](OptionsBinding-Samples.md) - Configuration binding example
+- [PetStore API Sample](PetStoreApi-Samples.md) - Complete application using all generators
