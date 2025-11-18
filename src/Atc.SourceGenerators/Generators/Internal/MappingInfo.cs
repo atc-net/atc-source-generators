@@ -15,4 +15,5 @@ internal sealed record MappingInfo(
     bool UpdateTarget,
     bool GenerateProjection,
     bool IsGeneric,
-    bool IncludePrivateMembers);
+    bool IncludePrivateMembers,
+    PropertyNameStrategy PropertyNameStrategy);

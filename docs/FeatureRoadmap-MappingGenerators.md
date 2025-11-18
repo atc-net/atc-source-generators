@@ -80,7 +80,7 @@ This roadmap is based on comprehensive analysis of:
 | ❌ | [Multi-Source Consolidation](#16-multi-source-consolidation) | 🟢 Low-Medium | - |
 | ❌ | [Value Converters](#17-value-converters) | 🟢 Low-Medium | - |
 | ❌ | [Format Providers](#18-format-providers) | 🟢 Low | - |
-| ❌ | [Property Name Casing Strategies](#19-property-name-casing-strategies-snakecase-camelcase) | 🟢 Low-Medium | - |
+| ✅ | [Property Name Casing Strategies](#19-property-name-casing-strategies-snakecase-camelcase) | 🟢 Low-Medium | v1.3 |
 | ❌ | [Base Class Configuration Inheritance](#20-base-class-configuration-inheritance) | 🟢 Low | - |
 | 🚫 | [External Mappers / Mapper Composition](#21-external-mappers--mapper-composition) | - | Not Planned |
 | 🚫 | [Advanced Enum Strategies](#22-advanced-enum-strategies-beyond-special-cases) | - | Not Needed |
@@ -1461,7 +1461,7 @@ public partial class User
 ### 19. Property Name Casing Strategies (SnakeCase, camelCase)
 
 **Priority**: 🟢 **Low-Medium** ⭐ *SnakeCase requested by Mapperly users*
-**Status**: ❌ Not Implemented (Reconsidered based on user demand)
+**Status**: ✅ **Implemented** in v1.3
 
 **Description**: Automatically map properties with different casing conventions (common when mapping to/from JSON APIs).
 

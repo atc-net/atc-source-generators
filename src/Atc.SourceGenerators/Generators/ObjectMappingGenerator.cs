@@ -194,7 +194,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                 continue;
             }
 
-            // Extract Bidirectional, EnableFlattening, BeforeMap, AfterMap, Factory, UpdateTarget, GenerateProjection, and IncludePrivateMembers properties
+            // Extract Bidirectional, EnableFlattening, BeforeMap, AfterMap, Factory, UpdateTarget, GenerateProjection, IncludePrivateMembers, and PropertyNameStrategy properties
             var bidirectional = false;
             var enableFlattening = false;
             string? beforeMap = null;
@@ -203,6 +203,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
             var updateTarget = false;
             var generateProjection = false;
             var includePrivateMembers = false;
+            var propertyNameStrategy = PropertyNameStrategy.PascalCase;
             foreach (var namedArg in attribute.NamedArguments)
             {
                 if (namedArg.Key == "Bidirectional")
@@ -237,10 +238,38 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                 {
                     includePrivateMembers = namedArg.Value.Value as bool? ?? false;
                 }
+                else if (namedArg.Key == "PropertyNameStrategy")
+                {
+                    if (namedArg.Value.Value is int strategyValue)
+                    {
+                        propertyNameStrategy = (PropertyNameStrategy)strategyValue;
+                    }
+                    else if (namedArg.Value.Value is not null)
+                    {
+                        // Try to convert to int in case it's a different numeric type
+                        try
+                        {
+                            var value = Convert.ToInt32(namedArg.Value.Value, global::System.Globalization.CultureInfo.InvariantCulture);
+                            propertyNameStrategy = (PropertyNameStrategy)value;
+                        }
+                        catch (global::System.FormatException)
+                        {
+                            // If conversion fails, keep default PascalCase
+                        }
+                        catch (global::System.OverflowException)
+                        {
+                            // If value is out of range, keep default PascalCase
+                        }
+                        catch (global::System.InvalidCastException)
+                        {
+                            // If value cannot be cast, keep default PascalCase
+                        }
+                    }
+                }
             }
 
             // Get property mappings
-            var propertyMappings = GetPropertyMappings(classSymbol, targetType, enableFlattening, includePrivateMembers, context);
+            var propertyMappings = GetPropertyMappings(classSymbol, targetType, enableFlattening, includePrivateMembers, propertyNameStrategy, context);
 
             // Find best matching constructor
             var (constructor, constructorParameterNames) = FindBestConstructor(classSymbol, targetType);
@@ -270,7 +299,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
 
             // Get property mappings (using constructed target type for generics)
             var mappingsForGeneric = isGenericMapping ?
-                GetPropertyMappings(classSymbol, targetTypeForMapping, enableFlattening, includePrivateMembers, context) :
+                GetPropertyMappings(classSymbol, targetTypeForMapping, enableFlattening, includePrivateMembers, propertyNameStrategy, context) :
                 propertyMappings;
 
             // Find best matching constructor (using constructed target type for generics)
@@ -293,7 +322,8 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                 UpdateTarget: updateTarget,
                 GenerateProjection: generateProjection,
                 IsGeneric: isGenericMapping,
-                IncludePrivateMembers: includePrivateMembers));
+                IncludePrivateMembers: includePrivateMembers,
+                PropertyNameStrategy: propertyNameStrategy));
         }
 
         return mappings.Count > 0 ? mappings : null;
@@ -304,6 +334,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         INamedTypeSymbol targetType,
         bool enableFlattening,
         bool includePrivateMembers,
+        PropertyNameStrategy propertyNameStrategy,
         SourceProductionContext? context = null)
     {
         var mappings = new List<PropertyMapping>();
@@ -328,7 +359,9 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         {
             // Check if property has custom mapping via MapProperty attribute
             var customTargetName = GetMapPropertyTargetName(sourceProp);
-            var targetPropertyName = customTargetName ?? sourceProp.Name;
+
+            // Apply property name casing strategy if no custom mapping is specified
+            var targetPropertyName = customTargetName ?? PropertyNameUtility.ConvertPropertyName(sourceProp.Name, propertyNameStrategy);
 
             // Validate that custom target property exists if MapProperty is used
             if (customTargetName is not null && context.HasValue)
@@ -1011,7 +1044,8 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                     sourceType: reverseSourceType,
                     targetType: mapping.SourceType,
                     enableFlattening: mapping.EnableFlattening,
-                    includePrivateMembers: mapping.IncludePrivateMembers);
+                    includePrivateMembers: mapping.IncludePrivateMembers,
+                    propertyNameStrategy: mapping.PropertyNameStrategy);
 
                 // Find best matching constructor for reverse mapping
                 var (reverseConstructor, reverseConstructorParams) = FindBestConstructor(reverseSourceType, mapping.SourceType);
@@ -1031,7 +1065,8 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                     UpdateTarget: false, // No update target for reverse mapping
                     GenerateProjection: false, // No projection for reverse mapping
                     IsGeneric: mapping.IsGeneric, // Preserve generic flag for reverse mapping
-                    IncludePrivateMembers: mapping.IncludePrivateMembers); // Preserve private member access for reverse mapping
+                    IncludePrivateMembers: mapping.IncludePrivateMembers, // Preserve private member access for reverse mapping
+                    PropertyNameStrategy: mapping.PropertyNameStrategy); // Preserve property name strategy for reverse mapping
 
                 GenerateMappingMethod(sb, reverseMapping);
             }
@@ -1698,6 +1733,40 @@ public class ObjectMappingGenerator : IIncrementalGenerator
            namespace Atc.SourceGenerators.Annotations
            {
                /// <summary>
+               /// Defines strategies for converting property names during mapping.
+               /// Used to map between different naming conventions (PascalCase, camelCase, snake_case, kebab-case).
+               /// </summary>
+               [global::System.CodeDom.Compiler.GeneratedCode("Atc.SourceGenerators.ObjectMapping", "1.0.0")]
+               [global::System.ComponentModel.EditorBrowsable(global::System.ComponentModel.EditorBrowsableState.Never)]
+               public enum PropertyNameStrategy
+               {
+                   /// <summary>
+                   /// No transformation. Property names must match exactly (case-insensitive comparison).
+                   /// This is the default behavior.
+                   /// Example: FirstName → FirstName
+                   /// </summary>
+                   PascalCase = 0,
+
+                   /// <summary>
+                   /// Convert PascalCase source properties to camelCase for matching.
+                   /// Example: FirstName → firstName
+                   /// </summary>
+                   CamelCase = 1,
+
+                   /// <summary>
+                   /// Convert PascalCase source properties to snake_case for matching.
+                   /// Example: FirstName → first_name
+                   /// </summary>
+                   SnakeCase = 2,
+
+                   /// <summary>
+                   /// Convert PascalCase source properties to kebab-case for matching.
+                   /// Example: FirstName → first-name
+                   /// </summary>
+                   KebabCase = 3,
+               }
+
+               /// <summary>
                /// Marks a class or enum for automatic mapping code generation.
                /// </summary>
                [global::System.CodeDom.Compiler.GeneratedCode("Atc.SourceGenerators.ObjectMapping", "1.0.0")]
@@ -1772,6 +1841,13 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                    /// Default is false (only public members).
                    /// </summary>
                    public bool IncludePrivateMembers { get; set; }
+
+                   /// <summary>
+                   /// Gets or sets the naming strategy for property name conversion during mapping.
+                   /// Allows automatic mapping between different naming conventions (PascalCase, camelCase, snake_case, kebab-case).
+                   /// Default is PascalCase (no transformation - exact match).
+                   /// </summary>
+                   public PropertyNameStrategy PropertyNameStrategy { get; set; } = PropertyNameStrategy.PascalCase;
                }
            }
            """;

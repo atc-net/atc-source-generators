@@ -234,4 +234,30 @@ app
     .WithDescription("Demonstrates polymorphic mapping where abstract Notification base class maps to derived EmailNotification/SmsNotification types using type pattern matching.")
     .Produces<List<NotificationDto>>(StatusCodes.Status200OK);
 
+app
+    .MapGet("/analytics/pets/{id:guid}", (Guid id) =>
+    {
+        // ✨ Demonstrate PropertyNameStrategy.CamelCase: PascalCase → camelCase
+        // Shows automatic property name conversion for JavaScript analytics dashboards
+        var analytics = new PetStore.Domain.Models.PetAnalytics
+        {
+            PetId = id,
+            TotalVisits = 142,
+            TotalAdoptions = 3,
+            AverageVisitDuration = 8.5,
+            MostPopularTimeSlot = "14:00-16:00",
+            LastUpdated = DateTimeOffset.UtcNow,
+        };
+
+        // Generated mapping converts PascalCase properties to camelCase
+        // PetId → petId, TotalVisits → totalVisits, AverageVisitDuration → averageVisitDuration, etc.
+        var response = analytics.MapToPetAnalyticsDto();
+
+        return Results.Ok(response);
+    })
+    .WithName("GetPetAnalytics")
+    .WithSummary("Get pet analytics with camelCase property names")
+    .WithDescription("Demonstrates PropertyNameStrategy.CamelCase where PascalCase domain properties (PetId, TotalVisits, AverageVisitDuration) are automatically mapped to camelCase DTO properties (petId, totalVisits, averageVisitDuration) for JavaScript/JSON dashboard compatibility.")
+    .Produces<PetAnalyticsDto>(StatusCodes.Status200OK);
+
 await app.RunAsync();
