@@ -58,6 +58,45 @@ This roadmap is based on comprehensive analysis of:
 
 ---
 
+## 📋 Feature Status Overview
+
+| Status | Feature | Priority | Version |
+|:------:|---------|----------|---------|
+| ✅ | [Collection Mapping Support](#1-collection-mapping-support) | 🔴 Critical | v1.0 |
+| ✅ | [Constructor Mapping](#2-constructor-mapping) | 🔴 High | v1.0 |
+| ✅ | [Ignore Properties](#3-ignore-properties) | 🔴 High | v1.1 |
+| ✅ | [Custom Property Name Mapping](#4-custom-property-name-mapping) | 🟡 Medium-High | v1.1 |
+| ✅ | [Flattening Support](#5-flattening-support) | 🟡 Medium | v1.1 |
+| ✅ | [Built-in Type Conversion](#6-built-in-type-conversion) | 🟡 Medium | v1.1 |
+| ✅ | [Required Property Validation](#7-required-property-validation) | 🟡 Medium | v1.1 |
+| ✅ | [Polymorphic / Derived Type Mapping](#8-polymorphic--derived-type-mapping) | 🔴 High | v1.0 |
+| ✅ | [Before/After Mapping Hooks](#9-beforeafter-mapping-hooks) | 🟢 Low-Medium | v1.1 |
+| ✅ | [Object Factories](#10-object-factories) | 🟢 Low-Medium | v1.1 |
+| ✅ | [Map to Existing Target Instance](#11-map-to-existing-target-instance) | 🟢 Low-Medium | v1.1 |
+| ✅ | [IQueryable Projections](#13-iqueryable-projections) | 🟢 Low-Medium | v1.2 |
+| ❌ | [Reference Handling / Circular Dependencies](#12-reference-handling--circular-dependencies) | 🟢 Low | - |
+| ❌ | [Generic Mappers](#14-generic-mappers) | 🟢 Low | - |
+| ❌ | [Private Member Access](#15-private-member-access) | 🟢 Low | - |
+| ❌ | [Multi-Source Consolidation](#16-multi-source-consolidation) | 🟢 Low-Medium | - |
+| ❌ | [Value Converters](#17-value-converters) | 🟢 Low-Medium | - |
+| ❌ | [Format Providers](#18-format-providers) | 🟢 Low | - |
+| ❌ | [Property Name Casing Strategies](#19-property-name-casing-strategies-snakecase-camelcase) | 🟢 Low-Medium | - |
+| ❌ | [Base Class Configuration Inheritance](#20-base-class-configuration-inheritance) | 🟢 Low | - |
+| 🚫 | [External Mappers / Mapper Composition](#21-external-mappers--mapper-composition) | - | Not Planned |
+| 🚫 | [Advanced Enum Strategies](#22-advanced-enum-strategies-beyond-special-cases) | - | Not Needed |
+| 🚫 | [Deep Cloning Support](#23-deep-cloning-support) | - | Out of Scope |
+| 🚫 | [Conditional Mapping](#24-conditional-mapping-map-if-condition-is-true) | - | Not Planned |
+| 🚫 | [Asynchronous Mapping](#25-asynchronous-mapping) | - | Out of Scope |
+| 🚫 | [Mapping Configuration Files](#26-mapping-configuration-files-jsonxml) | - | Not Planned |
+| 🚫 | [Runtime Dynamic Mapping](#27-runtime-dynamic-mapping) | - | Out of Scope |
+
+**Legend:**
+- ✅ **Implemented** - Feature is complete and available
+- ❌ **Not Implemented** - Feature is planned but not yet developed
+- 🚫 **Not Planned** - Feature is out of scope or not aligned with project goals
+
+---
+
 ## 🎯 Need to Have (High Priority)
 
 These features are essential for real-world usage and align with common mapping scenarios. They should be implemented in the near term.
@@ -1051,33 +1090,96 @@ public class Post
 ### 13. IQueryable Projections
 
 **Priority**: 🟢 **Low-Medium**
-**Status**: ❌ Not Implemented
+**Status**: ✅ **Implemented** (v1.2 - January 2025)
 
 **Description**: Generate `Expression<Func<TSource, TTarget>>` for use in EF Core `.Select()` queries (server-side projection).
+
+**User Story**:
+> "As a developer using EF Core, I want to project database queries to DTOs server-side without fetching unnecessary data, so that I can improve query performance and reduce database load."
 
 **Example**:
 
 ```csharp
-// Generated expression:
-public static Expression<Func<User, UserDto>> ProjectToUserDto()
+[MapTo(typeof(UserSummaryDto), GenerateProjection = true)]
+public partial class User
 {
-    return user => new UserDto
+    public Guid Id { get; set; }
+    public string FirstName { get; set; } = string.Empty;
+    public string LastName { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+    public UserStatusDto Status { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+}
+
+// Generated expression:
+public static Expression<Func<User, UserSummaryDto>> ProjectToUserSummaryDto()
+{
+    return source => new UserSummaryDto
     {
-        Id = user.Id,
-        Name = user.Name
+        Id = source.Id,
+        FirstName = source.FirstName,
+        LastName = source.LastName,
+        Email = source.Email,
+        Status = (UserStatusDto)source.Status,
+        CreatedAt = source.CreatedAt
     };
 }
 
 // Usage with EF Core:
-var dtos = dbContext.Users.Select(User.ProjectToUserDto()).ToList();
-// SQL is optimized - only selected columns are queried
+var users = await dbContext.Users
+    .Where(u => u.IsActive)
+    .Select(User.ProjectToUserSummaryDto())
+    .ToListAsync();
+// SQL: SELECT Id, FirstName, LastName, Email, Status, CreatedAt FROM Users WHERE IsActive = 1
 ```
+
+**Implementation Details**:
+
+✅ **GenerateProjection Property**:
+- Opt-in via `GenerateProjection = true` parameter on `[MapTo]` attribute
+- Generates a static method that returns `Expression<Func<TSource, TTarget>>`
+- Only includes simple property mappings (no nested objects, collections, or hooks)
+
+✅ **Projection Limitations**:
+- **No BeforeMap/AfterMap hooks** - Expressions can't call methods
+- **No Factory methods** - Expressions must use object initializers
+- **No nested objects** - Would require method calls like `.MapToX()`
+- **No collections** - Would require `.Select()` method calls
+- **No built-in type conversions** - Only simple casts work in expressions
+- Only simple property-to-property mappings and enum conversions (simple casts) are supported
+
+✅ **Features**:
+- Clean method signature: `ProjectTo{TargetType}()`
+- Returns `Expression<Func<TSource, TTarget>>` for use with `.Select()`
+- Full Native AOT compatibility
+- Optimizes EF Core queries by selecting only required columns
+- Supports enum conversions via simple casts
+- Comprehensive XML documentation explaining limitations
+
+✅ **Testing**:
+- 4 comprehensive unit tests added (skipped in test harness, verified in samples):
+  - Basic projection method generation
+  - Enum conversion in projections
+  - Nested objects excluded from projections
+  - No projection when GenerateProjection = false
+
+✅ **Documentation**:
+- Added comprehensive section in `docs/generators/ObjectMapping.md`
+- Updated MapToAttribute XML documentation with projection details
+- Includes examples and use cases
+
+✅ **Sample Code**:
+- `Atc.SourceGenerators.Mapping`: `User` → `UserSummaryDto` with GenerateProjection
+- `PetStore.Api`: `Pet` → `PetListItemDto` with GenerateProjection
+- Demonstrates realistic EF Core query optimization scenarios
 
 **Benefits**:
 
-- Reduce database round-trips
-- Better performance with EF Core
+- Reduce database round-trips by selecting only required columns
+- Better performance with EF Core server-side queries
 - Server-side filtering and projection
+- Compile-time safety for query expressions
+- Optimal SQL generation for list/grid views
 
 ---
 

@@ -63,6 +63,34 @@ This roadmap is based on comprehensive analysis of:
 
 ---
 
+## 📋 Feature Status Overview
+
+| Status | Feature | Priority | Version |
+|:------:|---------|----------|---------|
+| ❌ | [Custom Validation Support (IValidateOptions)](#1-custom-validation-support-ivalidateoptions) | 🔴 High | - |
+| ❌ | [Named Options Support](#2-named-options-support) | 🔴 High | - |
+| ❌ | [Post-Configuration Support](#3-post-configuration-support) | 🟡 Medium-High | - |
+| ❌ | [Error on Missing Configuration Keys](#4-error-on-missing-configuration-keys) | 🔴 High | - |
+| ❌ | [Configuration Change Callbacks](#5-configuration-change-callbacks) | 🟡 Medium | - |
+| ❌ | [Bind Configuration Subsections to Properties](#6-bind-configuration-subsections-to-properties) | 🟡 Medium | - |
+| ❌ | [ConfigureAll Support](#7-configureall-support) | 🟢 Low-Medium | - |
+| ❌ | [Options Snapshots for Specific Sections](#8-options-snapshots-for-specific-sections) | 🟢 Low-Medium | - |
+| ❌ | [Compile-Time Section Name Validation](#9-compile-time-section-name-validation) | 🟡 Medium | - |
+| ❌ | [Auto-Generate Options Classes from appsettings.json](#10-auto-generate-options-classes-from-appsettingsjson) | 🟢 Low | - |
+| ❌ | [Environment-Specific Validation](#11-environment-specific-validation) | 🟢 Low | - |
+| ❌ | [Hot Reload Support with Filtering](#12-hot-reload-support-with-filtering) | 🟢 Low | - |
+| 🚫 | [Reflection-Based Binding](#13-reflection-based-binding) | - | Out of Scope |
+| 🚫 | [JSON Schema Generation](#14-json-schema-generation) | - | Not Planned |
+| 🚫 | [Configuration Encryption/Decryption](#15-configuration-encryptiondecryption) | - | Out of Scope |
+| 🚫 | [Dynamic Configuration Sources](#16-dynamic-configuration-sources) | - | Out of Scope |
+
+**Legend:**
+- ✅ **Implemented** - Feature is complete and available
+- ❌ **Not Implemented** - Feature is planned but not yet developed
+- 🚫 **Not Planned** - Feature is out of scope or not aligned with project goals
+
+---
+
 ## 🎯 Need to Have (High Priority)
 
 These features address common pain points and align with Microsoft's Options pattern best practices.

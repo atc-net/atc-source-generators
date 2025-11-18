@@ -194,13 +194,14 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                 continue;
             }
 
-            // Extract Bidirectional, EnableFlattening, BeforeMap, AfterMap, Factory, and UpdateTarget properties
+            // Extract Bidirectional, EnableFlattening, BeforeMap, AfterMap, Factory, UpdateTarget, and GenerateProjection properties
             var bidirectional = false;
             var enableFlattening = false;
             string? beforeMap = null;
             string? afterMap = null;
             string? factory = null;
             var updateTarget = false;
+            var generateProjection = false;
             foreach (var namedArg in attribute.NamedArguments)
             {
                 if (namedArg.Key == "Bidirectional")
@@ -227,6 +228,10 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                 {
                     updateTarget = namedArg.Value.Value as bool? ?? false;
                 }
+                else if (namedArg.Key == "GenerateProjection")
+                {
+                    generateProjection = namedArg.Value.Value as bool? ?? false;
+                }
             }
 
             // Get property mappings
@@ -250,7 +255,8 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                 BeforeMap: beforeMap,
                 AfterMap: afterMap,
                 Factory: factory,
-                UpdateTarget: updateTarget));
+                UpdateTarget: updateTarget,
+                GenerateProjection: generateProjection));
         }
 
         return mappings.Count > 0 ? mappings : null;
@@ -891,6 +897,12 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         {
             GenerateMappingMethod(sb, mapping);
 
+            // Generate projection method if requested
+            if (mapping.GenerateProjection)
+            {
+                GenerateProjectionMethod(sb, mapping);
+            }
+
             // Generate reverse mapping if bidirectional
             if (mapping.Bidirectional)
             {
@@ -914,7 +926,8 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                     BeforeMap: null, // No hooks for reverse mapping
                     AfterMap: null, // No hooks for reverse mapping
                     Factory: null, // No factory for reverse mapping
-                    UpdateTarget: false); // No update target for reverse mapping
+                    UpdateTarget: false, // No update target for reverse mapping
+                    GenerateProjection: false); // No projection for reverse mapping
 
                 GenerateMappingMethod(sb, reverseMapping);
             }
@@ -1133,6 +1146,54 @@ public class ObjectMappingGenerator : IIncrementalGenerator
             sb.AppendLineLf($"        {mapping.SourceType.ToDisplayString()}.{mapping.AfterMap}(source, target);");
         }
 
+        sb.AppendLineLf("    }");
+        sb.AppendLineLf();
+    }
+
+    private static void GenerateProjectionMethod(
+        StringBuilder sb,
+        MappingInfo mapping)
+    {
+        var methodName = $"ProjectTo{mapping.TargetType.Name}";
+
+        // Filter properties that can be used in projections
+        // Only simple properties (no nested objects, no collections, no built-in type conversions)
+        var projectionProperties = mapping.PropertyMappings
+            .Where(p => !p.IsNested && !p.IsCollection && !p.IsBuiltInTypeConversion && !p.IsFlattened)
+            .ToList();
+
+        sb.AppendLineLf("    /// <summary>");
+        sb.AppendLineLf($"    /// Creates an Expression projection from <see cref=\"{mapping.SourceType.ToDisplayString()}\"/> to <see cref=\"{mapping.TargetType.ToDisplayString()}\"/>.");
+        sb.AppendLineLf("    /// </summary>");
+        sb.AppendLineLf("    /// <remarks>");
+        sb.AppendLineLf("    /// This projection is designed for use with IQueryable (EF Core server-side projection).");
+        sb.AppendLineLf("    /// Only simple property mappings are included. Nested objects, collections, and complex conversions are excluded.");
+        sb.AppendLineLf("    /// </remarks>");
+        sb.AppendLineLf($"    public static global::System.Linq.Expressions.Expression<global::System.Func<{mapping.SourceType.ToDisplayString()}, {mapping.TargetType.ToDisplayString()}>> {methodName}()");
+        sb.AppendLineLf("    {");
+        sb.AppendLineLf($"        return source => new {mapping.TargetType.ToDisplayString()}");
+        sb.AppendLineLf("        {");
+
+        for (var i = 0; i < projectionProperties.Count; i++)
+        {
+            var prop = projectionProperties[i];
+            var isLast = i == projectionProperties.Count - 1;
+            var comma = isLast ? string.Empty : ",";
+
+            // For projections, we only support direct mappings and enum conversions (simple casts)
+            if (prop.RequiresConversion)
+            {
+                // Enum conversion - use simple cast (works in expressions)
+                sb.AppendLineLf($"            {prop.TargetProperty.Name} = ({prop.TargetProperty.Type.ToDisplayString()})source.{prop.SourceProperty.Name}{comma}");
+            }
+            else
+            {
+                // Direct property mapping
+                sb.AppendLineLf($"            {prop.TargetProperty.Name} = source.{prop.SourceProperty.Name}{comma}");
+            }
+        }
+
+        sb.AppendLineLf("        };");
         sb.AppendLineLf("    }");
         sb.AppendLineLf();
     }
@@ -1402,6 +1463,12 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                    /// that updates an existing target instance instead of creating a new one.
                    /// </summary>
                    public bool UpdateTarget { get; set; }
+
+                   /// <summary>
+                   /// Gets or sets a value indicating whether to generate an Expression projection method
+                   /// for use with IQueryable (EF Core server-side projection).
+                   /// </summary>
+                   public bool GenerateProjection { get; set; }
                }
            }
            """;

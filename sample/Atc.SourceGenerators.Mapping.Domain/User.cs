@@ -6,6 +6,7 @@ namespace Atc.SourceGenerators.Mapping.Domain;
 [MapTo(typeof(UserDto), BeforeMap = nameof(ValidateUser), AfterMap = nameof(EnrichUserDto))]
 [MapTo(typeof(UserFlatDto), EnableFlattening = true)]
 [MapTo(typeof(UserEntity), Bidirectional = true)]
+[MapTo(typeof(UserSummaryDto), GenerateProjection = true)]
 public partial class User
 {
     /// <summary>
