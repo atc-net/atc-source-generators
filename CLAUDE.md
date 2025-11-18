@@ -347,6 +347,7 @@ services.AddOptionsFromDomain(configuration, "DataAccess", "Infrastructure");
 **Key Features:**
 - Automatic property-to-property mapping by name (case-insensitive)
 - **Property exclusion** - Use `[MapIgnore]` attribute to exclude sensitive or internal properties from mapping (works on both source and target properties)
+- **Custom property names** - Use `[MapProperty("TargetName")]` attribute to map properties with different names between source and target types
 - **Constructor mapping** - Automatically detects and uses constructors when mapping to records or classes with primary constructors:
   - Prefers constructor calls over object initializers when available
   - Supports records with positional parameters (C# 9+)
@@ -494,6 +495,7 @@ UserDto (API)
 **Diagnostics:**
 - `ATCMAP001` - Mapping class must be partial (Error)
 - `ATCMAP002` - Target type must be a class or struct (Error)
+- `ATCMAP003` - MapProperty target property not found (Error)
 
 ### EnumMappingGenerator
 

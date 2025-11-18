@@ -984,4 +984,182 @@ public class ObjectMappingGeneratorTests
         Assert.DoesNotContain("LastModified", output, StringComparison.Ordinal);
         Assert.DoesNotContain("Metadata", output, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void Generator_Should_Map_Properties_With_Custom_Names_Using_MapProperty()
+    {
+        // Arrange
+        const string source = """
+            namespace TestNamespace;
+
+            using Atc.SourceGenerators.Annotations;
+
+            [MapTo(typeof(UserDto))]
+            public partial class User
+            {
+                public int Id { get; set; }
+
+                [MapProperty("FullName")]
+                public string Name { get; set; } = string.Empty;
+
+                [MapProperty("Age")]
+                public int YearsOld { get; set; }
+            }
+
+            public class UserDto
+            {
+                public int Id { get; set; }
+                public string FullName { get; set; } = string.Empty;
+                public int Age { get; set; }
+            }
+            """;
+
+        // Act
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        // Assert
+        Assert.Empty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+        Assert.Contains("MapToUserDto", output, StringComparison.Ordinal);
+
+        // Should map Name → FullName
+        Assert.Contains("FullName = source.Name", output, StringComparison.Ordinal);
+
+        // Should map YearsOld → Age
+        Assert.Contains("Age = source.YearsOld", output, StringComparison.Ordinal);
+
+        // Should still map Id normally
+        Assert.Contains("Id = source.Id", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generator_Should_Map_Properties_With_Bidirectional_Custom_Names()
+    {
+        // Arrange
+        const string source = """
+            namespace TestNamespace;
+
+            using Atc.SourceGenerators.Annotations;
+
+            [MapTo(typeof(PersonDto), Bidirectional = true)]
+            public partial class Person
+            {
+                public int Id { get; set; }
+
+                [MapProperty("DisplayName")]
+                public string FullName { get; set; } = string.Empty;
+            }
+
+            public partial class PersonDto
+            {
+                public int Id { get; set; }
+
+                [MapProperty("FullName")]
+                public string DisplayName { get; set; } = string.Empty;
+            }
+            """;
+
+        // Act
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        // Assert
+        Assert.Empty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+
+        // Forward mapping: Person → PersonDto
+        Assert.Contains("MapToPersonDto", output, StringComparison.Ordinal);
+        Assert.Contains("DisplayName = source.FullName", output, StringComparison.Ordinal);
+
+        // Reverse mapping: PersonDto → Person
+        Assert.Contains("MapToPerson", output, StringComparison.Ordinal);
+        Assert.Contains("FullName = source.DisplayName", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generator_Should_Report_Error_When_MapProperty_Target_Does_Not_Exist()
+    {
+        // Arrange
+        const string source = """
+            namespace TestNamespace;
+
+            using Atc.SourceGenerators.Annotations;
+
+            [MapTo(typeof(UserDto))]
+            public partial class User
+            {
+                public int Id { get; set; }
+
+                [MapProperty("NonExistentProperty")]
+                public string Name { get; set; } = string.Empty;
+            }
+
+            public class UserDto
+            {
+                public int Id { get; set; }
+                public string FullName { get; set; } = string.Empty;
+            }
+            """;
+
+        // Act
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        // Assert
+        var errorDiagnostics = diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error);
+        var errors = errorDiagnostics.ToList();
+        Assert.NotEmpty(errors);
+
+        // Should report that target property doesn't exist
+        var mapPropertyError = errors.FirstOrDefault(d => d.Id == "ATCMAP003");
+        Assert.NotNull(mapPropertyError);
+
+        var message = mapPropertyError.GetMessage(CultureInfo.InvariantCulture);
+        Assert.Contains("NonExistentProperty", message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generator_Should_Support_MapProperty_With_Nested_Objects()
+    {
+        // Arrange
+        const string source = """
+            namespace TestNamespace;
+
+            using Atc.SourceGenerators.Annotations;
+
+            [MapTo(typeof(PersonDto))]
+            public partial class Person
+            {
+                public int Id { get; set; }
+
+                [MapProperty("HomeAddress")]
+                public Address Address { get; set; } = new();
+            }
+
+            [MapTo(typeof(AddressDto))]
+            public partial class Address
+            {
+                public string Street { get; set; } = string.Empty;
+                public string City { get; set; } = string.Empty;
+            }
+
+            public class PersonDto
+            {
+                public int Id { get; set; }
+                public AddressDto HomeAddress { get; set; } = new();
+            }
+
+            public class AddressDto
+            {
+                public string Street { get; set; } = string.Empty;
+                public string City { get; set; } = string.Empty;
+            }
+            """;
+
+        // Act
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        // Assert
+        Assert.Empty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+        Assert.Contains("MapToPersonDto", output, StringComparison.Ordinal);
+
+        // Should map Address → HomeAddress with nested mapping
+        Assert.Contains("HomeAddress = source.Address?.MapToAddressDto()!", output, StringComparison.Ordinal);
+    }
 }

@@ -30,6 +30,14 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 
+    private static readonly DiagnosticDescriptor MapPropertyTargetNotFoundDescriptor = new(
+        id: RuleIdentifierConstants.ObjectMapping.MapPropertyTargetNotFound,
+        title: "MapProperty target property not found",
+        messageFormat: "Property '{0}' with [MapProperty(\"{1}\")] specifies target property '{1}' which does not exist on target type '{2}'",
+        category: RuleCategoryConstants.ObjectMapping,
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         // Generate the attribute definitions as fallback
@@ -38,6 +46,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         {
             ctx.AddSource("MapToAttribute.g.cs", SourceText.From(GenerateAttributeSource(), Encoding.UTF8));
             ctx.AddSource("MapIgnoreAttribute.g.cs", SourceText.From(GenerateMapIgnoreAttributeSource(), Encoding.UTF8));
+            ctx.AddSource("MapPropertyAttribute.g.cs", SourceText.From(GenerateMapPropertyAttributeSource(), Encoding.UTF8));
         });
 
         // Find classes with MapTo attribute
@@ -188,7 +197,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
             }
 
             // Get property mappings
-            var propertyMappings = GetPropertyMappings(classSymbol, targetType);
+            var propertyMappings = GetPropertyMappings(classSymbol, targetType, context);
 
             // Find best matching constructor
             var (constructor, constructorParameterNames) = FindBestConstructor(classSymbol, targetType);
@@ -207,7 +216,8 @@ public class ObjectMappingGenerator : IIncrementalGenerator
 
     private static List<PropertyMapping> GetPropertyMappings(
         INamedTypeSymbol sourceType,
-        INamedTypeSymbol targetType)
+        INamedTypeSymbol targetType,
+        SourceProductionContext? context = null)
     {
         var mappings = new List<PropertyMapping>();
 
@@ -226,8 +236,32 @@ public class ObjectMappingGenerator : IIncrementalGenerator
 
         foreach (var sourceProp in sourceProperties)
         {
+            // Check if property has custom mapping via MapProperty attribute
+            var customTargetName = GetMapPropertyTargetName(sourceProp);
+            var targetPropertyName = customTargetName ?? sourceProp.Name;
+
+            // Validate that custom target property exists if MapProperty is used
+            if (customTargetName is not null && context.HasValue)
+            {
+                var targetExists = targetProperties.Any(t =>
+                    string.Equals(t.Name, customTargetName, StringComparison.OrdinalIgnoreCase));
+
+                if (!targetExists)
+                {
+                    context.Value.ReportDiagnostic(
+                        Diagnostic.Create(
+                            MapPropertyTargetNotFoundDescriptor,
+                            sourceProp.Locations.First(),
+                            sourceProp.Name,
+                            customTargetName,
+                            targetType.Name));
+                    continue; // Skip this property mapping
+                }
+            }
+
+            // Find target property - use custom name if specified, otherwise use source property name
             var targetProp = targetProperties.FirstOrDefault(t =>
-                string.Equals(t.Name, sourceProp.Name, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(t.Name, targetPropertyName, StringComparison.OrdinalIgnoreCase) &&
                 SymbolEqualityComparer.Default.Equals(t.Type, sourceProp.Type));
 
             if (targetProp is not null)
@@ -246,7 +280,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
             else
             {
                 // Check if types are different but might be mappable (nested objects, enums, or collections)
-                targetProp = targetProperties.FirstOrDefault(t => string.Equals(t.Name, sourceProp.Name, StringComparison.OrdinalIgnoreCase));
+                targetProp = targetProperties.FirstOrDefault(t => string.Equals(t.Name, targetPropertyName, StringComparison.OrdinalIgnoreCase));
                 if (targetProp is not null)
                 {
                     // Check for collection mapping
@@ -482,6 +516,29 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         var attributes = property.GetAttributes();
         return attributes.Any(attr =>
             attr.AttributeClass?.ToDisplayString() == mapIgnoreAttributeName);
+    }
+
+    private static string? GetMapPropertyTargetName(IPropertySymbol property)
+    {
+        const string mapPropertyAttributeName = "Atc.SourceGenerators.Annotations.MapPropertyAttribute";
+
+        var attributes = property.GetAttributes();
+        var mapPropertyAttribute = attributes.FirstOrDefault(attr =>
+            attr.AttributeClass?.ToDisplayString() == mapPropertyAttributeName);
+
+        if (mapPropertyAttribute is null)
+        {
+            return null;
+        }
+
+        // Get the target property name from the attribute constructor argument
+        if (mapPropertyAttribute.ConstructorArguments.Length > 0)
+        {
+            var targetPropertyName = mapPropertyAttribute.ConstructorArguments[0].Value as string;
+            return targetPropertyName;
+        }
+
+        return null;
     }
 
     private static (IMethodSymbol? Constructor, List<string> ParameterNames) FindBestConstructor(
@@ -815,6 +872,40 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                [global::System.AttributeUsage(global::System.AttributeTargets.Property, Inherited = false, AllowMultiple = false)]
                public sealed class MapIgnoreAttribute : global::System.Attribute
                {
+               }
+           }
+           """;
+
+    private static string GenerateMapPropertyAttributeSource()
+        => """
+           // <auto-generated/>
+           #nullable enable
+
+           namespace Atc.SourceGenerators.Annotations
+           {
+               /// <summary>
+               /// Specifies a custom target property name for mapping when property names differ between source and target types.
+               /// </summary>
+               [global::System.CodeDom.Compiler.GeneratedCode("Atc.SourceGenerators.ObjectMapping", "1.0.0")]
+               [global::System.ComponentModel.EditorBrowsable(global::System.ComponentModel.EditorBrowsableState.Never)]
+               [global::System.Diagnostics.DebuggerNonUserCode]
+               [global::System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
+               [global::System.AttributeUsage(global::System.AttributeTargets.Property, Inherited = false, AllowMultiple = false)]
+               public sealed class MapPropertyAttribute : global::System.Attribute
+               {
+                   /// <summary>
+                   /// Initializes a new instance of the <see cref="MapPropertyAttribute"/> class.
+                   /// </summary>
+                   /// <param name="targetPropertyName">The name of the target property to map to.</param>
+                   public MapPropertyAttribute(string targetPropertyName)
+                   {
+                       TargetPropertyName = targetPropertyName;
+                   }
+
+                   /// <summary>
+                   /// Gets the name of the target property to map to.
+                   /// </summary>
+                   public string TargetPropertyName { get; }
                }
            }
            """;

@@ -8,3 +8,4 @@ ATCDIR007 | DependencyInjection | Error | Instance member not found
 ATCDIR008 | DependencyInjection | Error | Instance member must be static
 ATCDIR009 | DependencyInjection | Error | Instance and Factory are mutually exclusive
 ATCDIR010 | DependencyInjection | Error | Instance registration requires Singleton lifetime
+ATCMAP003 | ObjectMapping | Error | MapProperty target property not found

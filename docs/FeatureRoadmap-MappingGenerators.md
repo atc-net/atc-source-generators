@@ -280,7 +280,7 @@ public class UserDto
 
 **Priority**: 🟡 **Medium-High**
 **Generator**: ObjectMappingGenerator
-**Status**: ❌ Not Implemented
+**Status**: ✅ **Implemented (v1.1 - January 2025)**
 
 **Description**: Map properties with different names using an attribute to specify the target property name.
 
@@ -297,7 +297,7 @@ public partial class User
 {
     public Guid Id { get; set; }
 
-    [MapProperty(nameof(UserDto.FullName))]
+    [MapProperty("FullName")]
     public string Name { get; set; } = string.Empty;  // Maps to UserDto.FullName
 
     [MapProperty("Age")]
@@ -316,12 +316,48 @@ FullName = source.Name,
 Age = source.YearsOld
 ```
 
-**Implementation Notes**:
+**Implementation Details**:
 
-- Create `[MapProperty(string targetPropertyName)]` attribute
-- Validate that target property exists at compile time
-- Support both `nameof()` and string literals
-- Report diagnostic if target property doesn't exist
+✅ **MapPropertyAttribute Created**:
+- Attribute available in Atc.SourceGenerators.Annotations
+- Fallback attribute generated automatically by ObjectMappingGenerator
+- Applied to properties: `[AttributeUsage(AttributeTargets.Property)]`
+- Constructor accepts target property name as string parameter
+
+✅ **Custom Property Name Resolution**:
+- Properties with `[MapProperty("TargetName")]` are mapped to the specified target property name
+- Supports both string literals and nameof() expressions
+- Case-insensitive matching for target property names
+
+✅ **Compile-Time Validation**:
+- Validates that target property exists on target type at compile time
+- Reports `ATCMAP003` diagnostic if target property is not found
+- Prevents runtime errors by catching mismatches during build
+
+✅ **Features**:
+- Works with simple properties (strings, numbers, dates, etc.)
+- Works with nested objects (custom property names on nested object references)
+- Works with bidirectional mappings (apply `[MapProperty]` on both sides)
+- Works with constructor mappings (custom names resolved when matching constructor parameters)
+- Full Native AOT compatibility
+
+✅ **Testing**:
+- 4 comprehensive unit tests covering all scenarios:
+  - Basic custom property mapping with string literals
+  - Bidirectional mapping with custom property names
+  - Error diagnostic for non-existent target properties
+  - Custom property mapping with nested objects
+
+✅ **Documentation**:
+- Added comprehensive section in `docs/generators/ObjectMapping.md`
+- Updated CLAUDE.md with MapProperty information
+- Includes examples and use cases
+- Added `ATCMAP003` diagnostic documentation
+
+✅ **Sample Code**:
+- Added to `User` in `sample/Atc.SourceGenerators.Mapping.Domain` (PreferredName → DisplayName)
+- Added to `Pet` in `sample/PetStore.Domain` (NickName → DisplayName)
+- Demonstrates real-world usage patterns
 
 ---
 
