@@ -2,6 +2,29 @@
 
 Automatically bind configuration sections to strongly-typed options classes with compile-time code generation.
 
+**Key Benefits:**
+- 🎯 **Zero boilerplate** - No manual `AddOptions<T>().Bind()` calls needed
+- 🧠 **Smart section inference** - Auto-detects section names from class names or constants
+- 🛡️ **Built-in validation** - Automatic DataAnnotations validation and startup checks
+- 🔧 **Multi-project support** - Smart naming for assembly-specific registration methods
+- ⚡ **Native AOT ready** - Pure compile-time generation with zero reflection
+
+**Quick Example:**
+```csharp
+// Input: Decorate your options class
+[OptionsBinding("Database")]
+public partial class DatabaseOptions
+{
+    [Required] public string ConnectionString { get; set; } = string.Empty;
+}
+
+// Generated: Registration extension method
+services.AddOptions<DatabaseOptions>()
+    .Bind(configuration.GetSection("Database"))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+```
+
 ## 📑 Table of Contents
 
 - [⚙️ Options Binding Source Generator](#️-options-binding-source-generator)
@@ -34,16 +57,6 @@ Automatically bind configuration sections to strongly-typed options classes with
     - [📊 Priority Summary Table](#-priority-summary-table)
     - [🔄 Mapping Both Base JSON Examples](#-mapping-both-base-json-examples)
   - [✨ Features](#-features)
-    - [✨ Automatic Section Name Inference](#-automatic-section-name-inference)
-    - [🔒 Built-in Validation](#-built-in-validation)
-    - [🎯 Explicit Section Paths](#-explicit-section-paths)
-    - [📦 Multiple Options Classes](#-multiple-options-classes)
-    - [📦 Multi-Project Support](#-multi-project-support)
-    - [🔗 Transitive Options Registration](#-transitive-options-registration)
-      - [**Scenario A: Manual Registration (Explicit Control)**](#scenario-a-manual-registration-explicit-control)
-      - [**Scenario B: Transitive Registration (Automatic Discovery)**](#scenario-b-transitive-registration-automatic-discovery)
-      - [**All Available Overloads:**](#all-available-overloads)
-    - [🚀 Native AOT Compatible](#-native-aot-compatible)
   - [📦 Installation](#-installation)
     - [📋 Package Reference](#-package-reference)
   - [💡 Usage](#-usage)
@@ -69,6 +82,7 @@ Automatically bind configuration sections to strongly-typed options classes with
     - [❌ ATCOPT002: Section name cannot be null or empty](#-atcopt002-section-name-cannot-be-null-or-empty)
     - [⚠️ ATCOPT003: Invalid options binding configuration](#️-atcopt003-invalid-options-binding-configuration)
     - [❌ ATCOPT003: Const section name cannot be null or empty](#-atcopt003-const-section-name-cannot-be-null-or-empty)
+  - [🚀 Native AOT Compatibility](#-native-aot-compatibility)
   - [📚 Examples](#-examples)
     - [📝 Example 1: Simple Configuration](#-example-1-simple-configuration)
     - [🔒 Example 2: Validated Database Options](#-example-2-validated-database-options)
@@ -692,287 +706,42 @@ Console.WriteLine($"Other interval: {otherOptions.Value.RepeatIntervalInSeconds}
 
 ## ✨ Features
 
-### ✨ Automatic Section Name Inference
+- **🧠 Automatic section name inference** - Smart resolution from explicit names, const fields (`SectionName`, `NameTitle`, `Name`), or auto-inferred from class names
+- **🔒 Built-in validation** - Integrated DataAnnotations validation (`ValidateDataAnnotations`) and startup validation (`ValidateOnStart`)
+- **🎯 Explicit section paths** - Support for nested sections like `"App:Database"` or `"Services:Email"`
+- **📦 Multiple options classes** - Register multiple configuration sections in a single assembly with one method call
+- **🏗️ Multi-project support** - Smart naming generates assembly-specific extension methods (e.g., `AddOptionsFromDomain()`, `AddOptionsFromDataAccess()`)
+- **🔗 Transitive registration** - Automatically discover and register options from referenced assemblies (4 overloads: default, auto-detect all, selective by name, selective multiple)
+- **⏱️ Flexible lifetimes** - Choose between Singleton (`IOptions<T>`), Scoped (`IOptionsSnapshot<T>`), or Monitor (`IOptionsMonitor<T>`) patterns
+- **⚡ Native AOT ready** - Pure compile-time code generation with zero reflection, fully trimming-safe for modern .NET deployments
+- **🛡️ Compile-time safety** - Catch configuration errors during build, not at runtime
+- **🔧 Partial class requirement** - Simple `partial` keyword enables seamless extension method generation
 
-The generator resolves section names using the following priority:
+---
 
-1. **Explicit section name** in the attribute constructor
-2. **`public const string SectionName`** in the options class
-3. **`public const string NameTitle`** in the options class
-4. **`public const string Name`** in the options class
-5. **Auto-inferred** from class name (uses full class name)
+**Section Name Resolution Priority:**
+1. Explicit attribute parameter: `[OptionsBinding("SectionName")]`
+2. Const field: `public const string SectionName = "...";`
+3. Const field: `public const string NameTitle = "...";`
+4. Const field: `public const string Name = "...";`
+5. Auto-inferred from class name
 
-**Examples:**
+---
 
+**Transitive Registration Overloads:**
 ```csharp
-// Auto-inference (uses full class name)
-[OptionsBinding]
-public partial class DatabaseOptions { }  // Section: "DatabaseOptions"
+// Overload 1: Base (current assembly only)
+services.AddOptionsFrom{Assembly}(configuration);
 
-[OptionsBinding]
-public partial class ApiSettings { }       // Section: "ApiSettings"
+// Overload 2: Auto-detect all referenced assemblies
+services.AddOptionsFrom{Assembly}(configuration, includeReferencedAssemblies: true);
 
-[OptionsBinding]
-public partial class LoggingConfig { }     // Section: "LoggingConfig"
-
-// Using const SectionName (2nd highest priority)
-[OptionsBinding(ValidateDataAnnotations = true)]
-public partial class DatabaseOptions
-{
-    public const string SectionName = "CustomDatabase";
-    // Section: "CustomDatabase"
-}
-
-// Using const NameTitle
-[OptionsBinding]
-public partial class CacheOptions
-{
-    public const string NameTitle = "ApplicationCache";
-    // Section: "ApplicationCache"
-}
-
-// Using const Name
-[OptionsBinding]
-public partial class EmailOptions
-{
-    public const string Name = "EmailConfiguration";
-    // Section: "EmailConfiguration"
-}
-
-// Full priority demonstration
-[OptionsBinding]
-public partial class LoggingOptions
-{
-    public const string SectionName = "X1";  // 2nd priority - WINS
-    public const string NameTitle = "X2";    // 3rd priority
-    public const string Name = "X3";         // 4th priority
-    // Section: "X1"
-}
-
-// Explicit section name (highest priority)
-[OptionsBinding("App:Database")]
-public partial class ServiceOptions
-{
-    public const string SectionName = "Service";  // Ignored
-    // Section: "App:Database"
-}
-```
-
-### 🔒 Built-in Validation
-
-Enable data annotations validation with a single property:
-
-```csharp
-[OptionsBinding("Database", ValidateDataAnnotations = true, ValidateOnStart = true)]
-public partial class DatabaseOptions
-{
-    [Required, MinLength(10)]
-    public string ConnectionString { get; set; } = string.Empty;
-
-    [Range(1, 10)]
-    public int MaxRetries { get; set; } = 3;
-}
-```
-
-### 🎯 Explicit Section Paths
-
-Specify complex configuration paths:
-
-```csharp
-[OptionsBinding("App:Services:Database")]
-public partial class DatabaseOptions { }
-```
-
-```json
-{
-  "App": {
-    "Services": {
-      "Database": {
-        "ConnectionString": "..."
-      }
-    }
-  }
-}
-```
-
-### 📦 Multiple Options Classes
-
-Bind multiple configuration sections in a single call:
-
-```csharp
-[OptionsBinding("Database")]
-public partial class DatabaseOptions { }
-
-[OptionsBinding("Api")]
-public partial class ApiOptions { }
-
-[OptionsBinding("Logging")]
-public partial class LoggingOptions { }
-
-// In Program.cs - all registered at once
-services.AddOptionsFromApp(configuration);
-```
-
-### 📦 Multi-Project Support
-
-Just like `DependencyRegistrationGenerator`, each project generates its own `AddOptionsFromXXX()` method:
-
-```csharp
-// Domain project - options for business logic layer
-// Atc.SourceGenerators.OptionsBinding.Domain
-[OptionsBinding("Email")]
-public partial class EmailOptions { }
-
-[OptionsBinding] // Section: "CacheOptions" (auto-inferred)
-public partial class CacheOptions { }
-
-// Main project - options for application layer
-// Atc.SourceGenerators.OptionsBinding
-[OptionsBinding("Database")]
-public partial class DatabaseOptions { }
-
-// Program.cs - Register options from both projects
-services.AddOptionsFromDomain(configuration);
-services.AddOptionsFromOptionsBinding(configuration);
-```
-
-**Method Naming with Smart Suffixes:** The generator creates methods with **smart naming** - using short suffixes when unique, full names when there are conflicts. For example:
-- `PetStore.Domain` (unique suffix) → `AddOptionsFromDomain()`
-- `PetStore.Domain` + `AnotherApp.Domain` (conflicting) → `AddOptionsFromPetStoreDomain()` and `AddOptionsFromAnotherAppDomain()`
-
-See [✨ Smart Naming](#-smart-naming) for details.
-
-### 🔗 Transitive Options Registration
-
-The generator supports automatic registration of options from referenced assemblies, making multi-project setups seamless. Each assembly generates **4 overloads** to support different scenarios:
-
-```csharp
-// Overload 1: Register only this assembly's options
-services.AddOptionsFromApp(configuration);
-
-// Overload 2: Auto-detect ALL referenced assemblies recursively
-services.AddOptionsFromApp(configuration, includeReferencedAssemblies: true);
-
-// Overload 3: Register specific referenced assembly (short or full name)
-services.AddOptionsFromApp(configuration, "Domain");
-services.AddOptionsFromApp(configuration, "MyApp.Domain");
+// Overload 3: Register specific referenced assembly
+services.AddOptionsFrom{Assembly}(configuration, "DataAccess");
 
 // Overload 4: Register multiple specific assemblies
-services.AddOptionsFromApp(configuration, "Domain", "DataAccess", "Infrastructure");
+services.AddOptionsFrom{Assembly}(configuration, "DataAccess", "Infrastructure");
 ```
-
-#### **Scenario A: Manual Registration (Explicit Control)**
-
-Manually register options from each project:
-
-```csharp
-// Register options from main project
-services.AddOptionsFromApp(configuration);
-
-// Register options from Domain project
-services.AddOptionsFromAppDomain(configuration);
-
-// Register options from DataAccess project
-services.AddOptionsFromAppDataAccess(configuration);
-```
-
-**When to use:** When you want explicit control over which projects' options are registered.
-
-#### **Scenario B: Transitive Registration (Automatic Discovery)**
-
-Let the generator automatically discover and register options from referenced assemblies:
-
-```csharp
-// ✨ Single call registers ALL options from referenced assemblies
-services.AddOptionsFromApp(configuration, includeReferencedAssemblies: true);
-```
-
-**How it works:**
-1. Generator scans all referenced assemblies with matching prefix (e.g., `MyApp.*`)
-2. Detects which assemblies contain `[OptionsBinding]` attributes
-3. Generates calls to register options from those assemblies
-4. Works **recursively** - handles multi-level dependencies (Api → Domain → DataAccess)
-
-**Example Architecture:**
-```
-MyApp.Api (web project)
-  ↓ references
-MyApp.Domain (business logic)
-  ↓ references
-MyApp.DataAccess (database access)
-```
-
-**In MyApp.Api Program.cs:**
-```csharp
-// One call registers options from Api, Domain, AND DataAccess
-services.AddOptionsFromAppApi(configuration, includeReferencedAssemblies: true);
-```
-
-**Generated code includes:**
-```csharp
-// From MyApp.Api assembly
-public static IServiceCollection AddOptionsFromAppApi(
-    this IServiceCollection services,
-    IConfiguration configuration,
-    bool includeReferencedAssemblies)
-{
-    services.AddOptionsFromAppApi(configuration);
-
-    if (includeReferencedAssemblies)
-    {
-        // Auto-detected referenced assemblies with [OptionsBinding]
-        AddOptionsFromAppDomain(services, configuration, includeReferencedAssemblies: true);
-        AddOptionsFromAppDataAccess(services, configuration, includeReferencedAssemblies: true);
-    }
-
-    return services;
-}
-```
-
-#### **All Available Overloads:**
-
-```csharp
-// Overload 1: Default (no transitive registration)
-services.AddOptionsFromYourProject(configuration);
-
-// Overload 2: Auto-detect ALL referenced assemblies recursively
-services.AddOptionsFromYourProject(configuration, includeReferencedAssemblies: true);
-
-// Overload 3: Register specific referenced assembly (short or full name)
-services.AddOptionsFromYourProject(configuration, "Domain");
-services.AddOptionsFromYourProject(configuration, "MyApp.Domain");
-
-// Overload 4: Register multiple specific assemblies
-services.AddOptionsFromYourProject(configuration, "Domain", "DataAccess", "Infrastructure");
-```
-
-**Benefits:**
-- ✅ **Clean Architecture:** Main project doesn't need to reference all downstream projects
-- ✅ **Zero Boilerplate:** No manual registration of each project's options
-- ✅ **Type Safe:** All registration happens at compile time
-- ✅ **Recursive:** Automatically handles deep dependency chains
-- ✅ **Flexible:** Choose between manual, automatic, or selective registration
-
-### 🚀 Native AOT Compatible
-
-Fully compatible with Native AOT compilation - no reflection or runtime code generation:
-
-```csharp
-// All binding code is generated at compile time
-[OptionsBinding("Database")]
-public partial class DatabaseOptions { }
-
-// Works seamlessly with Native AOT
-// ✅ No reflection required
-// ✅ Fully trimming-safe
-// ✅ All dependencies resolved at compile time
-```
-
-**Why this matters:**
-- **Faster startup**: No runtime reflection or code generation overhead
-- **Smaller deployments**: Trimming removes unused code
-- **Better performance**: Native code execution
-- **Modern .NET ready**: Full support for Native AOT scenarios
 
 ---
 
@@ -1469,6 +1238,64 @@ public partial class DatabaseOptions  // ✅ Inferred as "Database"
     // No const Name/NameTitle field
 }
 ```
+
+---
+
+## 🚀 Native AOT Compatibility
+
+The Options Binding Generator is **fully compatible with Native AOT** compilation, producing code that meets all AOT requirements:
+
+### ✅ AOT-Safe Features
+
+- **Zero reflection** - All options binding uses `IConfiguration.Bind()` without reflection-based discovery
+- **Compile-time generation** - Binding code is generated during build, not at runtime
+- **Trimming-safe** - No dynamic type discovery or metadata dependencies
+- **Static method calls** - All registration uses concrete extension method calls
+- **Static analysis friendly** - All code paths are visible to the AOT compiler
+
+### 🏗️ How It Works
+
+1. **Build-time analysis**: The generator scans classes with `[OptionsBinding]` attributes during compilation
+2. **Method generation**: Creates static extension methods with concrete `IConfiguration.GetSection()` and `Bind()` calls
+3. **Options API integration**: Uses standard .NET Options pattern (`AddOptions<T>()`, `Bind()`, `Validate()`)
+4. **AOT compilation**: The generated code compiles to native machine code with full optimizations
+
+### 📋 Example Generated Code
+
+```csharp
+// Source: [OptionsBinding("Database")] public partial class DatabaseOptions { ... }
+
+// Generated AOT-safe code:
+public static IServiceCollection AddOptionsFromYourProject(
+    this IServiceCollection services,
+    IConfiguration configuration)
+{
+    services.AddOptions<DatabaseOptions>()
+        .Bind(configuration.GetSection("Database"))
+        .ValidateDataAnnotations()
+        .ValidateOnStart();
+
+    return services;
+}
+```
+
+**Why This Is AOT-Safe:**
+- No `Activator.CreateInstance()` calls (reflection)
+- No dynamic assembly scanning
+- All types resolved at compile time via generic parameters
+- Configuration binding uses built-in AOT-compatible `IConfiguration.Bind()`
+- Validation uses standard DataAnnotations attributes
+
+### 🎯 Multi-Project AOT Support
+
+Even transitive options registration remains fully AOT-compatible:
+
+```csharp
+// Auto-detect and register referenced assemblies - still AOT-safe!
+services.AddOptionsFromApp(configuration, includeReferencedAssemblies: true);
+```
+
+The generator produces concrete method calls to each referenced assembly's registration method, ensuring the entire dependency chain compiles to efficient native code.
 
 ---
 

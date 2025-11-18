@@ -2,6 +2,29 @@
 
 Automatically generate type-safe enum-to-enum mapping code using attributes. The generator creates efficient switch expression mappings at compile time with intelligent name matching and special case handling, eliminating manual enum conversions and reducing errors.
 
+**Key Benefits:**
+- 🎯 **Zero runtime cost** - Pure switch expressions generated at compile time
+- 🧠 **Intelligent matching** - Automatic special case detection (None → Unknown, Active → Enabled, etc.)
+- 🔄 **Bidirectional support** - Generate forward and reverse mappings with one attribute
+- 🛡️ **Type-safe** - Compile-time diagnostics for unmapped values
+- ⚡ **Native AOT ready** - No reflection, fully trimming-safe
+
+**Quick Example:**
+```csharp
+// Input: Decorate your enum
+[MapTo(typeof(PetStatusDto), Bidirectional = true)]
+public enum PetStatus { None, Available, Adopted }
+
+// Generated: Efficient switch expression
+public static PetStatusDto MapToPetStatusDto(this PetStatus source) =>
+    source switch {
+        PetStatus.None => PetStatusDto.Unknown,  // Special case auto-detected
+        PetStatus.Available => PetStatusDto.Available,
+        PetStatus.Adopted => PetStatusDto.Adopted,
+        _ => throw new ArgumentOutOfRangeException(nameof(source))
+    };
+```
+
 ## 📑 Table of Contents
 
 - [🚀 Get Started - Quick Guide](#-get-started---quick-guide)
@@ -26,7 +49,10 @@ Automatically generate type-safe enum-to-enum mapping code using attributes. The
 - [🛡️ Diagnostics](#️-diagnostics)
   - [❌ ATCENUM001: Target Type Must Be Enum](#-atcenum001-target-type-must-be-enum)
   - [⚠️ ATCENUM002: Unmapped Enum Value](#️-atcenum002-unmapped-enum-value)
+- [🚀 Native AOT Compatibility](#-native-aot-compatibility)
 - [📚 Additional Examples](#-additional-examples)
+- [🔧 Best Practices](#-best-practices)
+- [📖 Related Documentation](#-related-documentation)
 
 ---
 
@@ -536,6 +562,52 @@ public enum TargetStatus
 ```
 
 3. **Accept the warning** if those values should never be used in the mapping context.
+
+---
+
+## 🚀 Native AOT Compatibility
+
+The Enum Mapping Generator is **fully compatible with Native AOT** compilation, producing code that meets all AOT requirements:
+
+### ✅ AOT-Safe Features
+
+- **Zero reflection** - All mappings use switch expressions, not reflection-based converters
+- **Compile-time generation** - Mapping code is generated during build, not at runtime
+- **Trimming-safe** - No dynamic type discovery or metadata dependencies
+- **Value type optimization** - Enums remain stack-allocated value types
+- **Static analysis friendly** - All code paths are visible to the AOT compiler
+
+### 🏗️ How It Works
+
+1. **Build-time analysis**: The generator scans enums with `[MapTo]` attributes during compilation
+2. **Switch expression generation**: Creates pure C# switch expressions without any reflection
+3. **Direct value mapping**: Each enum value maps to target value via simple assignment
+4. **AOT compilation**: The generated code compiles to native machine code with full optimizations
+
+### 📋 Example Generated Code
+
+```csharp
+// Source: [MapTo(typeof(Status))] public enum EntityStatus { Active, Inactive }
+
+// Generated AOT-safe code:
+public static Status MapToStatus(this EntityStatus source)
+{
+    return source switch
+    {
+        EntityStatus.Active => Status.Active,
+        EntityStatus.Inactive => Status.Inactive,
+        _ => throw new global::System.ArgumentOutOfRangeException(
+            nameof(source), source, "Unmapped enum value")
+    };
+}
+```
+
+**Why This Is AOT-Safe:**
+- No `Enum.Parse()` or `Enum.GetValues()` calls (reflection)
+- No dynamic type conversion
+- All branches known at compile time
+- Exception paths are concrete and traceable
+- Zero heap allocations for value type operations
 
 ---
 
