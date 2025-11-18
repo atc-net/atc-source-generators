@@ -28,6 +28,13 @@ public partial class User
     public string Email { get; set; } = string.Empty;
 
     /// <summary>
+    /// Gets or sets the user's preferred name (nickname or chosen name).
+    /// Maps to DisplayName in UserDto for API responses.
+    /// </summary>
+    [MapProperty("DisplayName")]
+    public string PreferredName { get; set; } = string.Empty;
+
+    /// <summary>
     /// Gets or sets the user's status.
     /// </summary>
     public UserStatus Status { get; set; }

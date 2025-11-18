@@ -49,11 +49,13 @@ public static UserDto MapToUserDto(this User source) =>
   - [📦 Collection Mapping](#-collection-mapping)
   - [🔁 Multi-Layer Mapping](#-multi-layer-mapping)
   - [🚫 Excluding Properties with `[MapIgnore]`](#-excluding-properties-with-mapignore)
+  - [🏷️ Custom Property Name Mapping with `[MapProperty]`](#️-custom-property-name-mapping-with-mapproperty)
   - [🏗️ Constructor Mapping](#️-constructor-mapping)
 - [⚙️ MapToAttribute Parameters](#️-maptoattribute-parameters)
 - [🛡️ Diagnostics](#️-diagnostics)
   - [❌ ATCMAP001: Mapping Class Must Be Partial](#-atcmap001-mapping-class-must-be-partial)
   - [❌ ATCMAP002: Target Type Must Be Class or Struct](#-atcmap002-target-type-must-be-class-or-struct)
+  - [❌ ATCMAP003: MapProperty Target Property Not Found](#-atcmap003-mapproperty-target-property-not-found)
 - [🚀 Native AOT Compatibility](#-native-aot-compatibility)
 - [📚 Additional Examples](#-additional-examples)
 
@@ -578,6 +580,7 @@ UserEntity → User → UserDto
 - **Constructor mapping** - Automatically detects and uses constructors for records and classes with primary constructors
 - Mixed initialization support (constructor + object initializer for remaining properties)
 - **Property exclusion** - Use `[MapIgnore]` to exclude sensitive or internal properties
+- **Custom property names** - Use `[MapProperty]` to map properties with different names
 - Automatic enum conversion
 - Nested object mapping
 - Collection mapping with LINQ
@@ -1033,6 +1036,77 @@ public static UserDto MapToUserDto(this User source)
 - Bidirectional mappings (properties can be ignored in either direction)
 - Constructor mappings (ignored properties are excluded from constructor parameters)
 
+### 🏷️ Custom Property Name Mapping with `[MapProperty]`
+
+When integrating with external APIs, legacy systems, or when property names differ between layers, use `[MapProperty]` to specify custom mappings without renaming your domain models.
+
+**Example:**
+
+```csharp
+using Atc.SourceGenerators.Annotations;
+
+// Domain model
+[MapTo(typeof(UserDto))]
+public partial class User
+{
+    public Guid Id { get; set; }
+    public string FirstName { get; set; } = string.Empty;
+    public string LastName { get; set; } = string.Empty;
+
+    // Maps PreferredName → DisplayName in UserDto
+    [MapProperty("DisplayName")]
+    public string PreferredName { get; set; } = string.Empty;
+
+    // Maps YearsOld → Age in UserDto
+    [MapProperty("Age")]
+    public int YearsOld { get; set; }
+}
+
+// DTO with different property names
+public class UserDto
+{
+    public Guid Id { get; set; }
+    public string FirstName { get; set; } = string.Empty;
+    public string LastName { get; set; } = string.Empty;
+    public string DisplayName { get; set; } = string.Empty;
+    public int Age { get; set; }
+}
+
+// Generated mapping code
+public static UserDto MapToUserDto(this User source)
+{
+    if (source is null)
+    {
+        return default!;
+    }
+
+    return new UserDto
+    {
+        Id = source.Id,
+        FirstName = source.FirstName,
+        LastName = source.LastName,
+        DisplayName = source.PreferredName,  // ✨ Custom mapping
+        Age = source.YearsOld                // ✨ Custom mapping
+    };
+}
+```
+
+**Use Cases:**
+- 🔌 **API Integration** - Match external API property names without modifying your domain models
+- 🏛️ **Legacy Systems** - Adapt to existing database column names or legacy DTOs
+- 🌍 **Naming Conventions** - Bridge different naming conventions between layers (e.g., `firstName` ↔ `FirstName`)
+- 📦 **Domain Clarity** - Keep meaningful domain property names while exposing simplified DTO names
+
+**Works with:**
+- Simple properties (strings, numbers, dates, etc.)
+- Nested objects (custom property names on nested object references)
+- Bidirectional mappings (apply `[MapProperty]` on both sides for reverse mapping)
+- Constructor mappings (custom names are resolved when matching constructor parameters)
+
+**Validation:**
+- ✅ Compile-time validation ensures target properties exist
+- ❌ `ATCMAP003` diagnostic if target property name is not found
+
 ### 🏗️ Constructor Mapping
 
 The generator automatically detects and uses constructors when mapping to records or classes with primary constructors (C# 12+). This provides a more natural mapping approach for immutable types.
@@ -1222,6 +1296,44 @@ public partial class Person { }
 ```
 
 **Why:** You can only map to concrete types (classes or structs), not interfaces or abstract classes.
+
+---
+
+### ❌ ATCMAP003: MapProperty Target Property Not Found
+
+**Error:** The target property specified in `[MapProperty("PropertyName")]` does not exist on the target type.
+
+**Example:**
+```csharp
+[MapTo(typeof(UserDto))]
+public partial class User
+{
+    public Guid Id { get; set; }
+
+    [MapProperty("NonExistentProperty")]  // ❌ UserDto doesn't have this property
+    public string Name { get; set; } = string.Empty;
+}
+
+public class UserDto
+{
+    public Guid Id { get; set; }
+    public string FullName { get; set; } = string.Empty;
+}
+```
+
+**Fix:**
+```csharp
+[MapTo(typeof(UserDto))]
+public partial class User
+{
+    public Guid Id { get; set; }
+
+    [MapProperty("FullName")]  // ✅ UserDto has this property
+    public string Name { get; set; } = string.Empty;
+}
+```
+
+**Why:** The generator validates at compile time that the target property exists to prevent runtime errors. This ensures type-safe mappings.
 
 ---
 

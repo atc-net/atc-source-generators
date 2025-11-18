@@ -18,6 +18,13 @@ public partial class Pet
     public string Name { get; set; } = string.Empty;
 
     /// <summary>
+    /// Gets or sets the pet's nickname (friendly name).
+    /// Maps to DisplayName in PetResponse for API responses.
+    /// </summary>
+    [MapProperty("DisplayName")]
+    public string NickName { get; set; } = string.Empty;
+
+    /// <summary>
     /// Gets or sets the pet's species (e.g., Dog, Cat, Bird).
     /// </summary>
     public string Species { get; set; } = string.Empty;

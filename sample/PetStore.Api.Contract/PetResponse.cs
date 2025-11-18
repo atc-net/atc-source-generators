@@ -16,6 +16,11 @@ public class PetResponse
     public string Name { get; set; } = string.Empty;
 
     /// <summary>
+    /// Gets or sets the pet's display name (friendly name for UI).
+    /// </summary>
+    public string DisplayName { get; set; } = string.Empty;
+
+    /// <summary>
     /// Gets or sets the pet's species (e.g., Dog, Cat, Bird).
     /// </summary>
     public string Species { get; set; } = string.Empty;

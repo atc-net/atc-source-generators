@@ -97,6 +97,11 @@ internal static class RuleIdentifierConstants
         /// ATCMAP002: Target type must be a class or struct.
         /// </summary>
         internal const string TargetTypeMustBeClassOrStruct = "ATCMAP002";
+
+        /// <summary>
+        /// ATCMAP003: MapProperty target property not found.
+        /// </summary>
+        internal const string MapPropertyTargetNotFound = "ATCMAP003";
     }
 
     /// <summary>

@@ -26,6 +26,11 @@ public class UserDto
     public string Email { get; set; } = string.Empty;
 
     /// <summary>
+    /// Gets or sets the user's display name (preferred name for UI).
+    /// </summary>
+    public string DisplayName { get; set; } = string.Empty;
+
+    /// <summary>
     /// Gets or sets the user's status.
     /// </summary>
     public UserStatusDto Status { get; set; }

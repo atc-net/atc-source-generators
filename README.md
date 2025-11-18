@@ -482,6 +482,7 @@ var dtos = users.Select(u => u.MapToUserDto()).ToList();
 - **🪆 Nested Object Mapping**: Automatically chains mappings for nested properties
 - **🔁 Multi-Layer Support**: Build Entity → Domain → DTO mapping chains effortlessly
 - **🚫 Property Exclusion**: Use `[MapIgnore]` attribute to exclude sensitive or internal properties from mapping (works on both source and target properties)
+- **🏷️ Custom Property Names**: Use `[MapProperty]` attribute to map properties with different names between source and target types
 - **⚡ Zero Runtime Cost**: All code generated at compile time
 - **🚀 Native AOT Compatible**: No reflection or runtime code generation - fully trimming-safe
 - **🛡️ Type-Safe**: Compile-time validation catches mapping errors before runtime

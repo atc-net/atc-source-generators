@@ -31,6 +31,11 @@ public class UserEntity
     public string Email { get; set; } = string.Empty;
 
     /// <summary>
+    /// Gets or sets the user's display name (preferred name for UI).
+    /// </summary>
+    public string DisplayName { get; set; } = string.Empty;
+
+    /// <summary>
     /// Gets or sets the user's status (stored as int in DB).
     /// </summary>
     public UserStatusEntity Status { get; set; }
