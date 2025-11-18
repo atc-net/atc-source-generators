@@ -188,5 +188,3 @@ public partial class ObjectMappingGeneratorTests
         Assert.Contains("FirstName = source.FirstName", output, StringComparison.Ordinal);
     }
 }
-
-

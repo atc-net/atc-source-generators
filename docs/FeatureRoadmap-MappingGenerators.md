@@ -1505,24 +1505,30 @@ public class UserDto
 ### 20. Base Class Configuration Inheritance
 
 **Priority**: 🟢 **Low** ⭐ *Requested by Mapperly users*
-**Status**: ❌ Not Implemented
+**Status**: ✅ **Implemented**
 
 **Description**: Automatically inherit mapping configurations from base classes to reduce duplication.
 
 **Example**:
 
 ```csharp
-[MapTo(typeof(EntityDto))]
 public abstract partial class Entity
 {
     public Guid Id { get; set; }
     public DateTime CreatedAt { get; set; }
 }
 
-// UserEntity should inherit mapping configuration for Id and CreatedAt
+// UserEntity automatically inherits Id and CreatedAt in the mapping
 [MapTo(typeof(UserDto))]
 public partial class UserEntity : Entity
 {
+    public string Name { get; set; } = string.Empty;
+}
+
+public class UserDto
+{
+    public Guid Id { get; set; }          // Mapped from Entity.Id
+    public DateTime CreatedAt { get; set; } // Mapped from Entity.CreatedAt
     public string Name { get; set; } = string.Empty;
 }
 ```
@@ -1532,6 +1538,8 @@ public partial class UserEntity : Entity
 - Reduce boilerplate in inheritance hierarchies
 - Maintain DRY principle
 - Common for entity base classes with audit fields
+- Supports multi-level inheritance (e.g., Entity → AuditableEntity → ConcreteEntity)
+- Works with all other mapping features (PropertyNameStrategy, Bidirectional, MapIgnore, etc.)
 
 ---
 

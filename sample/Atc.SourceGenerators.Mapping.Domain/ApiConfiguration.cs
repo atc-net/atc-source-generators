@@ -31,4 +31,3 @@ public partial class ApiConfiguration
     /// </summary>
     public int MaxRetryAttempts { get; set; }
 }
-
