@@ -56,20 +56,36 @@ Console.WriteLine($"   ✓ EnableConsole: {logging.EnableConsole}");
 Console.WriteLine($"   ✓ EnableFile: {logging.EnableFile}");
 Console.WriteLine($"   ✓ FilePath: {logging.FilePath ?? "(not set)"}");
 
+Console.WriteLine("\n4. Testing EmailOptions (Named Options - Multiple Instances):");
+Console.WriteLine("   - Named instances: \"Primary\", \"Secondary\", \"Fallback\"");
+Console.WriteLine("   - Demonstrates multiple configurations of the same options type");
+
+var emailSnapshot = serviceProvider.GetRequiredService<IOptionsSnapshot<Atc.SourceGenerators.OptionsBinding.Options.EmailOptions>>();
+
+Console.WriteLine("\n   Primary Email Server:");
+var primaryEmail = emailSnapshot.Get("Primary");
+Console.WriteLine($"   ✓ SmtpServer: {primaryEmail.SmtpServer}");
+Console.WriteLine($"   ✓ Port: {primaryEmail.Port}");
+Console.WriteLine($"   ✓ FromAddress: {primaryEmail.FromAddress}");
+Console.WriteLine($"   ✓ UseSsl: {primaryEmail.UseSsl}");
+Console.WriteLine($"   ✓ TimeoutSeconds: {primaryEmail.TimeoutSeconds}");
+
+Console.WriteLine("\n   Secondary Email Server:");
+var secondaryEmail = emailSnapshot.Get("Secondary");
+Console.WriteLine($"   ✓ SmtpServer: {secondaryEmail.SmtpServer}");
+Console.WriteLine($"   ✓ Port: {secondaryEmail.Port}");
+Console.WriteLine($"   ✓ FromAddress: {secondaryEmail.FromAddress}");
+
+Console.WriteLine("\n   Fallback Email Server:");
+var fallbackEmail = emailSnapshot.Get("Fallback");
+Console.WriteLine($"   ✓ SmtpServer: {fallbackEmail.SmtpServer}");
+Console.WriteLine($"   ✓ Port: {fallbackEmail.Port}");
+Console.WriteLine($"   ✓ FromAddress: {fallbackEmail.FromAddress}");
+Console.WriteLine($"   ✓ UseSsl: {fallbackEmail.UseSsl}");
+
 Console.WriteLine("\n--- Domain Project Options ---\n");
 
-Console.WriteLine("4. Testing EmailOptions (from Domain project):");
-Console.WriteLine("   - Section: \"Email\" (using const SectionName)");
-
-var emailOptions = serviceProvider.GetRequiredService<IOptions<EmailOptions>>();
-var email = emailOptions.Value;
-
-Console.WriteLine($"   ✓ FromAddress: {email.FromAddress}");
-Console.WriteLine($"   ✓ SmtpServer: {email.SmtpServer}");
-Console.WriteLine($"   ✓ SmtpPort: {email.SmtpPort}");
-Console.WriteLine($"   ✓ EnableSsl: {email.EnableSsl}");
-
-Console.WriteLine("\n5. Testing CacheOptions (from Domain project):");
+Console.WriteLine("5. Testing CacheOptions (from Domain project):");
 Console.WriteLine("   - Section: \"CacheOptions\" (auto-inferred, full class name)");
 
 var cacheOptions = serviceProvider.GetRequiredService<IOptions<CacheOptions>>();

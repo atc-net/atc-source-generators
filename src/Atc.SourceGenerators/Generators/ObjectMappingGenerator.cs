@@ -864,7 +864,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         bool requireSetter = false)
     {
         var properties = new List<IPropertySymbol>();
-        var propertyNames = new HashSet<string>();
+        var propertyNames = new HashSet<string>(StringComparer.Ordinal);
         var currentType = type;
 
         // Traverse the inheritance hierarchy from most derived to least derived

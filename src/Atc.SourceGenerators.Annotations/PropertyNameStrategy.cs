@@ -31,4 +31,3 @@ public enum PropertyNameStrategy
     /// </summary>
     KebabCase = 3,
 }
-

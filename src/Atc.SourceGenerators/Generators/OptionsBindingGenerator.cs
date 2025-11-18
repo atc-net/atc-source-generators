@@ -115,11 +115,8 @@ public class OptionsBindingGenerator : IIncrementalGenerator
                 continue;
             }
 
-            var optionsInfo = ExtractOptionsInfo(classSymbol, context);
-            if (optionsInfo is not null)
-            {
-                optionsToGenerate.Add(optionsInfo);
-            }
+            var optionsInfoList = ExtractAllOptionsInfo(classSymbol, context);
+            optionsToGenerate.AddRange(optionsInfoList);
         }
 
         if (optionsToGenerate.Count == 0)
@@ -142,10 +139,12 @@ public class OptionsBindingGenerator : IIncrementalGenerator
         }
     }
 
-    private static OptionsInfo? ExtractOptionsInfo(
+    private static List<OptionsInfo> ExtractAllOptionsInfo(
         INamedTypeSymbol classSymbol,
         SourceProductionContext context)
     {
+        var result = new List<OptionsInfo>();
+
         // Check if class is partial
         if (!classSymbol.DeclaringSyntaxReferences.Any(r => r.GetSyntax() is ClassDeclarationSyntax c &&
                                                             c.Modifiers.Any(SyntaxKind.PartialKeyword)))
@@ -155,18 +154,38 @@ public class OptionsBindingGenerator : IIncrementalGenerator
                     OptionsClassMustBePartialDescriptor,
                     classSymbol.Locations.First(),
                     classSymbol.Name));
-            return null;
+            return result;
         }
 
-        // Get the attribute
-        var attribute = classSymbol
+        // Get ALL attributes (support for AllowMultiple = true)
+        var attributes = classSymbol
             .GetAttributes()
-            .FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == FullAttributeName);
+            .Where(a => a.AttributeClass?.ToDisplayString() == FullAttributeName)
+            .ToList();
 
-        if (attribute is null)
+        if (attributes.Count == 0)
         {
-            return null;
+            return result;
         }
+
+        // Process each attribute separately
+        foreach (var attribute in attributes)
+        {
+            var optionsInfo = ExtractOptionsInfoFromAttribute(classSymbol, attribute, context);
+            if (optionsInfo is not null)
+            {
+                result.Add(optionsInfo);
+            }
+        }
+
+        return result;
+    }
+
+    private static OptionsInfo? ExtractOptionsInfoFromAttribute(
+        INamedTypeSymbol classSymbol,
+        AttributeData attribute,
+        SourceProductionContext context)
+    {
 
         // Extract section name with priority:
         // 1. Explicit constructor argument
@@ -221,6 +240,7 @@ public class OptionsBindingGenerator : IIncrementalGenerator
         var validateDataAnnotations = false;
         var lifetime = 0; // Singleton
         INamedTypeSymbol? validatorType = null;
+        string? name = null;
 
         foreach (var namedArg in attribute.NamedArguments)
         {
@@ -238,6 +258,9 @@ public class OptionsBindingGenerator : IIncrementalGenerator
                 case "Validator":
                     validatorType = namedArg.Value.Value as INamedTypeSymbol;
                     break;
+                case "Name":
+                    name = namedArg.Value.Value as string;
+                    break;
             }
         }
 
@@ -252,7 +275,8 @@ public class OptionsBindingGenerator : IIncrementalGenerator
             validateOnStart,
             validateDataAnnotations,
             lifetime,
-            validatorTypeName);
+            validatorTypeName,
+            name);
     }
 
     private static string InferSectionNameFromClassName(string className)
@@ -547,6 +571,7 @@ public static class OptionsBindingExtensions
     {
         var optionsType = $"global::{option.Namespace}.{option.ClassName}";
         var sectionName = option.SectionName;
+        var isNamed = !string.IsNullOrWhiteSpace(option.Name);
 
         // Add comment indicating which interface to inject based on lifetime
         var lifetimeComment = option.Lifetime switch
@@ -557,37 +582,53 @@ public static class OptionsBindingExtensions
             _ => "IOptions<T>",         // Default
         };
 
-        sb.AppendLineLf($"        // Configure {option.ClassName} - Inject using {lifetimeComment}");
-        sb.Append("        services.AddOptions<");
-        sb.Append(optionsType);
-        sb.AppendLineLf(">()");
-        sb.Append("            .Bind(configuration.GetSection(\"");
-        sb.Append(sectionName);
-        sb.Append("\"))");
-
-        if (option.ValidateDataAnnotations)
+        if (isNamed)
         {
-            sb.AppendLineLf();
-            sb.Append("            .ValidateDataAnnotations()");
-        }
-
-        if (option.ValidateOnStart)
-        {
-            sb.AppendLineLf();
-            sb.Append("            .ValidateOnStart()");
-        }
-
-        sb.AppendLineLf(";");
-
-        // Register custom validator if specified
-        if (!string.IsNullOrWhiteSpace(option.ValidatorType))
-        {
-            sb.AppendLineLf();
-            sb.Append("        services.AddSingleton<global::Microsoft.Extensions.Options.IValidateOptions<");
+            // Named options - use Configure<T>(name, ...) pattern
+            sb.AppendLineLf($"        // Configure {option.ClassName} (Named: \"{option.Name}\") - Inject using IOptionsSnapshot<T>.Get(\"{option.Name}\")");
+            sb.Append("        services.Configure<");
             sb.Append(optionsType);
-            sb.Append(">, ");
-            sb.Append(option.ValidatorType);
-            sb.AppendLineLf(">();");
+            sb.Append(">(\"");
+            sb.Append(option.Name);
+            sb.Append("\", configuration.GetSection(\"");
+            sb.Append(sectionName);
+            sb.AppendLineLf("\"));");
+        }
+        else
+        {
+            // Unnamed options - use AddOptions<T>() pattern
+            sb.AppendLineLf($"        // Configure {option.ClassName} - Inject using {lifetimeComment}");
+            sb.Append("        services.AddOptions<");
+            sb.Append(optionsType);
+            sb.AppendLineLf(">()");
+            sb.Append("            .Bind(configuration.GetSection(\"");
+            sb.Append(sectionName);
+            sb.Append("\"))");
+
+            if (option.ValidateDataAnnotations)
+            {
+                sb.AppendLineLf();
+                sb.Append("            .ValidateDataAnnotations()");
+            }
+
+            if (option.ValidateOnStart)
+            {
+                sb.AppendLineLf();
+                sb.Append("            .ValidateOnStart()");
+            }
+
+            sb.AppendLineLf(";");
+
+            // Register custom validator if specified (only for unnamed options)
+            if (!string.IsNullOrWhiteSpace(option.ValidatorType))
+            {
+                sb.AppendLineLf();
+                sb.Append("        services.AddSingleton<global::Microsoft.Extensions.Options.IValidateOptions<");
+                sb.Append(optionsType);
+                sb.Append(">, ");
+                sb.Append(option.ValidatorType);
+                sb.AppendLineLf(">();");
+            }
         }
 
         sb.AppendLineLf();
@@ -705,12 +746,13 @@ public static class OptionsBindingExtensions
                /// <item><description>Public const string Name in the class</description></item>
                /// <item><description>Auto-inferred from class name (uses full class name)</description></item>
                /// </list>
+               /// <para>Supports multiple named instances by applying the attribute multiple times with different Name values.</para>
                /// </summary>
                [global::System.CodeDom.Compiler.GeneratedCode("Atc.SourceGenerators.OptionsBinding", "1.0.0")]
                [global::System.ComponentModel.EditorBrowsable(global::System.ComponentModel.EditorBrowsableState.Never)]
                [global::System.Diagnostics.DebuggerNonUserCode]
                [global::System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
-               [global::System.AttributeUsage(global::System.AttributeTargets.Class, Inherited = false, AllowMultiple = false)]
+               [global::System.AttributeUsage(global::System.AttributeTargets.Class, Inherited = false, AllowMultiple = true)]
                public sealed class OptionsBindingAttribute : global::System.Attribute
                {
                    /// <summary>
@@ -759,6 +801,14 @@ public static class OptionsBindingExtensions
                    /// Default is null (no custom validator).
                    /// </summary>
                    public global::System.Type? Validator { get; set; }
+
+                   /// <summary>
+                   /// Gets or sets the name for named options instances.
+                   /// When specified, enables multiple configurations of the same options type with different names.
+                   /// Use <c>IOptionsSnapshot&lt;T&gt;.Get(name)</c> to retrieve specific named instances.
+                   /// Default is null (unnamed options).
+                   /// </summary>
+                   public string? Name { get; set; }
                }
            }
            """;

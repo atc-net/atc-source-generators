@@ -8,4 +8,5 @@ internal sealed record OptionsInfo(
     bool ValidateOnStart,
     bool ValidateDataAnnotations,
     int Lifetime,
-    string? ValidatorType);
+    string? ValidatorType,
+    string? Name);

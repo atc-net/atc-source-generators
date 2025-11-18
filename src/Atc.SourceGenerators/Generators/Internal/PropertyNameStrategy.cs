@@ -11,4 +11,3 @@ internal enum PropertyNameStrategy
     SnakeCase = 2,
     KebabCase = 3,
 }
-

@@ -106,7 +106,7 @@ graph TB
 
 ### Project References (Clean Architecture)
 
-```
+```text
 PetStore.Api
 ├── PetStore.Domain
 │   ├── PetStore.DataAccess (NO Api.Contract reference)
