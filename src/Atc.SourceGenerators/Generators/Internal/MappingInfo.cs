@@ -7,4 +7,5 @@ internal sealed record MappingInfo(
     bool Bidirectional,
     bool EnableFlattening,
     IMethodSymbol? Constructor,
-    List<string> ConstructorParameterNames);
+    List<string> ConstructorParameterNames,
+    List<DerivedTypeMapping> DerivedTypeMappings);

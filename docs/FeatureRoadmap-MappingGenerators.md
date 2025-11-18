@@ -593,7 +593,7 @@ public partial class UserRegistration
 
 **Priority**: 🔴 **High** ⭐ *Highly requested by Mapperly users*
 **Generator**: ObjectMappingGenerator
-**Status**: ❌ Not Implemented
+**Status**: ✅ **Implemented** (v1.0 - January 2025)
 
 **Description**: Support mapping of derived types and interfaces using type checks and pattern matching.
 
@@ -612,28 +612,53 @@ public class Dog : Animal { public string Breed { get; set; } = ""; }
 public class Cat : Animal { public int Lives { get; set; } }
 
 [MapTo(typeof(Animal))]
-[MapDerivedType(typeof(DogEntity), typeof(Dog))]
-[MapDerivedType(typeof(CatEntity), typeof(Cat))]
-public partial class AnimalEntity { }
+[MapDerivedType(typeof(Dog), typeof(DogDto))]
+[MapDerivedType(typeof(Cat), typeof(CatDto))]
+public abstract partial class Animal { }
+
+[MapTo(typeof(DogDto))]
+public partial class Dog : Animal { }
+
+[MapTo(typeof(CatDto))]
+public partial class Cat : Animal { }
 
 // Generated code:
-public static Animal MapToAnimal(this AnimalEntity source)
+public static AnimalDto MapToAnimalDto(this Animal source)
 {
+    if (source is null)
+    {
+        return default!;
+    }
+
     return source switch
     {
-        DogEntity dog => dog.MapToDog(),
-        CatEntity cat => cat.MapToCat(),
-        _ => throw new ArgumentException("Unknown type")
+        Dog dog => dog.MapToDogDto(),
+        Cat cat => cat.MapToCatDto(),
+        _ => throw new ArgumentException($"Unknown derived type: {source.GetType().Name}")
     };
 }
 ```
 
-**Implementation Notes**:
+**Implementation Details**:
 
-- Create `[MapDerivedType(Type sourceType, Type targetType)]` attribute
-- Generate switch expression with type patterns
-- Require mapping methods to exist for each derived type
-- Consider inheritance hierarchies
+✅ **Implemented Features**:
+- `[MapDerivedType(Type sourceType, Type targetType)]` attribute
+- Switch expression generation with type pattern matching
+- Null safety checks for source parameter
+- Automatic delegation to derived type mapping methods
+- Descriptive exception for unmapped derived types
+- Support for multiple derived type mappings via `AllowMultiple = true`
+
+**Testing**: 3 unit tests added
+- `Generator_Should_Generate_Polymorphic_Mapping_With_Switch_Expression` - Basic Dog/Cat example
+- `Generator_Should_Handle_Single_Derived_Type_Mapping` - Single derived type
+- `Generator_Should_Support_Multiple_Polymorphic_Mappings` - Three derived types (Circle/Square/Triangle)
+
+**Documentation**: See [Object Mapping - Polymorphic Type Mapping](generators/ObjectMapping.md#-polymorphic--derived-type-mapping)
+
+**Sample Code**:
+- `Atc.SourceGenerators.Mapping`: `Animal` → `AnimalDto` with `Dog`/`Cat` derived types
+- `PetStore.Api`: `Notification` → `NotificationDto` with `EmailNotification`/`SmsNotification` derived types
 
 ---
 

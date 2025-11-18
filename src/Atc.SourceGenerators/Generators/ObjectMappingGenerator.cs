@@ -55,6 +55,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
             ctx.AddSource("MapToAttribute.g.cs", SourceText.From(GenerateAttributeSource(), Encoding.UTF8));
             ctx.AddSource("MapIgnoreAttribute.g.cs", SourceText.From(GenerateMapIgnoreAttributeSource(), Encoding.UTF8));
             ctx.AddSource("MapPropertyAttribute.g.cs", SourceText.From(GenerateMapPropertyAttributeSource(), Encoding.UTF8));
+            ctx.AddSource("MapDerivedTypeAttribute.g.cs", SourceText.From(GenerateMapDerivedTypeAttributeSource(), Encoding.UTF8));
         });
 
         // Find classes with MapTo attribute
@@ -214,6 +215,9 @@ public class ObjectMappingGenerator : IIncrementalGenerator
             // Find best matching constructor
             var (constructor, constructorParameterNames) = FindBestConstructor(classSymbol, targetType);
 
+            // Extract derived type mappings from MapDerivedType attributes
+            var derivedTypeMappings = GetDerivedTypeMappings(classSymbol);
+
             mappings.Add(new MappingInfo(
                 SourceType: classSymbol,
                 TargetType: targetType,
@@ -221,7 +225,8 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                 Bidirectional: bidirectional,
                 EnableFlattening: enableFlattening,
                 Constructor: constructor,
-                ConstructorParameterNames: constructorParameterNames));
+                ConstructorParameterNames: constructorParameterNames,
+                DerivedTypeMappings: derivedTypeMappings));
         }
 
         return mappings.Count > 0 ? mappings : null;
@@ -566,6 +571,43 @@ public class ObjectMappingGenerator : IIncrementalGenerator
            "uint" or "ulong" or "ushort" or
            "decimal" or "double" or "float";
 
+    private static List<DerivedTypeMapping> GetDerivedTypeMappings(
+        INamedTypeSymbol sourceType)
+    {
+        var derivedTypeMappings = new List<DerivedTypeMapping>();
+
+        // Get all MapDerivedType attributes from the source type
+        var mapDerivedTypeAttributes = sourceType
+            .GetAttributes()
+            .Where(attr => attr.AttributeClass?.Name == "MapDerivedTypeAttribute" &&
+                           attr.AttributeClass.ContainingNamespace.ToDisplayString() == "Atc.SourceGenerators.Annotations")
+            .ToList();
+
+        foreach (var attr in mapDerivedTypeAttributes)
+        {
+            if (attr.ConstructorArguments.Length != 2)
+            {
+                continue;
+            }
+
+            // Extract source derived type and target derived type from attribute arguments
+            var sourceDerivedTypeArg = attr.ConstructorArguments[0];
+            var targetDerivedTypeArg = attr.ConstructorArguments[1];
+
+            if (sourceDerivedTypeArg.Value is not INamedTypeSymbol sourceDerivedType ||
+                targetDerivedTypeArg.Value is not INamedTypeSymbol targetDerivedType)
+            {
+                continue;
+            }
+
+            derivedTypeMappings.Add(new DerivedTypeMapping(
+                SourceDerivedType: sourceDerivedType,
+                TargetDerivedType: targetDerivedType));
+        }
+
+        return derivedTypeMappings;
+    }
+
     private static void ValidateRequiredProperties(
         INamedTypeSymbol targetType,
         INamedTypeSymbol sourceType,
@@ -843,7 +885,8 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                     Bidirectional: false, // Don't generate reverse of reverse
                     EnableFlattening: mapping.EnableFlattening,
                     Constructor: reverseConstructor,
-                    ConstructorParameterNames: reverseConstructorParams);
+                    ConstructorParameterNames: reverseConstructorParams,
+                    DerivedTypeMappings: new List<DerivedTypeMapping>()); // No derived type mappings for reverse
 
                 GenerateMappingMethod(sb, reverseMapping);
             }
@@ -871,6 +914,15 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         sb.AppendLineLf($"            return default!;");
         sb.AppendLineLf("        }");
         sb.AppendLineLf();
+
+        // Check if this is a polymorphic mapping
+        if (mapping.DerivedTypeMappings.Count > 0)
+        {
+            GeneratePolymorphicMapping(sb, mapping);
+            sb.AppendLineLf("    }");
+            sb.AppendLineLf();
+            return;
+        }
 
         // Check if we should use constructor-based initialization
         var useConstructor = mapping.Constructor is not null && mapping.ConstructorParameterNames.Count > 0;
@@ -942,6 +994,36 @@ public class ObjectMappingGenerator : IIncrementalGenerator
 
         sb.AppendLineLf("    }");
         sb.AppendLineLf();
+    }
+
+    private static void GeneratePolymorphicMapping(
+        StringBuilder sb,
+        MappingInfo mapping)
+    {
+        // Add null check
+        sb.AppendLineLf("        if (source is null)");
+        sb.AppendLineLf("        {");
+        sb.AppendLineLf("            return default!;");
+        sb.AppendLineLf("        }");
+        sb.AppendLineLf();
+
+        // Generate switch expression
+        sb.AppendLineLf("        return source switch");
+        sb.AppendLineLf("        {");
+
+        // Add case for each derived type mapping
+        foreach (var derivedMapping in mapping.DerivedTypeMappings)
+        {
+            var sourceDerivedTypeName = derivedMapping.SourceDerivedType.ToDisplayString();
+            var targetDerivedTypeName = derivedMapping.TargetDerivedType.Name;
+            var variableName = char.ToLowerInvariant(derivedMapping.SourceDerivedType.Name[0]) + derivedMapping.SourceDerivedType.Name.Substring(1);
+
+            sb.AppendLineLf($"            {sourceDerivedTypeName} {variableName} => {variableName}.MapTo{targetDerivedTypeName}(),");
+        }
+
+        // Add default case
+        sb.AppendLineLf("            _ => throw new global::System.ArgumentException($\"Unknown derived type: {source.GetType().Name}\")");
+        sb.AppendLineLf("        };");
     }
 
     private static void GeneratePropertyInitializers(
@@ -1210,6 +1292,48 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                    /// Gets the name of the target property to map to.
                    /// </summary>
                    public string TargetPropertyName { get; }
+               }
+           }
+           """;
+
+    private static string GenerateMapDerivedTypeAttributeSource()
+        => """
+           // <auto-generated/>
+           #nullable enable
+
+           namespace Atc.SourceGenerators.Annotations
+           {
+               /// <summary>
+               /// Specifies a derived type mapping for polymorphic object mapping.
+               /// Used in conjunction with <see cref="MapToAttribute"/> to define how derived types should be mapped.
+               /// </summary>
+               [global::System.CodeDom.Compiler.GeneratedCode("Atc.SourceGenerators.ObjectMapping", "1.0.0")]
+               [global::System.ComponentModel.EditorBrowsable(global::System.ComponentModel.EditorBrowsableState.Never)]
+               [global::System.Diagnostics.DebuggerNonUserCode]
+               [global::System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
+               [global::System.AttributeUsage(global::System.AttributeTargets.Class, Inherited = false, AllowMultiple = true)]
+               public sealed class MapDerivedTypeAttribute : global::System.Attribute
+               {
+                   /// <summary>
+                   /// Initializes a new instance of the <see cref="MapDerivedTypeAttribute"/> class.
+                   /// </summary>
+                   /// <param name="sourceType">The source derived type to match.</param>
+                   /// <param name="targetType">The target derived type to map to.</param>
+                   public MapDerivedTypeAttribute(global::System.Type sourceType, global::System.Type targetType)
+                   {
+                       SourceType = sourceType;
+                       TargetType = targetType;
+                   }
+
+                   /// <summary>
+                   /// Gets the source derived type to match during polymorphic mapping.
+                   /// </summary>
+                   public global::System.Type SourceType { get; }
+
+                   /// <summary>
+                   /// Gets the target derived type to map to when the source type matches.
+                   /// </summary>
+                   public global::System.Type TargetType { get; }
                }
            }
            """;

@@ -139,4 +139,42 @@ app
     .WithDescription("Demonstrates required property validation where target DTO has 'required' properties (Email, FullName). The generator ensures at compile-time that all required properties are mapped.")
     .Produces<object>(StatusCodes.Status200OK);
 
+app
+    .MapGet("/animals", () =>
+    {
+        // ✨ Demonstrate polymorphic mapping: Domain → DTO
+        // Shows automatic type pattern matching where base class maps to derived types
+        var animals = new List<Animal>
+        {
+            new Dog
+            {
+                Id = 1,
+                Name = "Buddy",
+                Breed = "Golden Retriever",
+            },
+            new Cat
+            {
+                Id = 2,
+                Name = "Whiskers",
+                Lives = 9,
+            },
+            new Dog
+            {
+                Id = 3,
+                Name = "Max",
+                Breed = "German Shepherd",
+            },
+        };
+
+        // The generated MapToAnimalDto() uses a switch expression to map each derived type
+        var data = animals
+            .Select(a => a.MapToAnimalDto())
+            .ToList();
+        return Results.Ok(data);
+    })
+    .WithName("GetAllAnimals")
+    .WithSummary("Get all animals with polymorphic mapping")
+    .WithDescription("Demonstrates polymorphic mapping where abstract Animal base class maps to derived Dog/Cat types using type pattern matching.")
+    .Produces<List<AnimalDto>>(StatusCodes.Status200OK);
+
 await app.RunAsync();
