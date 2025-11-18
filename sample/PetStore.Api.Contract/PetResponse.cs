@@ -49,4 +49,9 @@ public class PetResponse
     /// Gets or sets who last modified the pet.
     /// </summary>
     public string? ModifiedBy { get; set; }
+
+    /// <summary>
+    /// Gets or sets the pet's offspring/children.
+    /// </summary>
+    public IReadOnlyList<PetResponse> Children { get; set; } = Array.Empty<PetResponse>();
 }

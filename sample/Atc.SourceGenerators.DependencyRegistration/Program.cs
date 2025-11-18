@@ -1,3 +1,6 @@
+// ReSharper disable CommentTypo
+// ReSharper disable StringLiteralTypo
+// ReSharper disable UnusedVariable
 #pragma warning disable CA1031
 
 Console.WriteLine("=== Atc.SourceGenerators Sample ===\n");
@@ -108,7 +111,7 @@ using (var scope = serviceProvider.CreateScope())
     await squareProcessor.ProcessPaymentAsync(50.00m, "GBP");
 
     // Verify different instances
-    Console.WriteLine($"\nDifferent processor types:");
+    Console.WriteLine("\nDifferent processor types:");
     Console.WriteLine($"  Stripe != PayPal: {stripeProcessor.GetType() != paypalProcessor.GetType()}");
     Console.WriteLine($"  PayPal != Square: {paypalProcessor.GetType() != squareProcessor.GetType()}");
 }
@@ -170,7 +173,7 @@ Console.WriteLine("Example - Creating a new service collection with runtime type
 var filteredServices = new ServiceCollection();
 filteredServices.AddDependencyRegistrationsFromDependencyRegistration(
     configuration: configuration,
-    excludedTypes: new[] { typeof(CacheService) });
+    excludedTypes: [typeof(CacheService)]);
 var filteredProvider = filteredServices.BuildServiceProvider();
 
 try
@@ -187,7 +190,7 @@ catch (InvalidOperationException)
 var filteredServices2 = new ServiceCollection();
 filteredServices2.AddDependencyRegistrationsFromDependencyRegistration(
     configuration: configuration,
-    excludedNamespaces: new[] { "Atc.SourceGenerators.DependencyRegistration.Services.Internal" });
+    excludedNamespaces: ["Atc.SourceGenerators.DependencyRegistration.Services.Internal"]);
 var filteredProvider2 = filteredServices2.BuildServiceProvider();
 
 try
@@ -204,7 +207,7 @@ catch
 var filteredServices3 = new ServiceCollection();
 filteredServices3.AddDependencyRegistrationsFromDependencyRegistration(
     configuration: configuration,
-    excludedPatterns: new[] { "*Logger*" });
+    excludedPatterns: ["*Logger*"]);
 var filteredProvider3 = filteredServices3.BuildServiceProvider();
 
 try
@@ -278,7 +281,7 @@ using (var scope = serviceProvider.CreateScope())
     Console.WriteLine("  - RedisCache: [Registration(As = typeof(ICache), Condition = \"Features:UseRedisCache\")]");
     Console.WriteLine("  - MemoryCache: [Registration(As = typeof(ICache), Condition = \"!Features:UseRedisCache\")]");
     Console.WriteLine($"  When Features:UseRedisCache = true → {cache.ProviderName} is registered");
-    Console.WriteLine($"  When Features:UseRedisCache = false → Memory Cache would be registered");
+    Console.WriteLine("  When Features:UseRedisCache = false → Memory Cache would be registered");
 }
 
 Console.WriteLine("\n14. Conditional Registration with Premium Features:");

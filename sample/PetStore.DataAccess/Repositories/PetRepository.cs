@@ -1,3 +1,4 @@
+// ReSharper disable ArrangeObjectCreationWhenTypeEvident
 // ReSharper disable RedundantArgumentDefaultValue
 namespace PetStore.DataAccess.Repositories;
 
@@ -29,7 +30,7 @@ public class PetRepository : IPetRepository
                 Species = "Dog",
                 Breed = "Golden Retriever",
                 Age = 3,
-                Status = Entities.PetStatusEntity.Available,
+                Status = PetStatusEntity.Available,
                 CreatedAt = DateTimeOffset.UtcNow.AddDays(-30),
             },
             [pet2Id] = new PetEntity
@@ -39,7 +40,7 @@ public class PetRepository : IPetRepository
                 Species = "Cat",
                 Breed = "Siamese",
                 Age = 2,
-                Status = Entities.PetStatusEntity.Adopted,
+                Status = PetStatusEntity.Adopted,
                 CreatedAt = DateTimeOffset.UtcNow.AddDays(-45),
             },
             [pet3Id] = new PetEntity
@@ -49,7 +50,7 @@ public class PetRepository : IPetRepository
                 Species = "Dog",
                 Breed = "German Shepherd",
                 Age = 5,
-                Status = Entities.PetStatusEntity.Pending,
+                Status = PetStatusEntity.Pending,
                 CreatedAt = DateTimeOffset.UtcNow.AddDays(-15),
             },
             [pet4Id] = new PetEntity
@@ -59,7 +60,7 @@ public class PetRepository : IPetRepository
                 Species = "Cat",
                 Breed = "Maine Coon",
                 Age = 1,
-                Status = Entities.PetStatusEntity.Available,
+                Status = PetStatusEntity.Available,
                 CreatedAt = DateTimeOffset.UtcNow.AddDays(-7),
             },
         };
@@ -71,9 +72,7 @@ public class PetRepository : IPetRepository
     /// <param name="id">The pet ID.</param>
     /// <returns>The pet domain model, or null if not found.</returns>
     public PetEntity? GetById(Guid id)
-        => !pets.TryGetValue(id, out var entity)
-            ? null
-            : entity;
+        => pets.GetValueOrDefault(id);
 
     /// <summary>
     /// Gets all pets.
@@ -87,7 +86,7 @@ public class PetRepository : IPetRepository
     /// </summary>
     /// <param name="status">The pet status.</param>
     /// <returns>Collection of pets with the specified status.</returns>
-    public IEnumerable<PetEntity> GetByStatus(Entities.PetStatusEntity status)
+    public IEnumerable<PetEntity> GetByStatus(PetStatusEntity status)
         => pets.Values
             .Where(e => e.Status == status);
 

@@ -56,6 +56,7 @@ dotnet_diagnostic.CA1303.severity = none            #
 dotnet_diagnostic.CA1716.severity = none            # Rename virtual/interface member
 dotnet_diagnostic.CA1848.severity = none            # For improved performance
 dotnet_diagnostic.CA1819.severity = none            # Properties should not return arrays
+dotnet_diagnostic.CA2227.severity = none            # Change 'Children' to be read-only by removing the property setter
 
 dotnet_diagnostic.MA0084.severity = none            # Local variable 'smtpHost' should not hide field
 

@@ -24,6 +24,7 @@ Automatically generate type-safe object-to-object mapping code using attributes.
 - [🏗️ Advanced Scenarios](#️-advanced-scenarios)
   - [🔄 Enum Conversion](#-enum-conversion)
   - [🪆 Nested Object Mapping](#-nested-object-mapping)
+  - [📦 Collection Mapping](#-collection-mapping)
   - [🔁 Multi-Layer Mapping](#-multi-layer-mapping)
 - [⚙️ MapToAttribute Parameters](#️-maptoattribute-parameters)
 - [🛡️ Diagnostics](#️-diagnostics)
@@ -800,6 +801,84 @@ public static PersonDto MapToPersonDto(this Person source)
     };
 }
 ```
+
+### 📦 Collection Mapping
+
+The generator automatically maps collections using LINQ `.Select()` and generates appropriate conversion methods for different collection types.
+
+**Supported Collection Types:**
+- `List<T>` / `IList<T>`
+- `IEnumerable<T>`
+- `ICollection<T>` / `IReadOnlyCollection<T>`
+- `IReadOnlyList<T>`
+- `T[]` (arrays)
+- `Collection<T>` / `ReadOnlyCollection<T>`
+
+```csharp
+[MapTo(typeof(TagDto))]
+public partial class Tag
+{
+    public string Name { get; set; } = string.Empty;
+    public string Color { get; set; } = string.Empty;
+}
+
+public class TagDto
+{
+    public string Name { get; set; } = string.Empty;
+    public string Color { get; set; } = string.Empty;
+}
+
+[MapTo(typeof(PostDto))]
+public partial class Post
+{
+    public string Title { get; set; } = string.Empty;
+    public IList<Tag> Tags { get; set; } = new List<Tag>();
+}
+
+public class PostDto
+{
+    public string Title { get; set; } = string.Empty;
+    public IReadOnlyList<TagDto> Tags { get; set; } = Array.Empty<TagDto>();
+}
+```
+
+**Generated code:**
+```csharp
+public static PostDto MapToPostDto(this Post source)
+{
+    if (source is null)
+    {
+        return default!;
+    }
+
+    return new PostDto
+    {
+        Title = source.Title,
+        // ✨ Automatic collection mapping with element conversion
+        Tags = source.Tags?.Select(x => x.MapToTagDto()).ToList()!
+    };
+}
+```
+
+**Collection Conversion Rules:**
+- **`List<T>`, `IList<T>`, `IEnumerable<T>`, `ICollection<T>`, `IReadOnlyList<T>`, `IReadOnlyCollection<T>`** → Uses `.ToList()`
+- **`T[]` (arrays)** → Uses `.ToArray()`
+- **`Collection<T>`** → Uses `new Collection<T>(source.Items?.Select(...).ToList()!)`
+- **`ReadOnlyCollection<T>`** → Uses `new ReadOnlyCollection<T>(source.Items?.Select(...).ToList()!)`
+
+**Multi-Layer Collection Example:**
+
+See the PetStore.Api sample which demonstrates collection mapping across 3 layers:
+
+```
+PetEntity (DataAccess)    → ICollection<PetEntity> Children
+    ↓ .MapToPet()
+Pet (Domain)              → IList<Pet> Children
+    ↓ .MapToPetResponse()
+PetResponse (API)         → IReadOnlyList<PetResponse> Children
+```
+
+Each layer automatically converts collections while preserving the element mappings.
 
 ### 🔁 Multi-Layer Mapping
 

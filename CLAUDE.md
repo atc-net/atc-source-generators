@@ -349,11 +349,16 @@ services.AddOptionsFromDomain(configuration, "DataAccess", "Infrastructure");
 - **Smart enum conversion**:
   - Uses EnumMapping extension methods when enums have `[MapTo]` attributes (safe, with special case handling)
   - Falls back to simple casts for enums without `[MapTo]` attributes
+- **Collection mapping support** - Automatically maps collections with LINQ `.Select()`:
+  - Supports `List<T>`, `IList<T>`, `IEnumerable<T>`, `ICollection<T>`, `IReadOnlyList<T>`, `IReadOnlyCollection<T>`, `T[]`
+  - Generates appropriate `.ToList()`, `.ToArray()`, or collection constructor calls
+  - Automatically chains element mappings (e.g., `source.Items?.Select(x => x.MapToItemDto()).ToList()!`)
 - Nested object mapping (automatically chains mappings)
 - Null safety (null checks for nullable properties)
 - Multi-layer support (Entity → Domain → DTO chains)
 - **Bidirectional mapping support** - Generate both forward and reverse mappings with `Bidirectional = true`
-- Requires classes to be declared `partial`
+- **Record support** - Works with classes, records, and structs
+- Requires types to be declared `partial`
 
 **Generated Code Pattern:**
 ```csharp
@@ -392,8 +397,13 @@ public static UserDto MapToUserDto(this User source)
    - If source enum has `[MapTo(typeof(TargetEnum))]`, uses `.MapToTargetEnum()` extension method (safe)
    - If target enum has `[MapTo(typeof(SourceEnum), Bidirectional = true)]`, uses reverse mapping method (safe)
    - Otherwise, falls back to `(TargetEnum)source.Enum` cast (less safe)
-3. **Nested Objects**: If a property type has a `MapToXxx()` method, it's used automatically
-4. **Null Safety**: Nullable properties use `?.` and `!` for proper null handling
+3. **Collection Mapping**: If both source and target properties are collections:
+   - Extracts element types and generates `.Select(x => x.MapToXxx())` code
+   - Uses `.ToList()` for most collection types (List, IEnumerable, ICollection, IList, IReadOnlyList)
+   - Uses `.ToArray()` for array types
+   - Uses collection constructors for `Collection<T>` and `ReadOnlyCollection<T>`
+4. **Nested Objects**: If a property type has a `MapToXxx()` method, it's used automatically
+5. **Null Safety**: Nullable properties use `?.` and `!` for proper null handling
 
 **3-Layer Architecture Support:**
 ```

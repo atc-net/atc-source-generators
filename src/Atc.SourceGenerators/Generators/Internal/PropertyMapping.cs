@@ -5,4 +5,7 @@ internal sealed record PropertyMapping(
     IPropertySymbol TargetProperty,
     bool RequiresConversion,
     bool IsNested,
-    bool HasEnumMapping);
+    bool HasEnumMapping,
+    bool IsCollection,
+    ITypeSymbol? CollectionElementType,
+    string? CollectionTargetType);

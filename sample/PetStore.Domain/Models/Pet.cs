@@ -51,4 +51,9 @@ public partial class Pet
     /// Gets or sets who last modified the pet.
     /// </summary>
     public string? ModifiedBy { get; set; }
+
+    /// <summary>
+    /// Gets or sets the pet's offspring/children.
+    /// </summary>
+    public IList<Pet> Children { get; set; } = new List<Pet>();
 }
