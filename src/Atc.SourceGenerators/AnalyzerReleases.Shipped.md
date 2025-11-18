@@ -23,5 +23,6 @@ ATCOPT003 | OptionsBinding | Error | Const section name cannot be null or empty
 ATCMAP001 | ObjectMapping | Error | Mapping class must be partial
 ATCMAP002 | ObjectMapping | Error | Target type must be a class or struct
 ATCMAP003 | ObjectMapping | Error | MapProperty target property not found
+ATCMAP004 | ObjectMapping | Warning | Required property on target type has no mapping
 ATCENUM001 | EnumMapping | Error | Target type must be an enum
 ATCENUM002 | EnumMapping | Warning | Source enum value has no matching target value

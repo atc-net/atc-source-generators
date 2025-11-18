@@ -518,7 +518,7 @@ Success = source.Success.ToString()
 
 **Priority**: 🟡 **Medium**
 **Generator**: ObjectMappingGenerator
-**Status**: ❌ Not Implemented
+**Status**: ✅ **Implemented** (v1.1 - January 2025)
 
 **Description**: Validate at compile time that all required properties on the target type are mapped.
 
@@ -528,32 +528,64 @@ Success = source.Success.ToString()
 **Example**:
 
 ```csharp
-[MapTo(typeof(UserDto))]
-public partial class User
+// ❌ This will generate ATCMAP004 warning at compile time
+[MapTo(typeof(UserRegistrationDto))]
+public partial class UserRegistration
 {
     public Guid Id { get; set; }
-    public string Name { get; set; } = string.Empty;
-    // Missing: Email property
+    public string FullName { get; set; } = string.Empty;
+    // Missing: Email property (required in target)
 }
 
-public class UserDto
+public class UserRegistrationDto
 {
     public Guid Id { get; set; }
-    public string Name { get; set; } = string.Empty;
-
-    // This property is required but not mapped - should generate warning/error
-    public required string Email { get; set; }
+    public required string Email { get; set; }    // ⚠️ Required but not mapped
+    public required string FullName { get; set; }
 }
 
-// Diagnostic: Warning ATCMAP003: Required property 'Email' on target type 'UserDto' has no mapping
+// Diagnostic: Warning ATCMAP004: Required property 'Email' on target type 'UserRegistrationDto' has no mapping from source type 'UserRegistration'
+
+// ✅ Correct implementation - all required properties mapped
+[MapTo(typeof(UserRegistrationDto))]
+public partial class UserRegistration
+{
+    public Guid Id { get; set; }
+    public string Email { get; set; } = string.Empty;     // ✅ Required property mapped
+    public string FullName { get; set; } = string.Empty;   // ✅ Required property mapped
+}
 ```
 
-**Implementation Notes**:
+**Implementation Details**:
 
-- Detect `required` keyword on target properties (C# 11+)
-- Generate diagnostic if no mapping exists for required property
-- Severity: Warning (can be elevated to error by user)
-- Consider all target properties as "recommended to map" with diagnostics
+**Features**:
+- Detects `required` keyword on target properties (C# 11+)
+- Generates **ATCMAP004** diagnostic (Warning severity) if required property has no mapping
+- Validates during compilation - catches missing mappings before runtime
+- Warning can be elevated to error via `.editorconfig` or project settings
+- Ignores properties marked with `[MapIgnore]` attribute
+
+**Diagnostic**: `ATCMAP004` - Required property on target type has no mapping
+
+**Severity**: Warning (configurable to Error)
+
+**How It Works**:
+1. After property mappings are determined, validator checks all target properties
+2. For each target property marked with `required` keyword:
+   - Check if it appears in the property mappings list
+   - If not mapped, report ATCMAP004 diagnostic with property name, target type, and source type
+
+**Testing**: 4 unit tests added
+- `Generator_Should_Generate_Warning_For_Missing_Required_Property` - Single missing required property
+- `Generator_Should_Not_Generate_Warning_When_All_Required_Properties_Are_Mapped` - All required properties present
+- `Generator_Should_Generate_Warning_For_Multiple_Missing_Required_Properties` - Multiple missing required properties
+- `Generator_Should_Not_Generate_Warning_For_Non_Required_Properties` - Non-required properties can be omitted
+
+**Documentation**: See [Object Mapping - Required Property Validation](generators/ObjectMapping.md#-required-property-validation)
+
+**Sample Code**:
+- `Atc.SourceGenerators.Mapping`: `UserRegistration` → `UserRegistrationDto` (lines in Program.cs)
+- `PetStore.Api`: `Pet` → `UpdatePetRequest` with required Name and Species properties
 
 ---
 

@@ -120,4 +120,23 @@ app
     .WithDescription("Demonstrates built-in type conversion where Guid → string, DateTimeOffset → string (ISO 8601), int → string, bool → string")
     .Produces<List<UserEventDto>>(StatusCodes.Status200OK);
 
+app
+    .MapPost("/register", (UserRegistration registration) =>
+    {
+        // ✨ Use generated mapping with required property validation: Domain → DTO
+        // UserRegistrationDto has required properties (Email, FullName)
+        // The generator validated at compile-time that all required properties are mapped
+        // If UserRegistration was missing Email or FullName, you would get ATCMAP004 warning
+        var data = registration.MapToUserRegistrationDto();
+        return Results.Ok(new
+        {
+            Message = "Registration successful!",
+            Data = data,
+        });
+    })
+    .WithName("RegisterUser")
+    .WithSummary("Register a new user with required property validation")
+    .WithDescription("Demonstrates required property validation where target DTO has 'required' properties (Email, FullName). The generator ensures at compile-time that all required properties are mapped.")
+    .Produces<object>(StatusCodes.Status200OK);
+
 await app.RunAsync();

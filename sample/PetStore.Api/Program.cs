@@ -136,6 +136,38 @@ app
     .WithName("CreatePet")
     .Produces<PetResponse>(StatusCodes.Status201Created);
 
+app
+    .MapPut("/pets/{id:guid}", (Guid id, [FromBody] UpdatePetRequest request, IPetService petService) =>
+    {
+        var existingPet = petService.GetById(id);
+        if (existingPet is null)
+        {
+            return Results.NotFound(new { Message = $"Pet with ID {id} not found." });
+        }
+
+        // ✨ Demonstrate required property validation with UpdatePetRequest
+        // UpdatePetRequest has required properties (Name, Species)
+        // The generator validated at compile-time that Pet domain model has all required properties
+        // If Pet was missing Name or Species, you would get ATCMAP004 warning at build time
+
+        // Update pet properties from request
+        existingPet.Name = request.Name;
+        existingPet.Species = request.Species;
+        if (request.Age.HasValue)
+        {
+            existingPet.Age = request.Age.Value;
+        }
+
+        // Return updated pet
+        var response = existingPet.MapToPetResponse();
+        return Results.Ok(response);
+    })
+    .WithName("UpdatePet")
+    .WithSummary("Update a pet with required property validation")
+    .WithDescription("Demonstrates required property validation where UpdatePetRequest has 'required' properties (Name, Species). The generator ensures at compile-time that all required properties can be mapped from the Pet domain model.")
+    .Produces<PetResponse>(StatusCodes.Status200OK)
+    .Produces(StatusCodes.Status404NotFound);
+
 // Demonstrate instance registration
 app
     .MapGet("/config", (IApiConfiguration config) =>
