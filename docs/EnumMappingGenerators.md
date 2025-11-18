@@ -3,6 +3,7 @@
 Automatically generate type-safe enum-to-enum mapping code using attributes. The generator creates efficient switch expression mappings at compile time with intelligent name matching and special case handling, eliminating manual enum conversions and reducing errors.
 
 **Key Benefits:**
+
 - 🎯 **Zero runtime cost** - Pure switch expressions generated at compile time
 - 🧠 **Intelligent matching** - Automatic special case detection (None → Unknown, Active → Enabled, etc.)
 - 🔄 **Bidirectional support** - Generate forward and reverse mappings with one attribute
@@ -10,6 +11,7 @@ Automatically generate type-safe enum-to-enum mapping code using attributes. The
 - ⚡ **Native AOT ready** - No reflection, fully trimming-safe
 
 **Quick Example:**
+
 ```csharp
 // Input: Decorate your enum
 [MapTo(typeof(PetStatusDto), Bidirectional = true)]
@@ -25,34 +27,46 @@ public static PetStatusDto MapToPetStatusDto(this PetStatus source) =>
     };
 ```
 
+## 📖 Documentation Navigation
+
+- **[🎯 Sample Projects](EnumMappingGenerators-Samples.md)** - Working code examples with architecture diagrams
+
 ## 📑 Table of Contents
 
-- [🚀 Get Started - Quick Guide](#-get-started---quick-guide)
-  - [📂 Project Structure](#-project-structure)
-  - [1️⃣ Setup Project](#️-setup-project)
-  - [2️⃣ Define Enums](#️-define-enums)
-  - [3️⃣ Use Generated Mappings](#️-use-generated-mappings)
-  - [🎨 What Gets Generated](#-what-gets-generated)
-  - [🎯 Key Takeaways](#-key-takeaways)
-- [✨ Features](#-features)
-- [📦 Installation](#-installation)
-- [💡 Basic Usage](#-basic-usage)
-  - [1️⃣ Add Using Directives](#️-add-using-directives)
-  - [2️⃣ Decorate Your Enums](#️-decorate-your-enums)
-  - [3️⃣ Use Generated Mappings](#️-use-generated-mappings-1)
-- [🏗️ Advanced Scenarios](#️-advanced-scenarios)
-  - [🔀 Special Case Mappings](#-special-case-mappings)
-  - [🔁 Bidirectional Mapping](#-bidirectional-mapping)
-  - [🔤 Case-Insensitive Matching](#-case-insensitive-matching)
-  - [🏛️ Multi-Layer Architecture](#️-multi-layer-architecture)
-- [⚙️ MapToAttribute Parameters](#️-maptoattribute-parameters)
-- [🛡️ Diagnostics](#️-diagnostics)
-  - [❌ ATCENUM001: Target Type Must Be Enum](#-atcenum001-target-type-must-be-enum)
-  - [⚠️ ATCENUM002: Unmapped Enum Value](#️-atcenum002-unmapped-enum-value)
-- [🚀 Native AOT Compatibility](#-native-aot-compatibility)
-- [📚 Additional Examples](#-additional-examples)
-- [🔧 Best Practices](#-best-practices)
-- [📖 Related Documentation](#-related-documentation)
+- [� Enum Mapping Generator](#-enum-mapping-generator)
+  - [📑 Table of Contents](#-table-of-contents)
+  - [🚀 Get Started - Quick Guide](#-get-started---quick-guide)
+    - [📂 Project Structure](#-project-structure)
+    - [1️⃣ Setup Project](#1️⃣-setup-project)
+    - [2️⃣ Define Enums](#2️⃣-define-enums)
+    - [3️⃣ Use Generated Mappings](#3️⃣-use-generated-mappings)
+    - [🎨 What Gets Generated](#-what-gets-generated)
+    - [🎯 Key Takeaways](#-key-takeaways)
+  - [✨ Features](#-features)
+  - [📦 Installation](#-installation)
+  - [💡 Basic Usage](#-basic-usage)
+    - [1️⃣ Add Using Directives](#1️⃣-add-using-directives)
+    - [2️⃣ Decorate Your Enums](#2️⃣-decorate-your-enums)
+    - [3️⃣ Use Generated Mappings](#3️⃣-use-generated-mappings-1)
+  - [🏗️ Advanced Scenarios](#️-advanced-scenarios)
+    - [🔀 Special Case Mappings](#-special-case-mappings)
+    - [🔁 Bidirectional Mapping](#-bidirectional-mapping)
+    - [🔤 Case-Insensitive Matching](#-case-insensitive-matching)
+    - [🏛️ Multi-Layer Architecture](#️-multi-layer-architecture)
+  - [⚙️ MapToAttribute Parameters](#️-maptoattribute-parameters)
+  - [🛡️ Diagnostics](#️-diagnostics)
+    - [❌ ATCENUM001: Target Type Must Be Enum](#-atcenum001-target-type-must-be-enum)
+    - [⚠️ ATCENUM002: Unmapped Enum Value](#️-atcenum002-unmapped-enum-value)
+  - [🚀 Native AOT Compatibility](#-native-aot-compatibility)
+    - [✅ AOT-Safe Features](#-aot-safe-features)
+    - [🏗️ How It Works](#️-how-it-works)
+    - [📋 Example Generated Code](#-example-generated-code)
+  - [📚 Additional Examples](#-additional-examples)
+    - [Example 1: Order Status with None/Unknown](#example-1-order-status-with-noneunknown)
+    - [Example 2: Bidirectional Mapping](#example-2-bidirectional-mapping)
+    - [Example 3: Case-Insensitive Matching](#example-3-case-insensitive-matching)
+  - [🔧 Best Practices](#-best-practices)
+  - [📖 Related Documentation](#-related-documentation)
 
 ---
 
@@ -72,6 +86,7 @@ PetStore.sln
 ### 1️⃣ Setup Project
 
 **PetStore.DataAccess.csproj**:
+
 ```xml
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
@@ -89,6 +104,7 @@ PetStore.sln
 ### 2️⃣ Define Enums
 
 **PetStore.DataAccess/Entities/PetStatusEntity.cs**:
+
 ```csharp
 using Atc.SourceGenerators.Annotations;
 
@@ -108,6 +124,7 @@ public enum PetStatusEntity
 ```
 
 **PetStore.Domain/Models/PetStatus.cs**:
+
 ```csharp
 namespace PetStore.Domain.Models;
 
@@ -126,6 +143,7 @@ public enum PetStatus
 ### 3️⃣ Use Generated Mappings
 
 **PetStore.DataAccess/Repositories/PetRepository.cs**:
+
 ```csharp
 using Atc.Mapping;  // Generated extension methods live here
 using PetStore.DataAccess.Entities;
@@ -159,6 +177,7 @@ public class PetRepository
 The generator creates extension methods with switch expressions in the `Atc.Mapping` namespace:
 
 **Generated Code**:
+
 ```csharp
 // <auto-generated/>
 #nullable enable
@@ -239,11 +258,13 @@ public static class EnumMappingExtensions
 ## 📦 Installation
 
 **Required:**
+
 ```bash
 dotnet add package Atc.SourceGenerators
 ```
 
 **Optional (recommended for better IntelliSense):**
+
 ```bash
 dotnet add package Atc.SourceGenerators.Annotations
 ```
@@ -335,6 +356,7 @@ var dto = entity.MapToStatusDto();  // StatusDto.Unknown
 ```
 
 **Supported Special Cases**:
+
 - **"Zero/Empty/Null" State Equivalents**: `None` ↔ `Unknown` ↔ `Default`
 - Limited to just these three values to avoid unexpected mappings
 - Use exact name matching for all other enum values
@@ -391,6 +413,7 @@ Database (Entity Enums) → Domain (Model Enums) → API (DTO Enums)
 ```
 
 **PetStore.DataAccess/Entities/PetStatusEntity.cs**:
+
 ```csharp
 [MapTo(typeof(Domain.Models.PetStatus))]
 public enum PetStatusEntity
@@ -403,6 +426,7 @@ public enum PetStatusEntity
 ```
 
 **PetStore.Domain/Models/PetStatus.cs**:
+
 ```csharp
 [MapTo(typeof(Api.Contract.PetStatus))]
 public enum PetStatus
@@ -415,6 +439,7 @@ public enum PetStatus
 ```
 
 **PetStore.Api.Contract/PetStatus.cs**:
+
 ```csharp
 public enum PetStatus
 {
@@ -426,6 +451,7 @@ public enum PetStatus
 ```
 
 **Complete Mapping Chain**:
+
 ```csharp
 // Repository: Entity → Domain
 var entity = database.Pets.First();
@@ -470,6 +496,7 @@ The generator reports diagnostics for potential issues at compile time.
 **Cause**: The target type specified in `[MapTo(typeof(...))]` is not an enum.
 
 **Example**:
+
 ```csharp
 public class StatusDto { }  // ❌ Not an enum
 
@@ -506,6 +533,7 @@ public enum StatusEntity
 **Cause**: A value in the source enum has no matching value in the target enum (including special cases).
 
 **Example**:
+
 ```csharp
 public enum TargetStatus
 {
@@ -524,6 +552,7 @@ public enum SourceStatus
 ```
 
 **Generated Code** (unmapped values are excluded from switch):
+
 ```csharp
 public static TargetStatus MapToTargetStatus(this SourceStatus source)
 {
@@ -540,6 +569,7 @@ public static TargetStatus MapToTargetStatus(this SourceStatus source)
 **Fix Options**:
 
 1. **Add missing values to target enum**:
+
 ```csharp
 public enum TargetStatus
 {
@@ -551,6 +581,7 @@ public enum TargetStatus
 ```
 
 2. **Use exact name matching or rename values**:
+
 ```csharp
 public enum TargetStatus
 {
@@ -603,6 +634,7 @@ public static Status MapToStatus(this EntityStatus source)
 ```
 
 **Why This Is AOT-Safe:**
+
 - No `Enum.Parse()` or `Enum.GetValues()` calls (reflection)
 - No dynamic type conversion
 - All branches known at compile time
@@ -703,11 +735,11 @@ public enum TargetPriority
 
 ## 📖 Related Documentation
 
-- [Object Mapping Generator](ObjectMapping.md) - For class-to-class mappings
-- [Dependency Registration Generator](DependencyRegistration.md) - For automatic DI registration
-- [Options Binding Generator](OptionsBinding.md) - For configuration binding
-- [Sample Projects](../samples/EnumMapping.md) - Working code examples
+- [Object Mapping Generator](ObjectMappingGenerators.md) - For class-to-class mappings
+- [Dependency Registration Generator](DependencyRegistrationGenerators.md) - For automatic DI registration
+- [Options Binding Generator](OptionsBindingGenerators.md) - For configuration binding
+- [Sample Projects](EnumMappingGenerators-Samples.md) - Working code examples
 
 ---
 
-**Need Help?** Check out the [sample project](../samples/EnumMapping.md) for a complete working example.
+**Need Help?** Check out the [sample project](EnumMappingGenerators-Samples.md) for a complete working example.

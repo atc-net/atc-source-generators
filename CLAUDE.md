@@ -41,7 +41,7 @@ sample/
   Atc.SourceGenerators.OptionsBinding/                # Options binding sample
   Atc.SourceGenerators.OptionsBinding.Domain/         # Multi-project options sample
   Atc.SourceGenerators.Mapping/                       # Object mapping API sample
-  Atc.SourceGenerators.Mapping.Domain/                # Domain models with mappings
+  Atc.SourceGenerators.Mapping.Domain/                # Domain models with mappings (includes BaseEntity/AuditableEntity/Book for inheritance demo)
   Atc.SourceGenerators.Mapping.DataAccess/            # Database entities with mappings
   PetStore.Api/                                       # Complete 3-layer ASP.NET Core API with OpenAPI/Scalar
   PetStore.Api.Contract/                              # API contracts (DTOs)
@@ -361,6 +361,12 @@ services.AddOptionsFromDomain(configuration, "DataAccess", "Infrastructure");
   - Supports `List<T>`, `IList<T>`, `IEnumerable<T>`, `ICollection<T>`, `IReadOnlyList<T>`, `IReadOnlyCollection<T>`, `T[]`
   - Generates appropriate `.ToList()`, `.ToArray()`, or collection constructor calls
   - Automatically chains element mappings (e.g., `source.Items?.Select(x => x.MapToItemDto()).ToList()!`)
+- **Base class property inheritance** - Automatically includes properties from base classes:
+  - Traverses entire inheritance hierarchy (Entity → AuditableEntity → ConcreteEntity)
+  - Handles property overrides correctly (no duplicates)
+  - Respects `[MapIgnore]` on base class properties
+  - Works with all mapping features (PropertyNameStrategy, Bidirectional, etc.)
+  - Perfect for entity base classes with audit fields (Id, CreatedAt, UpdatedAt, etc.)
 - Nested object mapping (automatically chains mappings)
 - Null safety (null checks for nullable properties)
 - Multi-layer support (Entity → Domain → DTO chains)
@@ -461,27 +467,87 @@ public static ProductDto MapToProductDto(this Product source)
 }
 ```
 
+**Generated Code Pattern (Base Class Property Inheritance):**
+```csharp
+// Input - Base entity with common properties:
+public abstract partial class BaseEntity
+{
+    public Guid Id { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+}
+
+public abstract partial class AuditableEntity : BaseEntity
+{
+    public DateTimeOffset? UpdatedAt { get; set; }
+    public string? UpdatedBy { get; set; }
+}
+
+[MapTo(typeof(BookDto))]
+public partial class Book : AuditableEntity
+{
+    public string Title { get; set; } = string.Empty;
+    public string Author { get; set; } = string.Empty;
+    public decimal Price { get; set; }
+}
+
+public class BookDto
+{
+    public Guid Id { get; set; }                    // From BaseEntity
+    public DateTimeOffset CreatedAt { get; set; }    // From BaseEntity
+    public DateTimeOffset? UpdatedAt { get; set; }   // From AuditableEntity
+    public string? UpdatedBy { get; set; }           // From AuditableEntity
+    public string Title { get; set; } = string.Empty;
+    public string Author { get; set; } = string.Empty;
+    public decimal Price { get; set; }
+}
+
+// Output - All properties from entire hierarchy included:
+public static BookDto MapToBookDto(this Book source)
+{
+    if (source is null)
+    {
+        return default!;
+    }
+
+    return new BookDto
+    {
+        Id = source.Id,                    // ✨ From BaseEntity (2 levels up)
+        CreatedAt = source.CreatedAt,      // ✨ From BaseEntity
+        UpdatedAt = source.UpdatedAt,      // ✨ From AuditableEntity (1 level up)
+        UpdatedBy = source.UpdatedBy,      // ✨ From AuditableEntity
+        Title = source.Title,
+        Author = source.Author,
+        Price = source.Price
+    };
+}
+```
+
 **Mapping Rules:**
-1. **Constructor Detection**: Generator automatically detects suitable constructors:
+1. **Base Class Property Collection**: Generator traverses the entire inheritance hierarchy:
+   - Walks up from most derived class to `System.Object`
+   - Collects properties from each level (respecting accessibility and `[MapIgnore]`)
+   - Handles property overrides correctly (keeps most derived version, no duplicates)
+   - Works with unlimited inheritance depth
+2. **Constructor Detection**: Generator automatically detects suitable constructors:
    - Finds public constructors where ALL parameters match source properties (case-insensitive)
    - Prefers constructors with more parameters
    - Uses constructor call syntax when a suitable constructor is found
    - Falls back to object initializer syntax when no matching constructor exists
-2. **Property Matching**: Properties are matched by name (case-insensitive):
+3. **Property Matching**: Properties are matched by name (case-insensitive):
    - `Id` matches `id`, `ID`, `Id` (supports different casing conventions)
    - Enables mapping between PascalCase properties and camelCase constructor parameters
-3. **Direct Mapping**: Properties with same name and type are mapped directly
-4. **Smart Enum Conversion**:
+4. **Direct Mapping**: Properties with same name and type are mapped directly
+5. **Smart Enum Conversion**:
    - If source enum has `[MapTo(typeof(TargetEnum))]`, uses `.MapToTargetEnum()` extension method (safe)
    - If target enum has `[MapTo(typeof(SourceEnum), Bidirectional = true)]`, uses reverse mapping method (safe)
    - Otherwise, falls back to `(TargetEnum)source.Enum` cast (less safe)
-5. **Collection Mapping**: If both source and target properties are collections:
+6. **Collection Mapping**: If both source and target properties are collections:
    - Extracts element types and generates `.Select(x => x.MapToXxx())` code
    - Uses `.ToList()` for most collection types (List, IEnumerable, ICollection, IList, IReadOnlyList)
    - Uses `.ToArray()` for array types
    - Uses collection constructors for `Collection<T>` and `ReadOnlyCollection<T>`
-6. **Nested Objects**: If a property type has a `MapToXxx()` method, it's used automatically
-7. **Null Safety**: Nullable properties use `?.` and `!` for proper null handling
+7. **Nested Objects**: If a property type has a `MapToXxx()` method, it's used automatically
+8. **Null Safety**: Nullable properties use `?.` and `!` for proper null handling
 
 **3-Layer Architecture Support:**
 ```

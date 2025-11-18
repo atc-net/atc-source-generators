@@ -3,6 +3,7 @@
 A collection of Roslyn C# source generators for .NET that eliminate boilerplate code and improve developer productivity. All generators are designed with **Native AOT compatibility** in focus, enabling faster startup times, smaller deployment sizes, and optimal performance for modern cloud-native applications.
 
 **Why Choose Atc Source Generators?**
+
 - 🎯 **Zero boilerplate** - Attribute-based approach eliminates repetitive code
 - ⚡ **Compile-time generation** - Catch errors during build, not at runtime
 - 🚀 **Native AOT ready** - Zero reflection, fully trimming-safe for modern .NET
@@ -71,11 +72,13 @@ app.MapGet("/pets/{id}", async (Guid id, IPetService service) =>
 All generators are distributed in a single NuGet package. Install once to use all features.
 
 **Required:**
+
 ```bash
 dotnet add package Atc.SourceGenerators
 ```
 
 **Optional (recommended for better IntelliSense):**
+
 ```bash
 dotnet add package Atc.SourceGenerators.Annotations
 ```
@@ -102,11 +105,11 @@ Stop writing repetitive service registration code. Decorate your services with `
 
 #### 📚 Documentation
 
-- **[Complete Guide](docs/generators/DependencyRegistration.md)** - In-depth documentation with examples
-- **[Quick Start](docs/generators/DependencyRegistration.md#get-started---quick-guide)** - PetStore 3-layer architecture tutorial
-- **[Multi-Project Setup](docs/generators/DependencyRegistration.md#multi-project-setup)** - Working with multiple projects
-- **[Auto-Detection](docs/generators/DependencyRegistration.md#auto-detection)** - Understanding automatic interface detection
-- **[Sample Projects](docs/samples/DependencyRegistration.md)** - Working code examples with architecture diagrams
+- **[Complete Guide](docs/DependencyRegistrationGenerators.md)** - In-depth documentation with examples
+- **[Quick Start](docs/DependencyRegistrationGenerators.md#get-started---quick-guide)** - PetStore 3-layer architecture tutorial
+- **[Multi-Project Setup](docs/DependencyRegistrationGenerators.md#multi-project-setup)** - Working with multiple projects
+- **[Auto-Detection](docs/DependencyRegistrationGenerators.md#auto-detection)** - Understanding automatic interface detection
+- **[Sample Projects](docs/DependencyRegistrationGenerators-Samples.md)** - Working code examples with architecture diagrams
 
 #### 😫 From This
 
@@ -147,22 +150,25 @@ builder.Services.AddDependencyRegistrationsFromDataAccess();
 
 #### ✨ Key Features
 
-- **🎯 Auto-Detection**: Automatically registers against all implemented interfaces - no more `As = typeof(IService)`
-- **🔷 Generic Types**: Full support for open generics like `IRepository<T>` and `IHandler<TRequest, TResponse>`
-- **🔑 Keyed Services**: Multiple implementations of the same interface with different keys (.NET 8+)
-- **🏭 Factory Methods**: Custom initialization logic via static factory methods
-- **🔄 TryAdd Registration**: Conditional registration for default implementations (library pattern)
-- **🎨 Decorator Pattern**: Wrap services with cross-cutting concerns (logging, caching, validation) using `Decorator = true`
+- **🎯 Interface Auto-Detection**: Automatically registers against all implemented interfaces - no `As = typeof(IService)` needed
+- **🔷 Generic Interface Registration**: Full support for open generics like `IRepository<T>` and `IHandler<TRequest, TResponse>`
+- **🔑 Keyed Service Registration**: Multiple implementations of the same interface with different keys (.NET 8+)
+- **🏭 Factory Method Registration**: Custom initialization logic via static factory methods
+- **📦 Instance Registration**: Register pre-created singleton instances via static fields, properties, or methods
+- **🔄 TryAdd* Registration**: Conditional registration for default implementations (library pattern)
+- **⚙️ Conditional Registration**: Register services based on configuration values (feature flags, environment-specific services)
+- **🎨 Decorator Pattern Support**: Wrap services with cross-cutting concerns (logging, caching, validation) using `Decorator = true`
 - **🚫 Assembly Scanning Filters**: Exclude types by namespace, pattern (wildcards), or interface implementation
-- **🎯 Runtime Filtering**: Exclude services when calling registration methods (different apps, different service subsets)
-- **🧹 Smart Filtering**: System interfaces (IDisposable, etc.) are excluded automatically
-- **🔍 Multi-Interface**: Implementing multiple interfaces? Registers against all of them
+- **🎯 Runtime Filtering**: Exclude services when calling registration methods via optional parameters (different apps, different service subsets)
+- **🔗 Transitive Registration**: Automatically discover and register services from referenced assemblies (4 overloads: default, auto-detect all, selective by name, selective multiple)
+- **🧹 Smart Filtering**: System interfaces (IDisposable, etc.) are automatically excluded
+- **🔍 Multi-Interface Registration**: Implementing multiple interfaces? Registers against all of them
 - **🏃 Hosted Service Support**: Automatically detects BackgroundService and IHostedService implementations and uses AddHostedService<T>()
 - **✨ Smart Naming**: Generates clean method names using suffixes when unique, full names when conflicts exist
-- **⚡ Zero Runtime Cost**: All code generated at compile time
+- **⚡ Zero Runtime Overhead**: All code generated at compile time
 - **🚀 Native AOT Compatible**: No reflection or runtime code generation - fully trimming-safe
-- **🏗️ Multi-Project**: Works seamlessly across layered architectures
-- **🛡️ Type-Safe**: Compile-time validation catches errors before runtime
+- **🏗️ Multi-Project Support**: Works seamlessly across layered architectures
+- **🛡️ Compile-Time Validation**: Diagnostics for common errors catch issues before runtime
 - **📦 Flexible Lifetimes**: Singleton (default), Scoped, and Transient support
 
 #### 🚀 Quick Example
@@ -257,8 +263,8 @@ Eliminate boilerplate configuration binding code. Decorate your options classes 
 
 #### 📚 Documentation
 
-- **[Options Binding Guide](docs/generators/OptionsBinding.md)** - Full documentation with examples
-- **[Sample Projects](docs/samples/OptionsBinding.md)** - Working examples with architecture diagrams
+- **[Options Binding Guide](docs/OptionsBindingGenerators.md)** - Full documentation with examples
+- **[Sample Projects](docs/OptionsBinding-Samples.md)** - Working examples with architecture diagrams
 
 #### 😫 From This
 
@@ -310,16 +316,16 @@ services.AddOptionsFromApp(configuration);
 
 #### ✨ Key Features
 
-- **🎯 Auto-Inference**: Section names automatically inferred from class names
-- **📝 Const Name Support**: Use `public const string SectionName`, `NameTitle`, or `Name` for custom section names
-- **🔒 Built-in Validation**: Data annotations and startup validation with simple properties
-- **📍 Nested Sections**: Support for complex configuration paths like "App:Services:Email"
-- **⚡ Zero Runtime Cost**: All binding code generated at compile time
-- **🚀 Native AOT Compatible**: No reflection or runtime code generation - fully trimming-safe
-- **🛡️ Type-Safe**: Compile-time validation ensures configuration matches your classes
-- **✨ Smart Naming**: Clean method names (`AddOptionsFromDomain`) for unique suffixes, full names for conflicts
-- **📦 Multi-Project Support**: Each project generates its own extension method with smart naming
-- **⏱️ Options Lifetimes**: Control which options interface to use (IOptions, IOptionsSnapshot, IOptionsMonitor)
+- **🧠 Automatic Section Name Inference**: Smart resolution from explicit names, const fields (`SectionName`, `NameTitle`, `Name`), or auto-inferred from class names
+- **🔒 Built-in Validation**: Integrated DataAnnotations validation (`ValidateDataAnnotations`) and startup validation (`ValidateOnStart`)
+- **🎯 Explicit Section Paths**: Support for nested sections like `"App:Database"` or `"Services:Email"`
+- **📦 Multiple Options Classes**: Register multiple configuration sections in a single assembly with one method call
+- **🏗️ Multi-Project Support**: Smart naming generates assembly-specific extension methods (e.g., `AddOptionsFromDomain()`, `AddOptionsFromDataAccess()`)
+- **🔗 Transitive Registration**: Automatically discover and register options from referenced assemblies (4 overloads: default, auto-detect all, selective by name, selective multiple)
+- **⏱️ Flexible Lifetimes**: Choose between Singleton (`IOptions<T>`), Scoped (`IOptionsSnapshot<T>`), or Monitor (`IOptionsMonitor<T>`) patterns
+- **⚡ Native AOT Ready**: Pure compile-time code generation with zero reflection, fully trimming-safe for modern .NET deployments
+- **🛡️ Compile-Time Safety**: Catch configuration errors during build, not at runtime
+- **🔧 Partial Class Requirement**: Simple `partial` keyword enables seamless extension method generation
 
 #### 🚀 Quick Example
 
@@ -402,10 +408,10 @@ Eliminate tedious object-to-object mapping code. Decorate your classes with `[Ma
 
 #### 📚 Documentation
 
-- **[Object Mapping Guide](docs/generators/ObjectMapping.md)** - Full documentation with examples
-- **[Quick Start](docs/generators/ObjectMapping.md#get-started---quick-guide)** - UserApp 3-layer architecture tutorial
-- **[Advanced Scenarios](docs/generators/ObjectMapping.md#advanced-scenarios)** - Enums, nested objects, multi-layer mapping
-- **[Sample Projects](docs/samples/Mapping.md)** - Working code examples with DataAccess → Domain → API
+- **[Object Mapping Guide](docs/ObjectMappingGenerators.md)** - Full documentation with examples
+- **[Quick Start](docs/ObjectMappingGenerators.md#get-started---quick-guide)** - UserApp 3-layer architecture tutorial
+- **[Advanced Scenarios](docs/ObjectMappingGenerators.md#advanced-scenarios)** - Enums, nested objects, multi-layer mapping
+- **[Sample Projects](docs/ObjectMappingGenerators-Samples.md)** - Working code examples with DataAccess → Domain → API
 
 #### 😫 From This
 
@@ -475,14 +481,26 @@ var dtos = users.Select(u => u.MapToUserDto()).ToList();
 
 #### ✨ Key Features
 
-- **🔄 Smart Enum Conversion**:
-  - Uses safe **EnumMapping** extension methods when enums have `[MapTo]` attributes
-  - Falls back to casts for enums without attributes
-  - Supports special case handling (None → Unknown, etc.) via EnumMappingGenerator
+- **📦 Collection Mapping**: Automatic mapping for `List<T>`, `IEnumerable<T>`, arrays, and other collection types
+- **🏗️ Constructor Mapping**: Automatically detects and uses constructors for records and classes with primary constructors (C# 12+)
+- **🚫 Property Exclusion**: Use `[MapIgnore]` to exclude sensitive or internal properties (works on both source and target)
+- **🏷️ Custom Property Names**: Use `[MapProperty]` to map properties with different names between source and target
+- **📏 Property Flattening**: Opt-in flattening support (e.g., `Address.City` → `AddressCity`)
+- **🔄 Built-in Type Conversion**: DateTime ↔ string, Guid ↔ string, numeric ↔ string conversions
+- **✅ Required Property Validation**: Compile-time diagnostics (ATCMAP004) for missing required properties (C# 11+)
+- **🌳 Polymorphic/Derived Type Mapping**: Runtime type discrimination using switch expressions and `[MapDerivedType]`
+- **🪝 Before/After Mapping Hooks**: Custom pre/post-processing logic with `BeforeMap` and `AfterMap` methods
+- **🏭 Object Factories**: Custom object creation via factory methods instead of `new TargetType()`
+- **♻️ Update Existing Target**: Map to existing instances (EF Core tracked entities) with `UpdateTarget = true`
+- **📊 IQueryable Projections**: EF Core server-side query optimization with `GenerateProjection = true`
+- **🔷 Generic Mappers**: Type-safe mapping for generic wrapper types like `Result<T>` and `PagedResult<T>`
+- **🔐 Private Member Access**: Map to/from private and internal properties using UnsafeAccessor (.NET 8+)
+- **🔤 Property Name Casing Strategies**: CamelCase and snake_case support with `PropertyNameStrategy`
+- **🧬 Base Class Property Inheritance**: Automatically include properties from base classes (Entity audit fields, etc.)
+- **🔁 Bidirectional Mapping**: Generate both forward and reverse mappings with `Bidirectional = true`
+- **🔄 Smart Enum Conversion**: Uses safe EnumMapping extension methods when enums have `[MapTo]` attributes, falls back to casts
 - **🪆 Nested Object Mapping**: Automatically chains mappings for nested properties
-- **🔁 Multi-Layer Support**: Build Entity → Domain → DTO mapping chains effortlessly
-- **🚫 Property Exclusion**: Use `[MapIgnore]` attribute to exclude sensitive or internal properties from mapping (works on both source and target properties)
-- **🏷️ Custom Property Names**: Use `[MapProperty]` attribute to map properties with different names between source and target types
+- **🏗️ Multi-Layer Support**: Build Entity → Domain → DTO mapping chains effortlessly
 - **⚡ Zero Runtime Cost**: All code generated at compile time
 - **🚀 Native AOT Compatible**: No reflection or runtime code generation - fully trimming-safe
 - **🛡️ Type-Safe**: Compile-time validation catches mapping errors before runtime
@@ -607,10 +625,10 @@ Eliminate manual enum conversions with intelligent enum-to-enum mapping. Decorat
 
 #### 📚 Documentation
 
-- **[Enum Mapping Guide](docs/generators/EnumMapping.md)** - Full documentation with examples
-- **[Quick Start](docs/generators/EnumMapping.md#get-started---quick-guide)** - PetStore enum mapping tutorial
-- **[Special Case Mappings](docs/generators/EnumMapping.md#-special-case-mappings)** - None → Unknown, Active → Enabled, etc.
-- **[Sample Projects](docs/samples/EnumMapping.md)** - Working code examples with bidirectional mapping
+- **[Enum Mapping Guide](docs/EnumMappingGenerators.md)** - Full documentation with examples
+- **[Quick Start](docs/EnumMappingGenerators.md#get-started---quick-guide)** - PetStore enum mapping tutorial
+- **[Special Case Mappings](docs/EnumMappingGenerators.md#-special-case-mappings)** - None → Unknown, Active → Enabled, etc.
+- **[Sample Projects](docs/EnumMappingGenerators-Samples.md)** - Working code examples with bidirectional mapping
 
 #### 😫 From This
 
@@ -684,12 +702,12 @@ var back = dto.MapToPetStatusEntity();        // PetStatusEntity.None (bidirecti
   - `None` ↔ `Unknown`, `Default`
   - `Unknown` ↔ `None`, `Default`
   - `Default` ↔ `None`, `Unknown`
-  - Limited to just these three values to avoid unexpected mappings
-- **🔁 Bidirectional Mapping**: Generate both forward and reverse mappings with one attribute
-- **⚡ Zero Runtime Cost**: Pure switch expressions, no reflection
-- **🛡️ Type-Safe**: Compile-time validation with warnings for unmapped values
-- **🚀 Native AOT Compatible**: No reflection or runtime code generation - fully trimming-safe
-- **⚠️ Runtime Safety**: `ArgumentOutOfRangeException` for unmapped values
+- **🔁 Bidirectional Mapping**: Generate both forward and reverse mappings with `Bidirectional = true`
+- **🔤 Case-Insensitive**: Matches enum values regardless of casing differences
+- **⚡ Zero Runtime Cost**: Pure switch expressions, no reflection or runtime code generation
+- **🛡️ Type-Safe**: Compile-time validation with diagnostics (ATCENUM002) for unmapped values
+- **🚀 Native AOT Compatible**: Fully trimming-safe, works with Native AOT
+- **⚠️ Runtime Safety**: `ArgumentOutOfRangeException` thrown for unmapped values
 
 #### 🚀 Quick Example
 
@@ -746,36 +764,46 @@ dotnet test
 
 Working code examples demonstrating each generator in realistic scenarios:
 
-### ⚡ [DependencyRegistration Sample](docs/samples/DependencyRegistration.md)
+### ⚡ [DependencyRegistration Sample](docs/DependencyRegistrationGenerators-Samples.md)
+
 Multi-project console app showing automatic DI registration across layers with auto-detection of interfaces.
+
 ```bash
 cd sample/Atc.SourceGenerators.DependencyRegistration
 dotnet run
 ```
 
-### ⚙️ [OptionsBinding Sample](docs/samples/OptionsBinding.md)
+### ⚙️ [OptionsBinding Sample](docs/OptionsBinding-Samples.md)
+
 Console app demonstrating type-safe configuration binding with validation and multiple options classes.
+
 ```bash
 cd sample/Atc.SourceGenerators.OptionsBinding
 dotnet run
 ```
 
-### 🗺️ [Mapping Sample](docs/samples/Mapping.md)
+### 🗺️ [Mapping Sample](docs/ObjectMappingGenerators-Samples.md)
+
 ASP.NET Core Minimal API showing 3-layer mapping (Entity → Domain → DTO) with automatic enum conversion and nested objects.
+
 ```bash
 cd sample/Atc.SourceGenerators.Mapping
 dotnet run
 ```
 
-### 🔄 [EnumMapping Sample](docs/samples/EnumMapping.md)
+### 🔄 [EnumMapping Sample](docs/EnumMappingGenerators-Samples.md)
+
 Console app demonstrating intelligent enum-to-enum mapping with special case handling (None → Unknown, Active → Enabled), bidirectional mappings, and case-insensitive matching.
+
 ```bash
 cd sample/Atc.SourceGenerators.EnumMapping
 dotnet run
 ```
 
-### 🎯 [PetStore API - Complete Example](docs/samples/PetStoreApi.md)
+### 🎯 [PetStore API - Complete Example](docs/PetStoreApi-Samples.md)
+
 Full-featured ASP.NET Core application using **all four generators** together with OpenAPI/Scalar documentation. This demonstrates production-ready patterns for modern .NET applications.
+
 ```bash
 cd sample/PetStore.Api
 dotnet run

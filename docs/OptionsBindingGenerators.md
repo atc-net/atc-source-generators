@@ -3,6 +3,7 @@
 Automatically bind configuration sections to strongly-typed options classes with compile-time code generation.
 
 **Key Benefits:**
+
 - 🎯 **Zero boilerplate** - No manual `AddOptions<T>().Bind()` calls needed
 - 🧠 **Smart section inference** - Auto-detects section names from class names or constants
 - 🛡️ **Built-in validation** - Automatic DataAnnotations validation and startup checks
@@ -10,6 +11,7 @@ Automatically bind configuration sections to strongly-typed options classes with
 - ⚡ **Native AOT ready** - Pure compile-time generation with zero reflection
 
 **Quick Example:**
+
 ```csharp
 // Input: Decorate your options class
 [OptionsBinding("Database")]
@@ -24,6 +26,11 @@ services.AddOptions<DatabaseOptions>()
     .ValidateDataAnnotations()
     .ValidateOnStart();
 ```
+
+## 📖 Documentation Navigation
+
+- **[📋 Feature Roadmap](OptionsBindingGenerators-FeatureRoadmap.md)** - See all implemented and planned features
+- **[🎯 Sample Projects](OptionsBinding-Samples.md)** - Working code examples with architecture diagrams
 
 ## 📑 Table of Contents
 
@@ -83,6 +90,10 @@ services.AddOptions<DatabaseOptions>()
     - [⚠️ ATCOPT003: Invalid options binding configuration](#️-atcopt003-invalid-options-binding-configuration)
     - [❌ ATCOPT003: Const section name cannot be null or empty](#-atcopt003-const-section-name-cannot-be-null-or-empty)
   - [🚀 Native AOT Compatibility](#-native-aot-compatibility)
+    - [✅ AOT-Safe Features](#-aot-safe-features)
+    - [🏗️ How It Works](#️-how-it-works)
+    - [📋 Example Generated Code](#-example-generated-code)
+    - [🎯 Multi-Project AOT Support](#-multi-project-aot-support)
   - [📚 Examples](#-examples)
     - [📝 Example 1: Simple Configuration](#-example-1-simple-configuration)
     - [🔒 Example 2: Validated Database Options](#-example-2-validated-database-options)
@@ -250,6 +261,7 @@ public partial class PetMaintenanceServiceOptions
 ```
 
 **When to use:**
+
 - ✅ When section name doesn't match class name
 - ✅ When using nested configuration paths (e.g., `"App:Services:Database"`)
 - ✅ When you want explicit, readable code
@@ -272,6 +284,7 @@ public partial class PetMaintenanceServiceOptions
 ```
 
 **When to use:**
+
 - ✅ When you want the section name accessible as a constant
 - ✅ When other code needs to reference the same section name
 - ✅ When building configuration paths dynamically
@@ -294,6 +307,7 @@ public partial class PetMaintenanceServiceOptions
 ```
 
 **When to use:**
+
 - ✅ When following specific naming conventions
 - ✅ When `SectionName` is not preferred in your codebase
 
@@ -315,6 +329,7 @@ public partial class PetMaintenanceServiceOptions
 ```
 
 **When to use:**
+
 - ✅ When following specific naming conventions
 - ✅ When `Name` fits your code style better
 
@@ -334,11 +349,13 @@ public partial class PetOtherServiceOptions
 ```
 
 **When to use:**
+
 - ✅ When section name matches class name exactly
 - ✅ When you want minimal code
 - ✅ When following convention-over-configuration
 
 **Important:** The class name is used **as-is** - no suffix removal or transformation:
+
 - `DatabaseOptions` → `"DatabaseOptions"` (NOT `"Database"`)
 - `ApiSettings` → `"ApiSettings"` (NOT `"Api"`)
 - `CacheConfig` → `"CacheConfig"` (NOT `"Cache"`)
@@ -366,6 +383,7 @@ public partial class PetMaintenanceServiceOptions
 ```
 
 **Generated code includes:**
+
 ```csharp
 services.AddOptions<PetMaintenanceServiceOptions>()
     .Bind(configuration.GetSection("PetMaintenanceService"))
@@ -386,6 +404,7 @@ public partial class PetMaintenanceServiceOptions
 ```
 
 **Generated code includes:**
+
 ```csharp
 services.AddOptions<PetMaintenanceServiceOptions>()
     .Bind(configuration.GetSection("PetMaintenanceService"))
@@ -415,6 +434,7 @@ public partial class PetMaintenanceServiceOptions
 ```
 
 **Generated code includes:**
+
 ```csharp
 services.AddOptions<PetMaintenanceServiceOptions>()
     .Bind(configuration.GetSection("PetMaintenanceService"))
@@ -447,6 +467,7 @@ public class PetMaintenanceService
 ```
 
 **Generated code comment:**
+
 ```csharp
 // Configure PetMaintenanceServiceOptions - Inject using IOptions<T>
 ```
@@ -473,6 +494,7 @@ public class PetRequestHandler
 ```
 
 **Generated code comment:**
+
 ```csharp
 // Configure PetMaintenanceServiceOptions - Inject using IOptionsSnapshot<T>
 ```
@@ -505,6 +527,7 @@ public class PetMaintenanceService
 ```
 
 **Generated code comment:**
+
 ```csharp
 // Configure PetMaintenanceServiceOptions - Inject using IOptionsMonitor<T>
 ```
@@ -514,6 +537,7 @@ public class PetMaintenanceService
 Here's an example using all features together:
 
 **appsettings.json:**
+
 ```json
 {
   "PetMaintenanceService": {
@@ -526,6 +550,7 @@ Here's an example using all features together:
 ```
 
 **Options class:**
+
 ```csharp
 using System.ComponentModel.DataAnnotations;
 using Atc.SourceGenerators.Annotations;
@@ -569,6 +594,7 @@ public partial class PetMaintenanceServiceOptions
 ```
 
 **Program.cs:**
+
 ```csharp
 var builder = WebApplication.CreateBuilder(args);
 
@@ -580,6 +606,7 @@ app.Run();
 ```
 
 **Usage in service:**
+
 ```csharp
 public class PetMaintenanceService : BackgroundService
 {
@@ -636,6 +663,7 @@ When multiple section name sources are present, the generator uses this priority
 | 5️⃣ **Lowest** | Auto-inferred from class name | Class `DatabaseOptions` → `"DatabaseOptions"` |
 
 **Example showing priority:**
+
 ```csharp
 // This maps to "ExplicitSection" (priority 1 wins)
 [OptionsBinding("ExplicitSection")]
@@ -653,6 +681,7 @@ public partial class MyOptions
 Here's how to map both JSON sections from our base configuration:
 
 **appsettings.json:**
+
 ```json
 {
   "PetMaintenanceService": {
@@ -669,6 +698,7 @@ Here's how to map both JSON sections from our base configuration:
 ```
 
 **Options classes:**
+
 ```csharp
 // Case 1: Section name doesn't match class name - Use explicit mapping
 [OptionsBinding("PetMaintenanceService")]  // ✅ Explicit section name required
@@ -690,6 +720,7 @@ public partial class PetOtherServiceOptions
 ```
 
 **Program.cs:**
+
 ```csharp
 // Both registered with a single call
 services.AddOptionsFromYourProject(configuration);
@@ -720,6 +751,7 @@ Console.WriteLine($"Other interval: {otherOptions.Value.RepeatIntervalInSeconds}
 ---
 
 **Section Name Resolution Priority:**
+
 1. Explicit attribute parameter: `[OptionsBinding("SectionName")]`
 2. Const field: `public const string SectionName = "...";`
 3. Const field: `public const string NameTitle = "...";`
@@ -729,6 +761,7 @@ Console.WriteLine($"Other interval: {otherOptions.Value.RepeatIntervalInSeconds}
 ---
 
 **Transitive Registration Overloads:**
+
 ```csharp
 // Overload 1: Base (current assembly only)
 services.AddOptionsFrom{Assembly}(configuration);
@@ -750,11 +783,13 @@ services.AddOptionsFrom{Assembly}(configuration, "DataAccess", "Infrastructure")
 ### 📋 Package Reference
 
 **Required:**
+
 ```bash
 dotnet add package Atc.SourceGenerators
 ```
 
 **Optional (recommended for better IntelliSense):**
+
 ```bash
 dotnet add package Atc.SourceGenerators.Annotations
 ```
@@ -977,6 +1012,7 @@ public class FeatureManager
 ```
 
 **Important Notes:**
+
 - `AddOptions<T>()` registers **all three interfaces** automatically
 - The `Lifetime` property is a **recommendation** for which interface to inject
 - Default is `Singleton` (IOptions<T>) if not specified
@@ -1000,12 +1036,14 @@ public partial class DatabaseOptions { }
 The generator resolves section names in the following priority order:
 
 1. **Explicit section name** - Provided in the attribute constructor parameter
+
    ```csharp
    [OptionsBinding("App:Database")]
    public partial class DatabaseOptions { }  // Uses "App:Database"
    ```
 
 2. **`public const string SectionName`** - Defined in the options class (2nd highest priority)
+
    ```csharp
    [OptionsBinding]
    public partial class DatabaseOptions
@@ -1015,6 +1053,7 @@ The generator resolves section names in the following priority order:
    ```
 
 3. **`public const string NameTitle`** - Defined in the options class (takes priority over `Name`)
+
    ```csharp
    [OptionsBinding]
    public partial class CacheOptions
@@ -1024,6 +1063,7 @@ The generator resolves section names in the following priority order:
    ```
 
 4. **`public const string Name`** - Defined in the options class
+
    ```csharp
    [OptionsBinding]
    public partial class EmailOptions
@@ -1054,6 +1094,7 @@ public static IServiceCollection AddOptionsFrom{AssemblyName}(
 ### 4️⃣ Compile-Time Safety
 
 All code is generated at compile time, ensuring:
+
 - ✅ Type safety
 - ✅ No runtime reflection
 - ✅ IntelliSense support
@@ -1097,6 +1138,7 @@ services.AddOptionsFromApi(configuration);
 The generator uses **smart suffix-based naming** to create cleaner, more readable method names:
 
 **How it works:**
+
 - ✅ If the assembly suffix (last segment after final dot) is **unique** among all assemblies → use short suffix
 - ⚠️ If multiple assemblies have the **same suffix** → use full sanitized name to avoid conflicts
 
@@ -1114,6 +1156,7 @@ AnotherApp.Domain   → AddOptionsFromAnotherAppDomain(configuration)
 ```
 
 **Benefits:**
+
 - 🎯 **Cleaner API**: Shorter method names when there are no conflicts
 - 🛡️ **Automatic Conflict Prevention**: Fallback to full names prevents naming collisions
 - ⚡ **Zero Configuration**: Works automatically based on compilation context
@@ -1280,6 +1323,7 @@ public static IServiceCollection AddOptionsFromYourProject(
 ```
 
 **Why This Is AOT-Safe:**
+
 - No `Activator.CreateInstance()` calls (reflection)
 - No dynamic assembly scanning
 - All types resolved at compile time via generic parameters

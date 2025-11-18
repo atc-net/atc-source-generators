@@ -60,37 +60,38 @@ This roadmap is based on comprehensive analysis of:
 
 ## 📋 Feature Status Overview
 
-| Status | Feature | Priority | Version |
-|:------:|---------|----------|---------|
-| ✅ | [Collection Mapping Support](#1-collection-mapping-support) | 🔴 Critical | v1.0 |
-| ✅ | [Constructor Mapping](#2-constructor-mapping) | 🔴 High | v1.0 |
-| ✅ | [Ignore Properties](#3-ignore-properties) | 🔴 High | v1.1 |
-| ✅ | [Custom Property Name Mapping](#4-custom-property-name-mapping) | 🟡 Medium-High | v1.1 |
-| ✅ | [Flattening Support](#5-flattening-support) | 🟡 Medium | v1.1 |
-| ✅ | [Built-in Type Conversion](#6-built-in-type-conversion) | 🟡 Medium | v1.1 |
-| ✅ | [Required Property Validation](#7-required-property-validation) | 🟡 Medium | v1.1 |
-| ✅ | [Polymorphic / Derived Type Mapping](#8-polymorphic--derived-type-mapping) | 🔴 High | v1.0 |
-| ✅ | [Before/After Mapping Hooks](#9-beforeafter-mapping-hooks) | 🟢 Low-Medium | v1.1 |
-| ✅ | [Object Factories](#10-object-factories) | 🟢 Low-Medium | v1.1 |
-| ✅ | [Map to Existing Target Instance](#11-map-to-existing-target-instance) | 🟢 Low-Medium | v1.1 |
-| ✅ | [IQueryable Projections](#13-iqueryable-projections) | 🟢 Low-Medium | v1.2 |
-| ✅ | [Generic Mappers](#14-generic-mappers) | 🟢 Low | v1.2 |
-| ❌ | [Reference Handling / Circular Dependencies](#12-reference-handling--circular-dependencies) | 🟢 Low | - |
-| ✅ | [Private Member Access](#15-private-member-access) | 🟢 Low | v1.2 |
-| ❌ | [Multi-Source Consolidation](#16-multi-source-consolidation) | 🟢 Low-Medium | - |
-| ❌ | [Value Converters](#17-value-converters) | 🟢 Low-Medium | - |
-| ❌ | [Format Providers](#18-format-providers) | 🟢 Low | - |
-| ✅ | [Property Name Casing Strategies](#19-property-name-casing-strategies-snakecase-camelcase) | 🟢 Low-Medium | v1.3 |
-| ❌ | [Base Class Configuration Inheritance](#20-base-class-configuration-inheritance) | 🟢 Low | - |
-| 🚫 | [External Mappers / Mapper Composition](#21-external-mappers--mapper-composition) | - | Not Planned |
-| 🚫 | [Advanced Enum Strategies](#22-advanced-enum-strategies-beyond-special-cases) | - | Not Needed |
-| 🚫 | [Deep Cloning Support](#23-deep-cloning-support) | - | Out of Scope |
-| 🚫 | [Conditional Mapping](#24-conditional-mapping-map-if-condition-is-true) | - | Not Planned |
-| 🚫 | [Asynchronous Mapping](#25-asynchronous-mapping) | - | Out of Scope |
-| 🚫 | [Mapping Configuration Files](#26-mapping-configuration-files-jsonxml) | - | Not Planned |
-| 🚫 | [Runtime Dynamic Mapping](#27-runtime-dynamic-mapping) | - | Out of Scope |
+| Status | Feature | Priority |
+|:------:|---------|----------|
+| ✅ | [Collection Mapping Support](#1-collection-mapping-support) | 🔴 Critical |
+| ✅ | [Constructor Mapping](#2-constructor-mapping) | 🔴 High |
+| ✅ | [Ignore Properties](#3-ignore-properties) | 🔴 High |
+| ✅ | [Custom Property Name Mapping](#4-custom-property-name-mapping) | 🟡 Medium-High |
+| ✅ | [Flattening Support](#5-flattening-support) | 🟡 Medium |
+| ✅ | [Built-in Type Conversion](#6-built-in-type-conversion) | 🟡 Medium |
+| ✅ | [Required Property Validation](#7-required-property-validation) | 🟡 Medium |
+| ✅ | [Polymorphic / Derived Type Mapping](#8-polymorphic--derived-type-mapping) | 🔴 High |
+| ✅ | [Before/After Mapping Hooks](#9-beforeafter-mapping-hooks) | 🟢 Low-Medium |
+| ✅ | [Object Factories](#10-object-factories) | 🟢 Low-Medium |
+| ✅ | [Map to Existing Target Instance](#11-map-to-existing-target-instance) | 🟢 Low-Medium |
+| ✅ | [IQueryable Projections](#13-iqueryable-projections) | 🟢 Low-Medium |
+| ✅ | [Generic Mappers](#14-generic-mappers) | 🟢 Low |
+| ❌ | [Reference Handling / Circular Dependencies](#12-reference-handling--circular-dependencies) | 🟢 Low |
+| ✅ | [Private Member Access](#15-private-member-access) | 🟢 Low |
+| ❌ | [Multi-Source Consolidation](#16-multi-source-consolidation) | 🟢 Low-Medium |
+| ❌ | [Value Converters](#17-value-converters) | 🟢 Low-Medium |
+| ❌ | [Format Providers](#18-format-providers) | 🟢 Low |
+| ✅ | [Property Name Casing Strategies](#19-property-name-casing-strategies-snakecase-camelcase) | 🟢 Low-Medium |
+| ✅ | [Base Class Configuration Inheritance](#20-base-class-configuration-inheritance) | 🟢 Low |
+| 🚫 | [External Mappers / Mapper Composition](#21-external-mappers--mapper-composition) | - |
+| 🚫 | [Advanced Enum Strategies](#22-advanced-enum-strategies-beyond-special-cases) | - |
+| 🚫 | [Deep Cloning Support](#23-deep-cloning-support) | - |
+| 🚫 | [Conditional Mapping](#24-conditional-mapping-map-if-condition-is-true) | - |
+| 🚫 | [Asynchronous Mapping](#25-asynchronous-mapping) | - |
+| 🚫 | [Mapping Configuration Files](#26-mapping-configuration-files-jsonxml) | - |
+| 🚫 | [Runtime Dynamic Mapping](#27-runtime-dynamic-mapping) | - |
 
 **Legend:**
+
 - ✅ **Implemented** - Feature is complete and available
 - ❌ **Not Implemented** - Feature is planned but not yet developed
 - 🚫 **Not Planned** - Feature is out of scope or not aligned with project goals
@@ -135,6 +136,7 @@ Addresses = source.Addresses?.Select(x => x.MapToAddressDto()).ToList()!
 **Implementation Details**:
 
 ✅ **Supported Collection Types**:
+
 - `List<T>`, `IList<T>` → `.ToList()`
 - `IEnumerable<T>` → `.ToList()`
 - `ICollection<T>`, `IReadOnlyCollection<T>` → `.ToList()`
@@ -144,6 +146,7 @@ Addresses = source.Addresses?.Select(x => x.MapToAddressDto()).ToList()!
 - `ReadOnlyCollection<T>` → `new ReadOnlyCollection<T>(...)`
 
 ✅ **Features**:
+
 - Automatic collection type detection
 - LINQ `.Select()` with element mapping method
 - Null-safe handling with `?.` operator
@@ -152,6 +155,7 @@ Addresses = source.Addresses?.Select(x => x.MapToAddressDto()).ToList()!
 - Full Native AOT compatibility
 
 ✅ **Testing**:
+
 - 5 comprehensive unit tests covering all collection types
 - Tested in PetStore.Api sample across 3 layers:
   - `PetEntity`: `ICollection<PetEntity> Children`
@@ -159,6 +163,7 @@ Addresses = source.Addresses?.Select(x => x.MapToAddressDto()).ToList()!
   - `PetResponse`: `IReadOnlyList<PetResponse> Children`
 
 ✅ **Documentation**:
+
 - Added comprehensive section in `docs/generators/ObjectMapping.md`
 - Updated CLAUDE.md with collection mapping details
 - Includes examples and conversion rules
@@ -196,18 +201,21 @@ return new UserDto(source.Id, source.Name);
 **Implementation Details**:
 
 ✅ **Constructor Detection**:
+
 - Automatically detects public constructors where ALL parameters match source properties
 - Uses case-insensitive matching (supports `Id` matching `id`, `ID`, etc.)
 - Prefers constructors with more parameters
 - Falls back to object initializer syntax when no matching constructor exists
 
 ✅ **Supported Scenarios**:
+
 - **Records with positional parameters** (C# 9+)
 - **Classes with primary constructors** (C# 12+)
 - **Mixed initialization** - Constructor for required parameters + object initializer for remaining properties
 - **Bidirectional mapping** - Both directions automatically detect and use constructors
 
 ✅ **Features**:
+
 - Case-insensitive parameter matching (PascalCase properties → camelCase parameters)
 - Automatic ordering of constructor arguments
 - Mixed constructor + initializer generation
@@ -215,6 +223,7 @@ return new UserDto(source.Id, source.Name);
 - Full Native AOT compatibility
 
 ✅ **Testing**:
+
 - 9 comprehensive unit tests covering all scenarios:
   - Simple record constructors
   - Record with all properties in constructor
@@ -227,11 +236,13 @@ return new UserDto(source.Id, source.Name);
   - Class-to-record and record-to-record mappings
 
 ✅ **Documentation**:
+
 - Added comprehensive section in `docs/generators/ObjectMapping.md`
 - Updated CLAUDE.md with constructor mapping details
 - Includes examples for simple, bidirectional, mixed, and case-insensitive scenarios
 
 ✅ **Sample Code**:
+
 - Added `Product` and `Order` examples in `sample/Atc.SourceGenerators.Mapping.Domain`
 - Demonstrates record-to-record and class-to-record mapping with constructors
 
@@ -277,19 +288,23 @@ public class UserDto
 **Implementation Details**:
 
 ✅ **MapIgnoreAttribute Created**:
+
 - Attribute available in Atc.SourceGenerators.Annotations
 - Fallback attribute generated automatically by ObjectMappingGenerator
 - Applied to properties: `[AttributeUsage(AttributeTargets.Property)]`
 
 ✅ **Source Property Filtering**:
+
 - Properties with `[MapIgnore]` on source type are excluded from mapping
 - Ignored source properties are never read during mapping generation
 
 ✅ **Target Property Filtering**:
+
 - Properties with `[MapIgnore]` on target type are excluded from mapping
 - Ignored target properties are never set during mapping generation
 
 ✅ **Features**:
+
 - Works with simple properties
 - Works with nested objects (ignored properties in nested objects are excluded)
 - Works with bidirectional mappings (properties can be ignored in either direction)
@@ -297,6 +312,7 @@ public class UserDto
 - Full Native AOT compatibility
 
 ✅ **Testing**:
+
 - 4 comprehensive unit tests covering all scenarios:
   - Source property ignore
   - Target property ignore
@@ -304,11 +320,13 @@ public class UserDto
   - Bidirectional mapping property ignore
 
 ✅ **Documentation**:
+
 - Added comprehensive section in `docs/generators/ObjectMapping.md`
 - Updated CLAUDE.md with MapIgnore information
 - Includes examples and use cases
 
 ✅ **Sample Code**:
+
 - Added to `User` in `sample/Atc.SourceGenerators.Mapping.Domain`
 - Added to `Pet` in `sample/PetStore.Domain`
 - Demonstrates sensitive data and audit field exclusion
@@ -358,22 +376,26 @@ Age = source.YearsOld
 **Implementation Details**:
 
 ✅ **MapPropertyAttribute Created**:
+
 - Attribute available in Atc.SourceGenerators.Annotations
 - Fallback attribute generated automatically by ObjectMappingGenerator
 - Applied to properties: `[AttributeUsage(AttributeTargets.Property)]`
 - Constructor accepts target property name as string parameter
 
 ✅ **Custom Property Name Resolution**:
+
 - Properties with `[MapProperty("TargetName")]` are mapped to the specified target property name
 - Supports both string literals and nameof() expressions
 - Case-insensitive matching for target property names
 
 ✅ **Compile-Time Validation**:
+
 - Validates that target property exists on target type at compile time
 - Reports `ATCMAP003` diagnostic if target property is not found
 - Prevents runtime errors by catching mismatches during build
 
 ✅ **Features**:
+
 - Works with simple properties (strings, numbers, dates, etc.)
 - Works with nested objects (custom property names on nested object references)
 - Works with bidirectional mappings (apply `[MapProperty]` on both sides)
@@ -381,6 +403,7 @@ Age = source.YearsOld
 - Full Native AOT compatibility
 
 ✅ **Testing**:
+
 - 4 comprehensive unit tests covering all scenarios:
   - Basic custom property mapping with string literals
   - Bidirectional mapping with custom property names
@@ -388,12 +411,14 @@ Age = source.YearsOld
   - Custom property mapping with nested objects
 
 ✅ **Documentation**:
+
 - Added comprehensive section in `docs/generators/ObjectMapping.md`
 - Updated CLAUDE.md with MapProperty information
 - Includes examples and use cases
 - Added `ATCMAP003` diagnostic documentation
 
 ✅ **Sample Code**:
+
 - Added to `User` in `sample/Atc.SourceGenerators.Mapping.Domain` (PreferredName → DisplayName)
 - Added to `Pet` in `sample/PetStore.Domain` (NickName → DisplayName)
 - Demonstrates real-world usage patterns
@@ -444,17 +469,20 @@ AddressStreet = source.Address?.Street!
 **Implementation Details**:
 
 ✅ **Flattening Detection**:
+
 - Opt-in via `EnableFlattening = true` parameter on `[MapTo]` attribute
 - Naming convention: `{PropertyName}{NestedPropertyName}` (e.g., `Address.City` → `AddressCity`)
 - Case-insensitive matching for flattened property names
 - Only flattens class/struct types (not primitive types like string, DateTime)
 
 ✅ **Null Safety**:
+
 - Automatically handles nullable nested objects with null-conditional operator (`?.`)
 - Generates `source.Address?.City!` for nullable nested objects
 - Generates `source.Address.City` for non-nullable nested objects
 
 ✅ **Features**:
+
 - One-level deep flattening (can be extended to multi-level in future)
 - Works with bidirectional mappings
 - Supports multiple nested objects of the same type (e.g., `HomeAddress`, `WorkAddress`)
@@ -462,6 +490,7 @@ AddressStreet = source.Address?.Street!
 - Full Native AOT compatibility
 
 ✅ **Testing**:
+
 - 4 comprehensive unit tests covering all scenarios:
   - Basic flattening with multiple properties
   - Default behavior (no flattening when disabled)
@@ -469,11 +498,13 @@ AddressStreet = source.Address?.Street!
   - Nullable nested objects
 
 ✅ **Documentation**:
+
 - Added comprehensive section in `docs/generators/ObjectMapping.md`
 - Updated CLAUDE.md with flattening information
 - Includes examples and use cases
 
 ✅ **Sample Code**:
+
 - Added `UserFlatDto` in `sample/Atc.SourceGenerators.Mapping.Contract`
 - Added `PetSummaryResponse` in `sample/PetStore.Api.Contract`
 - Added `Owner` model in `sample/PetStore.Domain`
@@ -522,6 +553,7 @@ Success = source.Success.ToString()
 **Implementation Details**:
 
 ✅ **Supported Conversions**:
+
 - `DateTime` ↔ `string` (ISO 8601 format: "O")
 - `DateTimeOffset` ↔ `string` (ISO 8601 format: "O")
 - `Guid` ↔ `string`
@@ -529,6 +561,7 @@ Success = source.Success.ToString()
 - `bool` ↔ `string`
 
 ✅ **Features**:
+
 - Automatic type detection and conversion code generation
 - Uses InvariantCulture for all numeric and DateTime conversions
 - ISO 8601 format for DateTime/DateTimeOffset to string conversion
@@ -536,6 +569,7 @@ Success = source.Success.ToString()
 - Full Native AOT compatibility
 
 ✅ **Testing**:
+
 - 4 comprehensive unit tests covering all scenarios:
   - DateTime/DateTimeOffset/Guid to string conversion
   - String to DateTime/DateTimeOffset/Guid conversion
@@ -543,10 +577,12 @@ Success = source.Success.ToString()
   - String to numeric types conversion
 
 ✅ **Documentation**:
+
 - Added comprehensive section in `docs/generators/ObjectMapping.md`
 - Includes examples and conversion rules
 
 ✅ **Sample Code**:
+
 - Added `UserEvent` and `UserEventDto` in `sample/Atc.SourceGenerators.Mapping`
 - Added `PetDetailsDto` in `sample/PetStore.Api`
 - Demonstrates real-world usage with API endpoints
@@ -598,6 +634,7 @@ public partial class UserRegistration
 **Implementation Details**:
 
 **Features**:
+
 - Detects `required` keyword on target properties (C# 11+)
 - Generates **ATCMAP004** diagnostic (Warning severity) if required property has no mapping
 - Validates during compilation - catches missing mappings before runtime
@@ -609,20 +646,23 @@ public partial class UserRegistration
 **Severity**: Warning (configurable to Error)
 
 **How It Works**:
+
 1. After property mappings are determined, validator checks all target properties
 2. For each target property marked with `required` keyword:
    - Check if it appears in the property mappings list
    - If not mapped, report ATCMAP004 diagnostic with property name, target type, and source type
 
 **Testing**: 4 unit tests added
+
 - `Generator_Should_Generate_Warning_For_Missing_Required_Property` - Single missing required property
 - `Generator_Should_Not_Generate_Warning_When_All_Required_Properties_Are_Mapped` - All required properties present
 - `Generator_Should_Generate_Warning_For_Multiple_Missing_Required_Properties` - Multiple missing required properties
 - `Generator_Should_Not_Generate_Warning_For_Non_Required_Properties` - Non-required properties can be omitted
 
-**Documentation**: See [Object Mapping - Required Property Validation](generators/ObjectMapping.md#-required-property-validation)
+**Documentation**: See [Object Mapping - Required Property Validation](ObjectMappingGenerators.md#-required-property-validation)
 
 **Sample Code**:
+
 - `Atc.SourceGenerators.Mapping`: `UserRegistration` → `UserRegistrationDto` (lines in Program.cs)
 - `PetStore.Api`: `Pet` → `UpdatePetRequest` with required Name and Species properties
 
@@ -681,6 +721,7 @@ public static AnimalDto MapToAnimalDto(this Animal source)
 **Implementation Details**:
 
 ✅ **Implemented Features**:
+
 - `[MapDerivedType(Type sourceType, Type targetType)]` attribute
 - Switch expression generation with type pattern matching
 - Null safety checks for source parameter
@@ -689,13 +730,15 @@ public static AnimalDto MapToAnimalDto(this Animal source)
 - Support for multiple derived type mappings via `AllowMultiple = true`
 
 **Testing**: 3 unit tests added
+
 - `Generator_Should_Generate_Polymorphic_Mapping_With_Switch_Expression` - Basic Dog/Cat example
 - `Generator_Should_Handle_Single_Derived_Type_Mapping` - Single derived type
 - `Generator_Should_Support_Multiple_Polymorphic_Mappings` - Three derived types (Circle/Square/Triangle)
 
-**Documentation**: See [Object Mapping - Polymorphic Type Mapping](generators/ObjectMapping.md#-polymorphic--derived-type-mapping)
+**Documentation**: See [Object Mapping - Polymorphic Type Mapping](ObjectMappingGenerators.md#-polymorphic--derived-type-mapping)
 
 **Sample Code**:
+
 - `Atc.SourceGenerators.Mapping`: `Animal` → `AnimalDto` with `Dog`/`Cat` derived types
 - `PetStore.Api`: `Notification` → `NotificationDto` with `EmailNotification`/`SmsNotification` derived types
 
@@ -777,18 +820,21 @@ public static UserDto MapToUserDto(this User source)
 **Implementation Details**:
 
 ✅ **BeforeMap Hook**:
+
 - Called after null check, before object creation
 - Signature: `static void MethodName(SourceType source)`
 - Use for validation, preprocessing, or throwing exceptions
 - Has access to source object only
 
 ✅ **AfterMap Hook**:
+
 - Called after object creation, before return
 - Signature: `static void MethodName(SourceType source, TargetType target)`
 - Use for post-processing, enrichment, or additional property setting
 - Has access to both source and target objects
 
 ✅ **Features**:
+
 - Hook methods must be static
 - Hooks are called via fully qualified name (e.g., `User.ValidateUser(source)`)
 - Both hooks are optional - use one, both, or neither
@@ -798,6 +844,7 @@ public static UserDto MapToUserDto(this User source)
 - Full Native AOT compatibility
 
 ✅ **Execution Order**:
+
 1. Null check on source
 2. **BeforeMap hook** (if specified)
 3. Polymorphic type check (if derived type mappings exist)
@@ -806,21 +853,25 @@ public static UserDto MapToUserDto(this User source)
 6. Return target object
 
 ✅ **Testing**:
+
 - 3 comprehensive unit tests covering all scenarios:
   - BeforeMap hook called before mapping
   - AfterMap hook called after mapping
   - Both hooks called in correct order
 
 ✅ **Documentation**:
+
 - Added comprehensive section in `docs/generators/ObjectMapping.md`
 - Updated CLAUDE.md with hooks information
 - Includes examples and use cases
 
 ✅ **Sample Code**:
+
 - Planned to be added to `sample/Atc.SourceGenerators.Mapping`
 - Planned to be added to `sample/PetStore.Api`
 
 **Use Cases**:
+
 - **Validation** - Throw exceptions if source data is invalid before mapping
 - **Logging** - Log mapping operations for debugging
 - **Enrichment** - Add computed properties to target that don't exist in source
@@ -888,12 +939,14 @@ public static UserDto MapToUserDto(this User source)
 **Implementation Details**:
 
 ✅ **Factory Method**:
+
 - Signature: `static TargetType MethodName()`
 - Replaces `new TargetType()` for object creation
 - Property mappings are applied after factory creates the instance
 - Factory method must be static and accessible
 
 ✅ **Features**:
+
 - Factory method specified by name (e.g., `Factory = nameof(CreateUserDto)`)
 - Fully compatible with BeforeMap/AfterMap hooks
 - Works with all mapping features (nested objects, collections, etc.)
@@ -901,6 +954,7 @@ public static UserDto MapToUserDto(this User source)
 - Full Native AOT compatibility
 
 ✅ **Execution Order**:
+
 1. Null check on source
 2. **BeforeMap hook** (if specified)
 3. **Factory method** creates target instance
@@ -909,20 +963,24 @@ public static UserDto MapToUserDto(this User source)
 6. Return target object
 
 ✅ **Testing**:
+
 - 3 unit tests added (skipped in test harness, manually verified in samples)
 - Tested with BeforeMap/AfterMap hooks
 - Verified property mapping after factory creation
 
 ✅ **Documentation**:
+
 - Added comprehensive section in `docs/generators/ObjectMapping.md`
 - Updated CLAUDE.md with factory information
 - Includes examples and use cases
 
 ✅ **Sample Code**:
+
 - Added to `sample/PetStore.Api` (EmailNotification with factory)
 - Demonstrates factory method with runtime default values
 
 **Use Cases**:
+
 - **Default Values** - Set properties that don't exist in source (e.g., CreatedAt timestamp)
 - **Object Pooling** - Reuse objects from a pool for performance
 - **Lazy Initialization** - Defer expensive initialization until needed
@@ -930,6 +988,7 @@ public static UserDto MapToUserDto(this User source)
 - **Custom Logic** - Apply any custom creation logic (caching, logging, etc.)
 
 **Limitations**:
+
 - Factory pattern doesn't work with init-only properties (records with `init` setters)
 - For init-only properties, use constructor mapping or object initializers instead
 
@@ -950,11 +1009,13 @@ public static UserDto MapToUserDto(this User source)
 When `UpdateTarget = true` is specified in the `MapToAttribute`, the generator creates **two methods**:
 
 1. **Standard method** - Creates and returns a new instance:
+
    ```csharp
    public static TargetType MapToTargetType(this SourceType source)
    ```
 
 2. **Update method** - Updates an existing instance (void return):
+
    ```csharp
    public static void MapToTargetType(this SourceType source, TargetType target)
    ```
@@ -996,18 +1057,21 @@ public static void MapToUserDto(this User source, UserDto target)
 ```
 
 **Testing Status**:
+
 - ✅ Unit tests added (`Generator_Should_Generate_Update_Target_Method`)
 - ✅ Unit tests added (`Generator_Should_Not_Generate_Update_Target_Method_When_False`)
 - ✅ Unit tests added (`Generator_Should_Include_Hooks_In_Update_Target_Method`)
 - ✅ All tests passing (171 succeeded, 13 skipped)
 
 **Sample Code Locations**:
+
 - `sample/Atc.SourceGenerators.Mapping.Domain/Settings.cs` - Simple update target example
 - `sample/PetStore.Domain/Models/Pet.cs` - EF Core entity update example (with `Bidirectional = true`)
 
 **Use Cases**:
 
 1. **EF Core Tracked Entities**:
+
    ```csharp
    // Fetch tracked entity from database
    var existingPet = await dbContext.Pets.FindAsync(petId);
@@ -1020,6 +1084,7 @@ public static void MapToUserDto(this User source, UserDto target)
    ```
 
 2. **Reduce Object Allocations**:
+
    ```csharp
    // Reuse existing DTO instance
    var settingsDto = new SettingsDto();
@@ -1032,6 +1097,7 @@ public static void MapToUserDto(this User source, UserDto target)
    ```
 
 3. **Update UI ViewModels**:
+
    ```csharp
    // Update existing ViewModel without creating new instance
    var viewModel = this.DataContext as UserViewModel;
@@ -1136,11 +1202,13 @@ var users = await dbContext.Users
 **Implementation Details**:
 
 ✅ **GenerateProjection Property**:
+
 - Opt-in via `GenerateProjection = true` parameter on `[MapTo]` attribute
 - Generates a static method that returns `Expression<Func<TSource, TTarget>>`
 - Only includes simple property mappings (no nested objects, collections, or hooks)
 
 ✅ **Projection Limitations**:
+
 - **No BeforeMap/AfterMap hooks** - Expressions can't call methods
 - **No Factory methods** - Expressions must use object initializers
 - **No nested objects** - Would require method calls like `.MapToX()`
@@ -1149,6 +1217,7 @@ var users = await dbContext.Users
 - Only simple property-to-property mappings and enum conversions (simple casts) are supported
 
 ✅ **Features**:
+
 - Clean method signature: `ProjectTo{TargetType}()`
 - Returns `Expression<Func<TSource, TTarget>>` for use with `.Select()`
 - Full Native AOT compatibility
@@ -1157,6 +1226,7 @@ var users = await dbContext.Users
 - Comprehensive XML documentation explaining limitations
 
 ✅ **Testing**:
+
 - 4 comprehensive unit tests added (skipped in test harness, verified in samples):
   - Basic projection method generation
   - Enum conversion in projections
@@ -1164,11 +1234,13 @@ var users = await dbContext.Users
   - No projection when GenerateProjection = false
 
 ✅ **Documentation**:
+
 - Added comprehensive section in `docs/generators/ObjectMapping.md`
 - Updated MapToAttribute XML documentation with projection details
 - Includes examples and use cases
 
 ✅ **Sample Code**:
+
 - `Atc.SourceGenerators.Mapping`: `User` → `UserSummaryDto` with GenerateProjection
 - `PetStore.Api`: `Pet` → `PetListItemDto` with GenerateProjection
 - Demonstrates realistic EF Core query optimization scenarios
@@ -1193,6 +1265,7 @@ var users = await dbContext.Users
 **Implementation Details**:
 
 ✅ **Core Functionality**:
+
 - Automatic detection of generic types with `[MapTo(typeof(TargetType<>))]` syntax
 - Generates generic extension methods like `MapToResultDto<T>()`
 - Preserves all type parameter constraints (`where T : class`, `where T : struct`, `where T : new()`, etc.)
@@ -1252,6 +1325,7 @@ public static PagedResultDto<T> MapToPagedResultDto<T>(
 ```
 
 ✅ **Testing**:
+
 - 6 comprehensive unit tests added (skipped in test harness similar to Factory/UpdateTarget, verified in samples):
   - Generic mapping method generation
   - Constraints preservation (class, struct)
@@ -1260,11 +1334,13 @@ public static PagedResultDto<T> MapToPagedResultDto<T>(
   - UpdateTarget for generic types
 
 ✅ **Sample Code**:
+
 - `Atc.SourceGenerators.Mapping.Domain`: `Result<T>` → `ResultDto<T>` with bidirectional mapping
 - `Atc.SourceGenerators.Mapping.Domain`: `PagedResult<T>` → `PagedResultDto<T>` with constraints
 - `Atc.SourceGenerators.Mapping\Program.cs`: Demonstrates usage in API endpoints
 
 **Benefits**:
+
 - Type-safe wrapper types (Result, Optional, PagedResult, etc.)
 - Eliminates boilerplate for generic DTOs
 - Compile-time safety with preserved constraints
@@ -1281,6 +1357,7 @@ public static PagedResultDto<T> MapToPagedResultDto<T>(
 **Description**: Map to/from private and internal properties using UnsafeAccessor for AOT-safe, zero-overhead access without reflection.
 
 **Benefits**:
+
 - ✅ **AOT Compatible** - Uses .NET 8+ UnsafeAccessor (no reflection)
 - ✅ **Zero Overhead** - Direct method calls at runtime
 - ✅ **Compile-Time Safety** - Errors detected during build, not runtime
@@ -1626,6 +1703,7 @@ await _userService.EnrichWithDataAsync(user);  // ✅ Async enrichment in servic
 Based on priority, dependencies, and community demand (⭐ = high user demand from Mapperly community):
 
 ### Phase 1: Essential Features (v1.1 - Q1 2025)
+
 **Goal**: Make the generators production-ready for 80% of use cases
 
 1. **Collection Mapping** 🔴 Critical - Map `List<User>` to `List<UserDto>`
@@ -1638,6 +1716,7 @@ Based on priority, dependencies, and community demand (⭐ = high user demand fr
 ---
 
 ### Phase 2: Flexibility & Customization (v1.2 - Q2 2025)
+
 **Goal**: Handle edge cases and custom naming
 
 4. **Custom Property Name Mapping** 🟡 Medium-High - `[MapProperty("TargetName")]`
@@ -1650,6 +1729,7 @@ Based on priority, dependencies, and community demand (⭐ = high user demand fr
 ---
 
 ### Phase 3: Advanced Features (v1.3 - Q3 2025)
+
 **Goal**: Validation and advanced scenarios
 
 7. **Required Property Validation** 🟡 Medium - Compile-time warnings
@@ -1662,6 +1742,7 @@ Based on priority, dependencies, and community demand (⭐ = high user demand fr
 ---
 
 ### Phase 4: Professional Scenarios (v2.0 - Q4 2025)
+
 **Goal**: Enterprise and EF Core integration
 
 10. **IQueryable Projections** 🟢 Low-Medium ⭐ - EF Core server-side projections
@@ -1674,6 +1755,7 @@ Based on priority, dependencies, and community demand (⭐ = high user demand fr
 ---
 
 ### Phase 5: Optional Enhancements (v2.1+ - 2026)
+
 **Goal**: Nice-to-have features based on feedback
 
 13. **Multi-Source Consolidation** 🟢 Low-Medium ⭐ - Merge multiple sources
@@ -1773,8 +1855,8 @@ To determine if these features are meeting user needs:
 
 ## 🔗 Related Resources
 
-- **Mapperly Documentation**: https://mapperly.riok.app/docs/intro/
-- **Mapperly GitHub**: https://github.com/riok/mapperly (3.7k⭐)
+- **Mapperly Documentation**: <https://mapperly.riok.app/docs/intro/>
+- **Mapperly GitHub**: <https://github.com/riok/mapperly> (3.7k⭐)
 - **Our Documentation**: See `/docs/generators/ObjectMapping.md` and `/docs/generators/EnumMapping.md`
 - **Sample Projects**: See `/sample/PetStore.Api` for complete example
 

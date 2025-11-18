@@ -3,6 +3,7 @@
 Automatically register services in the dependency injection container using attributes instead of manual registration code. The generator creates type-safe registration code at compile time, eliminating boilerplate and reducing errors.
 
 **Key Benefits:**
+
 - 🎯 **Zero boilerplate** - Attribute-based registration eliminates manual `AddScoped<T>()` calls
 - 🚀 **Compile-time safety** - Catch registration errors at build time, not runtime
 - ⚡ **Auto-detection** - Automatically registers all implemented interfaces
@@ -10,6 +11,7 @@ Automatically register services in the dependency injection container using attr
 - 🎨 **Advanced patterns** - Generics, keyed services, factories, decorators, and more
 
 **Quick Example:**
+
 ```csharp
 // Input: Attribute decoration
 [Registration(Lifetime.Scoped)]
@@ -19,9 +21,15 @@ public class UserService : IUserService { }
 services.AddScoped<IUserService, UserService>();
 ```
 
+## 📖 Documentation Navigation
+
+- **[📋 Feature Roadmap](DependencyRegistrationGenerators-FeatureRoadmap.md)** - See all implemented and planned features
+- **[🎯 Sample Projects](DependencyRegistrationGenerators-Samples.md)** - Working code examples with architecture diagrams
+
 ## 📑 Table of Contents
 
 - [🎯 Dependency Registration Generator](#-dependency-registration-generator)
+  - [� Documentation Navigation](#-documentation-navigation)
   - [📑 Table of Contents](#-table-of-contents)
   - [🚀 Get Started - Quick Guide](#-get-started---quick-guide)
     - [📂 Project Structure](#-project-structure)
@@ -34,12 +42,12 @@ services.AddScoped<IUserService, UserService>();
     - [6️⃣ Testing the Application 🧪](#6️⃣-testing-the-application-)
     - [🔍 Viewing Generated Code (Optional)](#-viewing-generated-code-optional)
     - [🎯 Key Takeaways](#-key-takeaways)
-  - [✨ Features](#-features)
   - [📦 Installation](#-installation)
   - [💡 Basic Usage](#-basic-usage)
     - [1️⃣ Add Using Directives](#1️⃣-add-using-directives)
     - [2️⃣ Decorate Your Services](#2️⃣-decorate-your-services)
     - [3️⃣ Register in DI Container](#3️⃣-register-in-di-container)
+  - [✨ Features](#-features)
   - [🏗️ Multi-Project Setup](#️-multi-project-setup)
     - [📁 Example Structure](#-example-structure)
     - [⚡ Program.cs Registration](#-programcs-registration)
@@ -134,6 +142,25 @@ services.AddScoped<IUserService, UserService>();
       - [4. Retry Logic](#4-retry-logic)
     - [⚠️ Important Notes](#️-important-notes)
     - [🔍 Complete Example](#-complete-example)
+  - [🎛️ Conditional Registration](#️-conditional-registration)
+    - [✨ How It Works](#-how-it-works-1)
+    - [📝 Basic Example](#-basic-example-1)
+    - [Generated Code](#generated-code-1)
+    - [🔄 Negation Support](#-negation-support)
+    - [🎯 Common Use Cases](#-common-use-cases-1)
+      - [1. Feature Flags](#1-feature-flags)
+      - [2. Environment-Specific Services](#2-environment-specific-services)
+      - [3. A/B Testing](#3-ab-testing)
+      - [4. Cost Optimization](#4-cost-optimization)
+    - [🎨 Advanced Scenarios](#-advanced-scenarios)
+      - [Multiple Conditional Services](#multiple-conditional-services)
+      - [Combining with Different Lifetimes](#combining-with-different-lifetimes)
+      - [Mixing Conditional and Unconditional](#mixing-conditional-and-unconditional)
+    - [⚙️ Configuration Best Practices](#️-configuration-best-practices)
+    - [🔍 IConfiguration Parameter Behavior](#-iconfiguration-parameter-behavior)
+    - [⚠️ Important Notes](#️-important-notes-1)
+    - [✅ Benefits](#-benefits)
+    - [📝 Complete Example](#-complete-example-1)
   - [📚 Additional Examples](#-additional-examples)
 
 ---
@@ -834,7 +861,7 @@ When using the generator across multiple projects, each project generates its ow
 
 ### 📁 Example Structure
 
-```
+```text
 Solution/
 ├── MyApp.Api/          → AddDependencyRegistrationsFromApi()
 ├── MyApp.Domain/       → AddDependencyRegistrationsFromDomain()
@@ -2797,6 +2824,7 @@ Conditional Registration allows you to register services based on configuration 
 Services with a `Condition` parameter are only registered if the configuration value at the specified key path evaluates to `true`. The condition is checked at runtime when the registration methods are called.
 
 When an assembly contains services with conditional registration:
+
 - An `IConfiguration` parameter is **automatically added** to all generated extension method signatures
 - The configuration value is checked using `configuration.GetValue<bool>("key")`
 - Services are registered inside `if` blocks based on the condition
