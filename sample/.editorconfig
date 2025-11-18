@@ -53,6 +53,7 @@ dotnet_diagnostic.S1075.severity = none             # Refactor your code not to 
 dotnet_diagnostic.CA1062.severity = none            # In externally visible method
 dotnet_diagnostic.CA1056.severity = none            #
 dotnet_diagnostic.CA1303.severity = none            #
+dotnet_diagnostic.CA1716.severity = none            # Rename virtual/interface member
 dotnet_diagnostic.CA1848.severity = none            # For improved performance
 dotnet_diagnostic.CA1819.severity = none            # Properties should not return arrays
 

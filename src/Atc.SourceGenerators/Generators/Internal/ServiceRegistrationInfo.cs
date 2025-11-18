@@ -11,4 +11,5 @@ internal sealed record ServiceRegistrationInfo(
     bool TryAdd,
     bool Decorator,
     string? InstanceMemberName,
+    string? Condition,
     Location Location);

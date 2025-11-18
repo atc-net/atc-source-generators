@@ -446,34 +446,71 @@ These features would improve usability but are not critical for initial adoption
 ### 8. Conditional Registration
 
 **Priority**: 🟢 **Low-Medium**
-**Status**: ❌ Not Implemented
+**Status**: ✅ **Implemented** (v1.5 - January 2025)
 
-**Description**: Register services only if certain conditions are met (e.g., feature flags, environment checks).
+**Description**: Register services based on configuration values at runtime (feature flags, environment-specific services).
+
+**User Story**:
+> "As a developer, I want to register different service implementations based on configuration values (feature flags) without code changes or redeployment."
 
 **Example**:
 
 ```csharp
-[Registration(As = typeof(ICache), Condition = "Features:UseRedis")]
+// appsettings.json
+{
+  "Features": {
+    "UseRedisCache": true
+  }
+}
+
+[Registration(As = typeof(ICache), Condition = "Features:UseRedisCache")]
 public class RedisCache : ICache { }
 
-[Registration(As = typeof(ICache), Condition = "!Features:UseRedis")]
+[Registration(As = typeof(ICache), Condition = "!Features:UseRedisCache")]
 public class MemoryCache : ICache { }
 
 // Generated code checks configuration at runtime
-if (configuration.GetValue<bool>("Features:UseRedis"))
+public static IServiceCollection AddDependencyRegistrationsFromDomain(
+    this IServiceCollection services,
+    IConfiguration configuration)  // ← IConfiguration parameter added automatically
 {
-    services.AddScoped<ICache, RedisCache>();
+    if (configuration.GetValue<bool>("Features:UseRedisCache"))
+    {
+        services.AddSingleton<ICache, RedisCache>();
+    }
+
+    if (!configuration.GetValue<bool>("Features:UseRedisCache"))
+    {
+        services.AddSingleton<ICache, MemoryCache>();
+    }
+
+    return services;
 }
-else
-{
-    services.AddScoped<ICache, MemoryCache>();
-}
+
+// Usage
+services.AddDependencyRegistrationsFromDomain(configuration);
 ```
 
-**Implementation Considerations**:
+**Implementation Notes**:
 
-- Requires runtime configuration access
-- Adds complexity to generated code
+- ✅ Added `Condition` property to `[Registration]` attribute
+- ✅ Supports negation with `!` prefix
+- ✅ IConfiguration parameter automatically added to all method overloads when conditional services exist
+- ✅ Generates `if (configuration.GetValue<bool>("key"))` checks wrapping registration calls
+- ✅ Configuration is NOT passed transitively to referenced assemblies (each assembly manages its own)
+- ✅ Works with all lifetimes (Singleton, Scoped, Transient)
+- ✅ Fully Native AOT compatible (simple boolean reads from configuration)
+- ✅ Thread-safe configuration reading
+- ✅ Complete test coverage with 6 unit tests
+- ✅ Demonstrated in both DependencyRegistration and PetStore samples
+- ✅ Comprehensive documentation in Conditional Registration section
+
+**Benefits**:
+- 🎯 Feature Flags - Enable/disable features without redeployment
+- 🌍 Environment-Specific - Different implementations for dev/staging/prod
+- 🧪 A/B Testing - Easy experimentation with different implementations
+- 💰 Cost Optimization - Disable expensive services when not needed
+- 🚀 Gradual Rollout - Safely test new implementations before full deployment
 
 ---
 
