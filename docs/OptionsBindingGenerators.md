@@ -30,11 +30,12 @@ services.AddOptions<DatabaseOptions>()
 ## 📖 Documentation Navigation
 
 - **[📋 Feature Roadmap](OptionsBindingGenerators-FeatureRoadmap.md)** - See all implemented and planned features
-- **[🎯 Sample Projects](OptionsBinding-Samples.md)** - Working code examples with architecture diagrams
+- **[🎯 Sample Projects](OptionsBindingGenerators-Samples.md)** - Working code examples with architecture diagrams
 
 ## 📑 Table of Contents
 
 - [⚙️ Options Binding Source Generator](#️-options-binding-source-generator)
+  - [� Documentation Navigation](#-documentation-navigation)
   - [📑 Table of Contents](#-table-of-contents)
   - [📖 Overview](#-overview)
     - [😫 Before (Manual Approach)](#-before-manual-approach)
@@ -739,6 +740,7 @@ Console.WriteLine($"Other interval: {otherOptions.Value.RepeatIntervalInSeconds}
 
 - **🧠 Automatic section name inference** - Smart resolution from explicit names, const fields (`SectionName`, `NameTitle`, `Name`), or auto-inferred from class names
 - **🔒 Built-in validation** - Integrated DataAnnotations validation (`ValidateDataAnnotations`) and startup validation (`ValidateOnStart`)
+- **🎯 Custom validation** - Support for `IValidateOptions<T>` for complex business rules beyond DataAnnotations
 - **🎯 Explicit section paths** - Support for nested sections like `"App:Database"` or `"Services:Email"`
 - **📦 Multiple options classes** - Register multiple configuration sections in a single assembly with one method call
 - **🏗️ Multi-project support** - Smart naming generates assembly-specific extension methods (e.g., `AddOptionsFromDomain()`, `AddOptionsFromDataAccess()`)
@@ -952,6 +954,78 @@ public partial class DatabaseOptions
     public int MaxRetries { get; set; } = 3;
 }
 ```
+
+#### 🎯 Custom Validation (IValidateOptions)
+
+For complex validation logic that goes beyond DataAnnotations, use custom validators implementing `IValidateOptions<T>`:
+
+```csharp
+using Microsoft.Extensions.Options;
+
+// Options class with custom validator
+[OptionsBinding("Database",
+    ValidateDataAnnotations = true,
+    ValidateOnStart = true,
+    Validator = typeof(DatabaseOptionsValidator))]
+public partial class DatabaseOptions
+{
+    [Required, MinLength(10)]
+    public string ConnectionString { get; set; } = string.Empty;
+
+    [Range(1, 10)]
+    public int MaxRetries { get; set; } = 3;
+
+    public int TimeoutSeconds { get; set; } = 30;
+}
+
+// Custom validator with complex business rules
+public class DatabaseOptionsValidator : IValidateOptions<DatabaseOptions>
+{
+    public ValidateOptionsResult Validate(string? name, DatabaseOptions options)
+    {
+        var failures = new List<string>();
+
+        // Custom validation: timeout must be at least 10 seconds
+        if (options.TimeoutSeconds < 10)
+        {
+            failures.Add("TimeoutSeconds must be at least 10 seconds for reliable operations");
+        }
+
+        // Custom validation: connection string must contain Server or Data Source
+        if (!string.IsNullOrWhiteSpace(options.ConnectionString))
+        {
+            var connStr = options.ConnectionString.ToLowerInvariant();
+            if (!connStr.Contains("server=") && !connStr.Contains("data source="))
+            {
+                failures.Add("ConnectionString must contain 'Server=' or 'Data Source=' parameter");
+            }
+        }
+
+        return failures.Count > 0
+            ? ValidateOptionsResult.Fail(failures)
+            : ValidateOptionsResult.Success;
+    }
+}
+```
+
+**Generated Code:**
+
+```csharp
+services.AddOptions<global::MyApp.Options.DatabaseOptions>()
+    .Bind(configuration.GetSection("Database"))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+
+services.AddSingleton<global::Microsoft.Extensions.Options.IValidateOptions<global::MyApp.Options.DatabaseOptions>,
+    global::MyApp.Options.DatabaseOptionsValidator>();
+```
+
+**Key Features:**
+- Supports complex validation logic beyond DataAnnotations
+- Validator is automatically registered as a singleton
+- Runs during options validation pipeline
+- Can validate cross-property dependencies
+- Returns detailed failure messages
 
 ### ⏱️ Options Lifetimes
 

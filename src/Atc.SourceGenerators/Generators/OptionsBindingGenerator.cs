@@ -220,6 +220,7 @@ public class OptionsBindingGenerator : IIncrementalGenerator
         var validateOnStart = false;
         var validateDataAnnotations = false;
         var lifetime = 0; // Singleton
+        INamedTypeSymbol? validatorType = null;
 
         foreach (var namedArg in attribute.NamedArguments)
         {
@@ -234,8 +235,14 @@ public class OptionsBindingGenerator : IIncrementalGenerator
                 case "Lifetime":
                     lifetime = namedArg.Value.Value as int? ?? 0;
                     break;
+                case "Validator":
+                    validatorType = namedArg.Value.Value as INamedTypeSymbol;
+                    break;
             }
         }
+
+        // Convert validator type to full name if present
+        var validatorTypeName = validatorType?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 
         return new OptionsInfo(
             classSymbol.Name,
@@ -244,7 +251,8 @@ public class OptionsBindingGenerator : IIncrementalGenerator
             sectionName!, // Guaranteed non-null after validation above
             validateOnStart,
             validateDataAnnotations,
-            lifetime);
+            lifetime,
+            validatorTypeName);
     }
 
     private static string InferSectionNameFromClassName(string className)
@@ -570,6 +578,18 @@ public static class OptionsBindingExtensions
         }
 
         sb.AppendLineLf(";");
+
+        // Register custom validator if specified
+        if (!string.IsNullOrWhiteSpace(option.ValidatorType))
+        {
+            sb.AppendLineLf();
+            sb.Append("        services.AddSingleton<global::Microsoft.Extensions.Options.IValidateOptions<");
+            sb.Append(optionsType);
+            sb.Append(">, ");
+            sb.Append(option.ValidatorType);
+            sb.AppendLineLf(">();");
+        }
+
         sb.AppendLineLf();
     }
 
@@ -731,6 +751,14 @@ public static class OptionsBindingExtensions
                    /// Default is <see cref="OptionsLifetime.Singleton"/>.
                    /// </summary>
                    public OptionsLifetime Lifetime { get; set; } = OptionsLifetime.Singleton;
+
+                   /// <summary>
+                   /// Gets or sets the validator type for custom validation logic.
+                   /// The type must implement <c>IValidateOptions&lt;T&gt;</c> where T is the options class.
+                   /// The validator will be registered as a singleton and executed during options validation.
+                   /// Default is null (no custom validator).
+                   /// </summary>
+                   public global::System.Type? Validator { get; set; }
                }
            }
            """;

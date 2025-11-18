@@ -67,7 +67,7 @@ This roadmap is based on comprehensive analysis of:
 
 | Status | Feature | Priority |
 |:------:|---------|----------|
-| ❌ | [Custom Validation Support (IValidateOptions)](#1-custom-validation-support-ivalidateoptions) | 🔴 High |
+| ✅ | [Custom Validation Support (IValidateOptions)](#1-custom-validation-support-ivalidateoptions) | 🔴 High |
 | ❌ | [Named Options Support](#2-named-options-support) | 🔴 High |
 | ❌ | [Post-Configuration Support](#3-post-configuration-support) | 🟡 Medium-High |
 | ❌ | [Error on Missing Configuration Keys](#4-error-on-missing-configuration-keys) | 🔴 High |
@@ -99,7 +99,7 @@ These features address common pain points and align with Microsoft's Options pat
 ### 1. Custom Validation Support (IValidateOptions)
 
 **Priority**: 🔴 **High**
-**Status**: ❌ Not Implemented
+**Status**: ✅ **Implemented**
 **Inspiration**: Microsoft.Extensions.Options.IValidateOptions<T>
 
 **Description**: Support complex validation logic beyond DataAnnotations using `IValidateOptions<T>` interface.
@@ -153,10 +153,12 @@ services.AddOptions<ConnectionPoolOptions>()
 
 **Implementation Notes**:
 
-- Detect classes implementing `IValidateOptions<T>` in the same assembly
-- Auto-register validators when corresponding options class has `[OptionsBinding]`
-- Support multiple validators for same options type
-- Consider adding `Validator = typeof(ConnectionPoolOptionsValidator)` parameter to `[OptionsBinding]`
+- ✅ Added `Validator` property to `[OptionsBinding]` attribute
+- ✅ Generator extracts validator type and registers it as singleton
+- ✅ Generated code: `services.AddSingleton<IValidateOptions<TOptions>, TValidator>()`
+- ✅ Works with DataAnnotations validation and ValidateOnStart
+- ✅ Supports fully qualified type names
+- ✅ Tested in sample projects (DatabaseOptions, PetStoreOptions)
 
 ---
 

@@ -3,7 +3,7 @@ namespace PetStore.Domain.Options;
 /// <summary>
 /// Configuration options for the pet store.
 /// </summary>
-[OptionsBinding("PetStore", ValidateDataAnnotations = true, ValidateOnStart = true)]
+[OptionsBinding("PetStore", ValidateDataAnnotations = true, ValidateOnStart = true, Validator = typeof(Validators.PetStoreOptionsValidator))]
 public partial class PetStoreOptions
 {
     /// <summary>

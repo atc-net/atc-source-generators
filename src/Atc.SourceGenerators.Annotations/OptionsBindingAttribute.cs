@@ -53,4 +53,12 @@ public sealed class OptionsBindingAttribute : Attribute
     /// Default is <see cref="OptionsLifetime.Singleton"/>.
     /// </summary>
     public OptionsLifetime Lifetime { get; set; } = OptionsLifetime.Singleton;
+
+    /// <summary>
+    /// Gets or sets the validator type for custom validation logic.
+    /// The type must implement <c>IValidateOptions&lt;T&gt;</c> where T is the options class.
+    /// The validator will be registered as a singleton and executed during options validation.
+    /// Default is null (no custom validator).
+    /// </summary>
+    public Type? Validator { get; set; }
 }

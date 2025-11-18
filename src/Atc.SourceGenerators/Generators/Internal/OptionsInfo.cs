@@ -7,4 +7,5 @@ internal sealed record OptionsInfo(
     string SectionName,
     bool ValidateOnStart,
     bool ValidateDataAnnotations,
-    int Lifetime);
+    int Lifetime,
+    string? ValidatorType);
