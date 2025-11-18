@@ -190,4 +190,48 @@ app
     .WithName("GetApiConfiguration")
     .Produces<object>(StatusCodes.Status200OK);
 
+app
+    .MapGet("/notifications", () =>
+    {
+        // ✨ Demonstrate polymorphic mapping: Domain → DTO
+        // Shows automatic type pattern matching where base class maps to derived types
+        var notifications = new List<PetStore.Domain.Models.Notification>
+        {
+            new PetStore.Domain.Models.EmailNotification
+            {
+                Id = Guid.NewGuid(),
+                Message = "Your pet vaccination is due next week",
+                CreatedAt = DateTimeOffset.UtcNow,
+                To = "owner@example.com",
+                Subject = "Pet Vaccination Reminder",
+            },
+            new PetStore.Domain.Models.SmsNotification
+            {
+                Id = Guid.NewGuid(),
+                Message = "Your pet grooming appointment is confirmed",
+                CreatedAt = DateTimeOffset.UtcNow.AddHours(-1),
+                PhoneNumber = "+1-555-0123",
+            },
+            new PetStore.Domain.Models.EmailNotification
+            {
+                Id = Guid.NewGuid(),
+                Message = "Your pet adoption application has been approved!",
+                CreatedAt = DateTimeOffset.UtcNow.AddDays(-1),
+                To = "newowner@example.com",
+                Subject = "Pet Adoption Approved",
+            },
+        };
+
+        // The generated MapToNotificationDto() uses a switch expression to map each derived type
+        var response = notifications
+            .Select(n => n.MapToNotificationDto())
+            .ToList();
+
+        return Results.Ok(response);
+    })
+    .WithName("GetAllNotifications")
+    .WithSummary("Get all notifications with polymorphic mapping")
+    .WithDescription("Demonstrates polymorphic mapping where abstract Notification base class maps to derived EmailNotification/SmsNotification types using type pattern matching.")
+    .Produces<List<NotificationDto>>(StatusCodes.Status200OK);
+
 await app.RunAsync();

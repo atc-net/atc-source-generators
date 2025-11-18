@@ -1681,4 +1681,148 @@ public class ObjectMappingGeneratorTests
         var warning = diagnostics.FirstOrDefault(d => d.Id == "ATCMAP004");
         Assert.Null(warning);
     }
+
+    [Fact]
+    public void Generator_Should_Generate_Polymorphic_Mapping_With_Switch_Expression()
+    {
+        // Arrange
+        const string source = """
+            using System;
+            using Atc.SourceGenerators.Annotations;
+
+            namespace TestNamespace;
+
+            public abstract class AnimalEntity { }
+
+            [MapTo(typeof(Dog))]
+            public partial class DogEntity : AnimalEntity
+            {
+                public string Breed { get; set; } = string.Empty;
+            }
+
+            [MapTo(typeof(Cat))]
+            public partial class CatEntity : AnimalEntity
+            {
+                public int Lives { get; set; }
+            }
+
+            [MapTo(typeof(Animal))]
+            [MapDerivedType(typeof(DogEntity), typeof(Dog))]
+            [MapDerivedType(typeof(CatEntity), typeof(Cat))]
+            public abstract partial class AnimalEntity { }
+
+            public abstract class Animal { }
+            public class Dog : Animal { public string Breed { get; set; } = string.Empty; }
+            public class Cat : Animal { public int Lives { get; set; } }
+            """;
+
+        // Act
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        // Assert
+        Assert.DoesNotContain(diagnostics, d => d.Severity == DiagnosticSeverity.Error);
+
+        // Should generate switch expression
+        Assert.Contains("return source switch", output, StringComparison.Ordinal);
+        Assert.Contains("DogEntity", output, StringComparison.Ordinal);
+        Assert.Contains("CatEntity", output, StringComparison.Ordinal);
+        Assert.Contains("MapToDog()", output, StringComparison.Ordinal);
+        Assert.Contains("MapToCat()", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generator_Should_Handle_Single_Derived_Type_Mapping()
+    {
+        // Arrange
+        const string source = """
+            using System;
+            using Atc.SourceGenerators.Annotations;
+
+            namespace TestNamespace;
+
+            public abstract class VehicleEntity { }
+
+            [MapTo(typeof(Car))]
+            public partial class CarEntity : VehicleEntity
+            {
+                public string Model { get; set; } = string.Empty;
+            }
+
+            [MapTo(typeof(Vehicle))]
+            [MapDerivedType(typeof(CarEntity), typeof(Car))]
+            public abstract partial class VehicleEntity { }
+
+            public abstract class Vehicle { }
+            public class Car : Vehicle { public string Model { get; set; } = string.Empty; }
+            """;
+
+        // Act
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        // Assert
+        Assert.DoesNotContain(diagnostics, d => d.Severity == DiagnosticSeverity.Error);
+
+        // Should still generate switch expression even with single derived type
+        Assert.Contains("return source switch", output, StringComparison.Ordinal);
+        Assert.Contains("CarEntity", output, StringComparison.Ordinal);
+        Assert.Contains("MapToCar()", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generator_Should_Support_Multiple_Polymorphic_Mappings()
+    {
+        // Arrange
+        const string source = """
+            using System;
+            using Atc.SourceGenerators.Annotations;
+
+            namespace TestNamespace;
+
+            public abstract class ShapeEntity { }
+
+            [MapTo(typeof(Circle))]
+            public partial class CircleEntity : ShapeEntity
+            {
+                public double Radius { get; set; }
+            }
+
+            [MapTo(typeof(Square))]
+            public partial class SquareEntity : ShapeEntity
+            {
+                public double Side { get; set; }
+            }
+
+            [MapTo(typeof(Triangle))]
+            public partial class TriangleEntity : ShapeEntity
+            {
+                public double Base { get; set; }
+                public double Height { get; set; }
+            }
+
+            [MapTo(typeof(Shape))]
+            [MapDerivedType(typeof(CircleEntity), typeof(Circle))]
+            [MapDerivedType(typeof(SquareEntity), typeof(Square))]
+            [MapDerivedType(typeof(TriangleEntity), typeof(Triangle))]
+            public abstract partial class ShapeEntity { }
+
+            public abstract class Shape { }
+            public class Circle : Shape { public double Radius { get; set; } }
+            public class Square : Shape { public double Side { get; set; } }
+            public class Triangle : Shape { public double Base { get; set; } public double Height { get; set; } }
+            """;
+
+        // Act
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        // Assert
+        Assert.DoesNotContain(diagnostics, d => d.Severity == DiagnosticSeverity.Error);
+
+        // Should generate switch with all three derived types
+        Assert.Contains("CircleEntity", output, StringComparison.Ordinal);
+        Assert.Contains("SquareEntity", output, StringComparison.Ordinal);
+        Assert.Contains("TriangleEntity", output, StringComparison.Ordinal);
+        Assert.Contains("MapToCircle()", output, StringComparison.Ordinal);
+        Assert.Contains("MapToSquare()", output, StringComparison.Ordinal);
+        Assert.Contains("MapToTriangle()", output, StringComparison.Ordinal);
+    }
 }

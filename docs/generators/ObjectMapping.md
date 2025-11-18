@@ -53,6 +53,7 @@ public static UserDto MapToUserDto(this User source) =>
   - [🔄 Property Flattening](#-property-flattening)
   - [🔀 Built-in Type Conversion](#-built-in-type-conversion)
   - [✅ Required Property Validation](#-required-property-validation)
+  - [🌳 Polymorphic / Derived Type Mapping](#-polymorphic--derived-type-mapping)
   - [🏗️ Constructor Mapping](#️-constructor-mapping)
 - [⚙️ MapToAttribute Parameters](#️-maptoattribute-parameters)
 - [🛡️ Diagnostics](#️-diagnostics)
@@ -1430,6 +1431,168 @@ dotnet_diagnostic.ATCMAP004.severity = error
 - **Data validation** - Catch missing required properties at compile time instead of runtime
 - **Refactoring safety** - Adding `required` to a DTO property immediately flags all unmapped sources
 - **Team standards** - Enforce property mapping completeness across large codebases
+
+### 🌳 Polymorphic / Derived Type Mapping
+
+The generator supports polymorphic type mapping for abstract base classes and interfaces with multiple derived types. This enables runtime type discrimination using C# switch expressions and type pattern matching.
+
+#### Basic Example
+
+```csharp
+// Domain layer - abstract base class
+[MapTo(typeof(Contract.AnimalDto))]
+[MapDerivedType(typeof(Dog), typeof(Contract.DogDto))]
+[MapDerivedType(typeof(Cat), typeof(Contract.CatDto))]
+public abstract partial class Animal
+{
+    public int Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+}
+
+// Domain layer - derived classes
+[MapTo(typeof(Contract.DogDto))]
+public partial class Dog : Animal
+{
+    public string Breed { get; set; } = string.Empty;
+}
+
+[MapTo(typeof(Contract.CatDto))]
+public partial class Cat : Animal
+{
+    public int Lives { get; set; }
+}
+
+// Contract layer - DTOs
+public abstract class AnimalDto
+{
+    public int Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+}
+
+public class DogDto : AnimalDto
+{
+    public string Breed { get; set; } = string.Empty;
+}
+
+public class CatDto : AnimalDto
+{
+    public int Lives { get; set; }
+}
+
+// Generated: Polymorphic mapping with switch expression
+public static AnimalDto MapToAnimalDto(this Animal source)
+{
+    if (source is null)
+    {
+        return default!;
+    }
+
+    return source switch
+    {
+        Dog dog => dog.MapToDogDto(),
+        Cat cat => cat.MapToCatDto(),
+        _ => throw new global::System.ArgumentException($"Unknown derived type: {source.GetType().Name}")
+    };
+}
+```
+
+#### How It Works
+
+1. **Base Class Attribute**: Apply `[MapDerivedType]` attributes to the abstract base class for each derived type mapping
+2. **Derived Class Mappings**: Each derived class must have its own `[MapTo]` attribute mapping to the corresponding target derived type
+3. **Switch Expression**: The generator creates a switch expression that performs type pattern matching
+4. **Null Safety**: The generated code includes null checks for the source parameter
+5. **Error Handling**: Unmapped derived types throw an `ArgumentException` with a descriptive message
+
+#### Real-World Example - Notification System
+
+```csharp
+// Domain layer
+[MapTo(typeof(NotificationDto))]
+[MapDerivedType(typeof(EmailNotification), typeof(EmailNotificationDto))]
+[MapDerivedType(typeof(SmsNotification), typeof(SmsNotificationDto))]
+public abstract partial class Notification
+{
+    public Guid Id { get; set; }
+    public string Message { get; set; } = string.Empty;
+    public DateTimeOffset CreatedAt { get; set; }
+}
+
+[MapTo(typeof(EmailNotificationDto))]
+public partial class EmailNotification : Notification
+{
+    public string To { get; set; } = string.Empty;
+    public string Subject { get; set; } = string.Empty;
+}
+
+[MapTo(typeof(SmsNotificationDto))]
+public partial class SmsNotification : Notification
+{
+    public string PhoneNumber { get; set; } = string.Empty;
+}
+
+// Usage in API endpoint
+app.MapGet("/notifications", () =>
+{
+    var notifications = new List<Notification>
+    {
+        new EmailNotification
+        {
+            Id = Guid.NewGuid(),
+            Message = "Welcome to our service!",
+            CreatedAt = DateTimeOffset.UtcNow,
+            To = "user@example.com",
+            Subject = "Welcome",
+        },
+        new SmsNotification
+        {
+            Id = Guid.NewGuid(),
+            Message = "Your code is 123456",
+            CreatedAt = DateTimeOffset.UtcNow,
+            PhoneNumber = "+1-555-0123",
+        },
+    };
+
+    // ✨ Polymorphic mapping - automatically handles derived types
+    var dtos = notifications
+        .Select(n => n.MapToNotificationDto())
+        .ToList();
+
+    return Results.Ok(dtos);
+});
+```
+
+#### Key Features
+
+**Compile-Time Validation:**
+- Verifies that each derived type mapping has a corresponding `MapTo` attribute
+- Ensures the target types match the declared derived type mappings
+
+**Type Safety:**
+- All type checking happens at compile time
+- No reflection or runtime type discovery
+- Switch expressions provide exhaustive type coverage
+
+**Performance:**
+- Zero runtime overhead - pure switch expressions
+- No dictionary lookups or type caching
+- Native AOT compatible
+
+**Null Safety:**
+- Generated code includes proper null checks
+- Follows nullable reference type annotations
+
+**Extensibility:**
+- Support for arbitrary numbers of derived types
+- Works with deep inheritance hierarchies
+- Can be combined with other mapping features (collections, nesting, etc.)
+
+**Use Cases:**
+- **Polymorphic API responses** - Return different DTO types based on domain object type
+- **Notification systems** - Map different notification types (Email, SMS, Push) from domain to DTOs
+- **Payment processing** - Handle different payment method types (CreditCard, PayPal, BankTransfer)
+- **Document types** - Map different document formats (PDF, Word, Excel) to DTOs
+- **Event sourcing** - Map different event types from domain events to event DTOs
 
 ### 🏗️ Constructor Mapping
 
