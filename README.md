@@ -2,12 +2,69 @@
 
 A collection of Roslyn C# source generators for .NET that eliminate boilerplate code and improve developer productivity. All generators are designed with **Native AOT compatibility** in focus, enabling faster startup times, smaller deployment sizes, and optimal performance for modern cloud-native applications.
 
+**Why Choose Atc Source Generators?**
+- 🎯 **Zero boilerplate** - Attribute-based approach eliminates repetitive code
+- ⚡ **Compile-time generation** - Catch errors during build, not at runtime
+- 🚀 **Native AOT ready** - Zero reflection, fully trimming-safe for modern .NET
+- 🧩 **Multi-project architecture** - Smart naming for clean layered applications
+- 🛡️ **Type-safe** - Full IntelliSense and compile-time validation
+- 📦 **Single package** - Install once, use all generators
+
 ## 🚀 Source Generators
 
 - **[⚡ DependencyRegistrationGenerator](#-dependencyregistrationgenerator)** - Automatic DI service registration with attributes
 - **[⚙️ OptionsBindingGenerator](#️-optionsbindinggenerator)** - Automatic configuration binding to strongly-typed options classes
 - **[🗺️ MappingGenerator](#️-mappinggenerator)** - Automatic object-to-object mapping with type safety
 - **[🔄 EnumMappingGenerator](#-enummappinggenerator)** - Automatic enum-to-enum mapping with intelligent matching
+
+## ✨ See It In Action
+
+All four generators work together seamlessly in a typical 3-layer architecture:
+
+```csharp
+// 1️⃣ Domain Layer - Your business logic
+[MapTo(typeof(PetStatusDto), Bidirectional = true)]
+public enum PetStatus { Available, Adopted }
+
+[MapTo(typeof(PetDto))]
+public partial class Pet
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public PetStatus Status { get; set; }
+}
+
+[Registration(Lifetime.Scoped)]
+public class PetService : IPetService
+{
+    public async Task<Pet> GetPetAsync(Guid id) { /* ... */ }
+}
+
+[OptionsBinding("PetStore")]
+public partial class PetStoreOptions
+{
+    [Required] public int MaxPetsPerPage { get; set; }
+}
+
+// 2️⃣ Program.cs - One line per concern
+using Atc.DependencyInjection;
+using Atc.Mapping;
+
+// Register all services from Domain layer
+builder.Services.AddDependencyRegistrationsFromDomain();
+
+// Bind all options from Domain layer
+builder.Services.AddOptionsFromDomain(builder.Configuration);
+
+// 3️⃣ Usage - Clean and type-safe
+app.MapGet("/pets/{id}", async (Guid id, IPetService service) =>
+{
+    var pet = await service.GetPetAsync(id);
+    return Results.Ok(pet.MapToPetDto());  // ✨ Generated mapping
+});
+```
+
+**Result:** Zero boilerplate, full type safety, Native AOT ready! 🚀
 
 ## 📦 Installation
 

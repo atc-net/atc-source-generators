@@ -2,6 +2,28 @@
 
 Automatically generate type-safe object-to-object mapping code using attributes. The generator creates efficient mapping extension methods at compile time, eliminating manual mapping boilerplate and reducing errors.
 
+**Key Benefits:**
+- 🎯 **Zero boilerplate** - No manual property copying or constructor calls
+- 🔗 **Automatic chaining** - Nested objects map automatically when mappings exist
+- 🧩 **Constructor support** - Maps to classes with primary constructors or parameter-based constructors
+- 🛡️ **Null-safe** - Generates proper null checks for nullable properties
+- ⚡ **Native AOT ready** - Pure compile-time generation with zero reflection
+
+**Quick Example:**
+```csharp
+// Input: Decorate your domain model
+[MapTo(typeof(UserDto))]
+public partial class User
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+}
+
+// Generated: Extension method
+public static UserDto MapToUserDto(this User source) =>
+    new UserDto { Id = source.Id, Name = source.Name };
+```
+
 ## 📑 Table of Contents
 
 - [🚀 Get Started - Quick Guide](#-get-started---quick-guide)
@@ -26,10 +48,12 @@ Automatically generate type-safe object-to-object mapping code using attributes.
   - [🪆 Nested Object Mapping](#-nested-object-mapping)
   - [📦 Collection Mapping](#-collection-mapping)
   - [🔁 Multi-Layer Mapping](#-multi-layer-mapping)
+  - [🏗️ Constructor Mapping](#️-constructor-mapping)
 - [⚙️ MapToAttribute Parameters](#️-maptoattribute-parameters)
 - [🛡️ Diagnostics](#️-diagnostics)
   - [❌ ATCMAP001: Mapping Class Must Be Partial](#-atcmap001-mapping-class-must-be-partial)
   - [❌ ATCMAP002: Target Type Must Be Class or Struct](#-atcmap002-target-type-must-be-class-or-struct)
+- [🚀 Native AOT Compatibility](#-native-aot-compatibility)
 - [📚 Additional Examples](#-additional-examples)
 
 ---
@@ -944,179 +968,6 @@ var dtos = repository.GetAll()
     .ToList();
 ```
 
----
-
-## ⚙️ MapToAttribute Parameters
-
-The `MapToAttribute` accepts the following parameters:
-
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `targetType` | `Type` | ✅ Yes | - | The type to map to |
-| `Bidirectional` | `bool` | ❌ No | `false` | Generate bidirectional mappings (both Source → Target and Target → Source) |
-
-**Example:**
-```csharp
-// Basic mapping (one-way)
-[MapTo(typeof(PersonDto))]
-public partial class Person { }
-// Generates: Person.MapToPersonDto()
-
-// Bidirectional mapping (two-way)
-[MapTo(typeof(PersonDto), Bidirectional = true)]
-public partial class Person { }
-// Generates: Person.MapToPersonDto() AND PersonDto.MapToPerson()
-```
-
----
-
-## 🛡️ Diagnostics
-
-The generator provides helpful diagnostics during compilation.
-
-### ❌ ATCMAP001: Mapping Class Must Be Partial
-
-**Error:** The class decorated with `[MapTo]` is not marked as `partial`.
-
-**Example:**
-```csharp
-[MapTo(typeof(PersonDto))]
-public class Person  // ❌ Missing 'partial' keyword
-{
-    public string Name { get; set; } = string.Empty;
-}
-```
-
-**Fix:**
-```csharp
-[MapTo(typeof(PersonDto))]
-public partial class Person  // ✅ Added 'partial'
-{
-    public string Name { get; set; } = string.Empty;
-}
-```
-
-**Why:** The generator needs to add extension methods in a separate file, which requires the class to be `partial`.
-
----
-
-### ❌ ATCMAP002: Target Type Must Be Class or Struct
-
-**Error:** The target type specified in `[MapTo(typeof(...))]` is not a class or struct.
-
-**Example:**
-```csharp
-[MapTo(typeof(IPerson))]  // ❌ Interface
-public partial class Person { }
-```
-
-**Fix:**
-```csharp
-[MapTo(typeof(PersonDto))]  // ✅ Class
-public partial class Person { }
-```
-
-**Why:** You can only map to concrete types (classes or structs), not interfaces or abstract classes.
-
----
-
-## 📚 Additional Examples
-
-### Example 1: Simple POCO Mapping
-
-```csharp
-[MapTo(typeof(ProductDto))]
-public partial class Product
-{
-    public int Id { get; set; }
-    public string Name { get; set; } = string.Empty;
-    public decimal Price { get; set; }
-}
-
-public class ProductDto
-{
-    public int Id { get; set; }
-    public string Name { get; set; } = string.Empty;
-    public decimal Price { get; set; }
-}
-
-// Usage
-var product = new Product { Id = 1, Name = "Widget", Price = 9.99m };
-var dto = product.MapToProductDto();
-```
-
-### Example 2: Record Types
-
-```csharp
-[MapTo(typeof(PersonDto))]
-public partial record Person(int Id, string Name, int Age);
-
-public record PersonDto(int Id, string Name, int Age);
-
-// Usage
-var person = new Person(1, "Alice", 25);
-var dto = person.MapToPersonDto();
-```
-
-### Example 3: Complex Nested Structure
-
-```csharp
-[MapTo(typeof(ContactInfoDto))]
-public partial class ContactInfo
-{
-    public string Email { get; set; } = string.Empty;
-    public string Phone { get; set; } = string.Empty;
-}
-
-public class ContactInfoDto
-{
-    public string Email { get; set; } = string.Empty;
-    public string Phone { get; set; } = string.Empty;
-}
-
-[MapTo(typeof(CompanyDto))]
-public partial class Company
-{
-    public string Name { get; set; } = string.Empty;
-    public ContactInfo? Contact { get; set; }
-}
-
-public class CompanyDto
-{
-    public string Name { get; set; } = string.Empty;
-    public ContactInfoDto? Contact { get; set; }
-}
-
-// Usage
-var company = new Company
-{
-    Name = "Acme Corp",
-    Contact = new ContactInfo { Email = "info@acme.com", Phone = "555-1234" }
-};
-var dto = company.MapToCompanyDto();
-```
-
-### Example 4: Working with Collections
-
-```csharp
-[MapTo(typeof(TagDto))]
-public partial class Tag
-{
-    public string Name { get; set; } = string.Empty;
-}
-
-public class TagDto
-{
-    public string Name { get; set; } = string.Empty;
-}
-
-// Usage with LINQ
-List<Tag> tags = GetTags();
-List<TagDto> tagDtos = tags.Select(t => t.MapToTagDto()).ToList();
-```
-
----
-
 ### 🏗️ Constructor Mapping
 
 The generator automatically detects and uses constructors when mapping to records or classes with primary constructors (C# 12+). This provides a more natural mapping approach for immutable types.
@@ -1231,6 +1082,241 @@ public partial class Item
 // Generated: Correctly matches despite casing difference
 public static ItemDto MapToItemDto(this Item source) =>
     new ItemDto(source.Id, source.Name);
+```
+
+---
+
+## ⚙️ MapToAttribute Parameters
+
+The `MapToAttribute` accepts the following parameters:
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `targetType` | `Type` | ✅ Yes | - | The type to map to |
+| `Bidirectional` | `bool` | ❌ No | `false` | Generate bidirectional mappings (both Source → Target and Target → Source) |
+
+**Example:**
+```csharp
+// Basic mapping (one-way)
+[MapTo(typeof(PersonDto))]
+public partial class Person { }
+// Generates: Person.MapToPersonDto()
+
+// Bidirectional mapping (two-way)
+[MapTo(typeof(PersonDto), Bidirectional = true)]
+public partial class Person { }
+// Generates: Person.MapToPersonDto() AND PersonDto.MapToPerson()
+```
+
+---
+
+## 🛡️ Diagnostics
+
+The generator provides helpful diagnostics during compilation.
+
+### ❌ ATCMAP001: Mapping Class Must Be Partial
+
+**Error:** The class decorated with `[MapTo]` is not marked as `partial`.
+
+**Example:**
+```csharp
+[MapTo(typeof(PersonDto))]
+public class Person  // ❌ Missing 'partial' keyword
+{
+    public string Name { get; set; } = string.Empty;
+}
+```
+
+**Fix:**
+```csharp
+[MapTo(typeof(PersonDto))]
+public partial class Person  // ✅ Added 'partial'
+{
+    public string Name { get; set; } = string.Empty;
+}
+```
+
+**Why:** The generator needs to add extension methods in a separate file, which requires the class to be `partial`.
+
+---
+
+### ❌ ATCMAP002: Target Type Must Be Class or Struct
+
+**Error:** The target type specified in `[MapTo(typeof(...))]` is not a class or struct.
+
+**Example:**
+```csharp
+[MapTo(typeof(IPerson))]  // ❌ Interface
+public partial class Person { }
+```
+
+**Fix:**
+```csharp
+[MapTo(typeof(PersonDto))]  // ✅ Class
+public partial class Person { }
+```
+
+**Why:** You can only map to concrete types (classes or structs), not interfaces or abstract classes.
+
+---
+
+## 🚀 Native AOT Compatibility
+
+The Object Mapping Generator is **fully compatible with Native AOT** compilation, producing code that meets all AOT requirements:
+
+### ✅ AOT-Safe Features
+
+- **Zero reflection** - All mappings use direct property access and constructor calls
+- **Compile-time generation** - Mapping code is generated during build, not at runtime
+- **Trimming-safe** - No dynamic type discovery or metadata dependencies
+- **Constructor detection** - Analyzes types at compile time, not runtime
+- **Static analysis friendly** - All code paths are visible to the AOT compiler
+
+### 🏗️ How It Works
+
+1. **Build-time analysis**: The generator scans classes with `[MapTo]` attributes during compilation
+2. **Property matching**: Creates direct property-to-property assignments without reflection
+3. **Constructor detection**: Analyzes target type constructors at compile time
+4. **Extension method generation**: Produces static extension methods with concrete implementations
+5. **AOT compilation**: The generated code compiles to native machine code with full optimizations
+
+### 📋 Example Generated Code
+
+```csharp
+// Source: [MapTo(typeof(UserDto))] public partial class User { ... }
+
+// Generated AOT-safe code:
+public static UserDto MapToUserDto(this User source)
+{
+    if (source is null)
+    {
+        return default!;
+    }
+
+    return new UserDto
+    {
+        Id = source.Id,
+        Name = source.Name,
+        Email = source.Email
+    };
+}
+```
+
+**Why This Is AOT-Safe:**
+- No `Activator.CreateInstance()` calls (reflection)
+- No dynamic property access via `PropertyInfo`
+- All property assignments are compile-time verified
+- Null checks are explicit and traceable
+- Constructor calls use `new` keyword, not reflection
+
+### 🎯 Multi-Layer AOT Support
+
+Even complex mapping chains remain fully AOT-compatible:
+
+```csharp
+// Entity → Domain → DTO chain
+var dto = entity
+    .MapToDomainModel()    // ✅ AOT-safe
+    .MapToDto();           // ✅ AOT-safe
+```
+
+Each mapping method is independently generated with zero reflection, ensuring the entire chain compiles to efficient native code.
+
+---
+
+## 📚 Additional Examples
+
+### Example 1: Simple POCO Mapping
+
+```csharp
+[MapTo(typeof(ProductDto))]
+public partial class Product
+{
+    public int Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public decimal Price { get; set; }
+}
+
+public class ProductDto
+{
+    public int Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public decimal Price { get; set; }
+}
+
+// Usage
+var product = new Product { Id = 1, Name = "Widget", Price = 9.99m };
+var dto = product.MapToProductDto();
+```
+
+### Example 2: Record Types
+
+```csharp
+[MapTo(typeof(PersonDto))]
+public partial record Person(int Id, string Name, int Age);
+
+public record PersonDto(int Id, string Name, int Age);
+
+// Usage
+var person = new Person(1, "Alice", 25);
+var dto = person.MapToPersonDto();
+```
+
+### Example 3: Complex Nested Structure
+
+```csharp
+[MapTo(typeof(ContactInfoDto))]
+public partial class ContactInfo
+{
+    public string Email { get; set; } = string.Empty;
+    public string Phone { get; set; } = string.Empty;
+}
+
+public class ContactInfoDto
+{
+    public string Email { get; set; } = string.Empty;
+    public string Phone { get; set; } = string.Empty;
+}
+
+[MapTo(typeof(CompanyDto))]
+public partial class Company
+{
+    public string Name { get; set; } = string.Empty;
+    public ContactInfo? Contact { get; set; }
+}
+
+public class CompanyDto
+{
+    public string Name { get; set; } = string.Empty;
+    public ContactInfoDto? Contact { get; set; }
+}
+
+// Usage
+var company = new Company
+{
+    Name = "Acme Corp",
+    Contact = new ContactInfo { Email = "info@acme.com", Phone = "555-1234" }
+};
+var dto = company.MapToCompanyDto();
+```
+
+### Example 4: Working with Collections
+
+```csharp
+[MapTo(typeof(TagDto))]
+public partial class Tag
+{
+    public string Name { get; set; } = string.Empty;
+}
+
+public class TagDto
+{
+    public string Name { get; set; } = string.Empty;
+}
+
+// Usage with LINQ
+List<Tag> tags = GetTags();
+List<TagDto> tagDtos = tags.Select(t => t.MapToTagDto()).ToList();
 ```
 
 ---

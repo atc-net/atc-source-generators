@@ -2,6 +2,23 @@
 
 Automatically register services in the dependency injection container using attributes instead of manual registration code. The generator creates type-safe registration code at compile time, eliminating boilerplate and reducing errors.
 
+**Key Benefits:**
+- 🎯 **Zero boilerplate** - Attribute-based registration eliminates manual `AddScoped<T>()` calls
+- 🚀 **Compile-time safety** - Catch registration errors at build time, not runtime
+- ⚡ **Auto-detection** - Automatically registers all implemented interfaces
+- 🔧 **Multi-project support** - Smart naming for assembly-specific registration methods
+- 🎨 **Advanced patterns** - Generics, keyed services, factories, decorators, and more
+
+**Quick Example:**
+```csharp
+// Input: Attribute decoration
+[Registration(Lifetime.Scoped)]
+public class UserService : IUserService { }
+
+// Generated output
+services.AddScoped<IUserService, UserService>();
+```
+
 ## 📑 Table of Contents
 
 - [🎯 Dependency Registration Generator](#-dependency-registration-generator)
@@ -698,30 +715,6 @@ builder.Services.AddDependencyRegistrationsFromApi();
 
 ---
 
-## ✨ Features
-
-- **Automatic Service Registration**: Decorate classes with `[Registration]` attribute for automatic DI registration
-- **Generic Interface Registration**: Full support for open generic types like `IRepository<T>` and `IHandler<TRequest, TResponse>` 🆕
-- **Keyed Service Registration**: Multiple implementations of the same interface with different keys (.NET 8+)
-- **Factory Method Registration**: Custom initialization logic via static factory methods
-- **TryAdd* Registration**: Conditional registration for default implementations (library pattern)
-- **Conditional Registration**: Register services based on configuration values (feature flags, environment-specific services) 🆕
-- **Assembly Scanning Filters**: Exclude types by namespace, pattern (wildcards), or interface implementation
-- **Runtime Filtering**: Exclude services at registration time with method parameters (different apps, different service subsets) 🆕
-- **Hosted Service Support**: Automatically detects `BackgroundService` and `IHostedService` implementations and uses `AddHostedService<T>()`
-- **Interface Auto-Detection**: Automatically registers against all implemented interfaces (no `As` parameter needed!)
-- **Smart Filtering**: System interfaces (IDisposable, etc.) are automatically excluded
-- **Multiple Interface Support**: Services implementing multiple interfaces are registered against all of them
-- **Flexible Lifetimes**: Support for Singleton, Scoped, and Transient service lifetimes
-- **Explicit Override**: Optional `As` parameter to override auto-detection when needed
-- **Dual Registration**: Register services as both interface and concrete type with `AsSelf`
-- **Compile-time Validation**: Diagnostics for common errors (invalid interface types, missing implementations, incorrect hosted service lifetimes)
-- **Zero Runtime Overhead**: All code is generated at compile time
-- **Native AOT Compatible**: No reflection or runtime code generation - fully trimming-safe and AOT-ready
-- **Multi-Project Support**: Each project generates its own registration method
-
----
-
 ## 📦 Installation
 
 Add the NuGet package to each project that contains services to register:
@@ -808,6 +801,30 @@ services.AddDependencyRegistrationsFromYourAssemblyName();
 
 var serviceProvider = services.BuildServiceProvider();
 ```
+
+---
+
+## ✨ Features
+
+- **Automatic Service Registration**: Decorate classes with `[Registration]` attribute for automatic DI registration
+- **Generic Interface Registration**: Full support for open generic types like `IRepository<T>` and `IHandler<TRequest, TResponse>` 🆕
+- **Keyed Service Registration**: Multiple implementations of the same interface with different keys (.NET 8+)
+- **Factory Method Registration**: Custom initialization logic via static factory methods
+- **TryAdd* Registration**: Conditional registration for default implementations (library pattern)
+- **Conditional Registration**: Register services based on configuration values (feature flags, environment-specific services) 🆕
+- **Assembly Scanning Filters**: Exclude types by namespace, pattern (wildcards), or interface implementation
+- **Runtime Filtering**: Exclude services at registration time with method parameters (different apps, different service subsets) 🆕
+- **Hosted Service Support**: Automatically detects `BackgroundService` and `IHostedService` implementations and uses `AddHostedService<T>()`
+- **Interface Auto-Detection**: Automatically registers against all implemented interfaces (no `As` parameter needed!)
+- **Smart Filtering**: System interfaces (IDisposable, etc.) are automatically excluded
+- **Multiple Interface Support**: Services implementing multiple interfaces are registered against all of them
+- **Flexible Lifetimes**: Support for Singleton, Scoped, and Transient service lifetimes
+- **Explicit Override**: Optional `As` parameter to override auto-detection when needed
+- **Dual Registration**: Register services as both interface and concrete type with `AsSelf`
+- **Compile-time Validation**: Diagnostics for common errors (invalid interface types, missing implementations, incorrect hosted service lifetimes)
+- **Zero Runtime Overhead**: All code is generated at compile time
+- **Native AOT Compatible**: No reflection or runtime code generation - fully trimming-safe and AOT-ready
+- **Multi-Project Support**: Each project generates its own registration method
 
 ---
 
