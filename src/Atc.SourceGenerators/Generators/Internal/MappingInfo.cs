@@ -8,4 +8,6 @@ internal sealed record MappingInfo(
     bool EnableFlattening,
     IMethodSymbol? Constructor,
     List<string> ConstructorParameterNames,
-    List<DerivedTypeMapping> DerivedTypeMappings);
+    List<DerivedTypeMapping> DerivedTypeMappings,
+    string? BeforeMap,
+    string? AfterMap);

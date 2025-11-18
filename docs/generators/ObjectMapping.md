@@ -55,6 +55,7 @@ public static UserDto MapToUserDto(this User source) =>
   - [✅ Required Property Validation](#-required-property-validation)
   - [🌳 Polymorphic / Derived Type Mapping](#-polymorphic--derived-type-mapping)
   - [🏗️ Constructor Mapping](#️-constructor-mapping)
+  - [🪝 Before/After Mapping Hooks](#-beforeafter-mapping-hooks)
 - [⚙️ MapToAttribute Parameters](#️-maptoattribute-parameters)
 - [🛡️ Diagnostics](#️-diagnostics)
   - [❌ ATCMAP001: Mapping Class Must Be Partial](#-atcmap001-mapping-class-must-be-partial)
@@ -1710,6 +1711,334 @@ public static ItemDto MapToItemDto(this Item source) =>
     new ItemDto(source.Id, source.Name);
 ```
 
+### 🪝 Before/After Mapping Hooks
+
+Execute custom logic before or after the mapping operation using hook methods. This feature allows you to add validation, logging, enrichment, or any other custom behavior to your mappings without writing wrapper methods.
+
+#### Basic Usage
+
+```csharp
+using Atc.SourceGenerators.Annotations;
+
+[MapTo(typeof(UserDto), BeforeMap = nameof(ValidateUser), AfterMap = nameof(EnrichDto))]
+public partial class User
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+
+    // BeforeMap hook - called after null check, before mapping
+    private static void ValidateUser(User source)
+    {
+        if (string.IsNullOrWhiteSpace(source.Name))
+        {
+            throw new ArgumentException("Name cannot be empty");
+        }
+    }
+
+    // AfterMap hook - called after mapping, before return
+    private static void EnrichDto(User source, UserDto target)
+    {
+        target.DisplayName = $"{source.Name} (ID: {source.Id})";
+    }
+}
+
+public class UserDto
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string DisplayName { get; set; } = string.Empty;
+}
+```
+
+**Generated code:**
+
+```csharp
+public static UserDto MapToUserDto(this User source)
+{
+    if (source is null)
+    {
+        return default!;
+    }
+
+    // BeforeMap hook - called after null check, before mapping
+    User.ValidateUser(source);
+
+    var target = new UserDto
+    {
+        Id = source.Id,
+        Name = source.Name
+    };
+
+    // AfterMap hook - called after mapping, before return
+    User.EnrichDto(source, target);
+
+    return target;
+}
+```
+
+#### Hook Signatures
+
+**BeforeMap Hook:**
+- **Signature**: `static void MethodName(SourceType source)`
+- **When called**: After null check, before object creation
+- **Parameters**: Source object only
+- **Purpose**: Validation, preprocessing, logging
+
+**AfterMap Hook:**
+- **Signature**: `static void MethodName(SourceType source, TargetType target)`
+- **When called**: After object creation, before return
+- **Parameters**: Both source and target objects
+- **Purpose**: Post-processing, enrichment, computed properties
+
+#### Execution Order
+
+The mapping lifecycle follows this sequence:
+
+1. **Null check** on source object
+2. **BeforeMap hook** (if specified)
+3. **Polymorphic type check** (if derived type mappings exist)
+4. **Object creation** (constructor or object initializer)
+5. **AfterMap hook** (if specified)
+6. **Return** target object
+
+#### Using Only BeforeMap
+
+For validation-only scenarios, use just the BeforeMap hook:
+
+```csharp
+[MapTo(typeof(OrderDto), BeforeMap = nameof(ValidateOrder))]
+public partial class Order
+{
+    public Guid Id { get; set; }
+    public decimal Total { get; set; }
+    public List<OrderItem> Items { get; set; } = new();
+
+    private static void ValidateOrder(Order source)
+    {
+        if (source.Total <= 0)
+        {
+            throw new ArgumentException("Order total must be positive");
+        }
+
+        if (source.Items.Count == 0)
+        {
+            throw new ArgumentException("Order must have at least one item");
+        }
+    }
+}
+
+// Generated: Only BeforeMap is called
+public static OrderDto MapToOrderDto(this Order source)
+{
+    if (source is null)
+    {
+        return default!;
+    }
+
+    Order.ValidateOrder(source);  // ✅ Validation before mapping
+
+    return new OrderDto
+    {
+        Id = source.Id,
+        Total = source.Total,
+        Items = source.Items?.Select(x => x.MapToOrderItemDto()).ToList()!
+    };
+}
+```
+
+#### Using Only AfterMap
+
+For enrichment-only scenarios, use just the AfterMap hook:
+
+```csharp
+[MapTo(typeof(ProductDto), AfterMap = nameof(CalculateDiscountPrice))]
+public partial class Product
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public decimal Price { get; set; }
+    public decimal DiscountPercentage { get; set; }
+
+    private static void CalculateDiscountPrice(Product source, ProductDto target)
+    {
+        target.DiscountedPrice = source.Price * (1 - source.DiscountPercentage / 100);
+    }
+}
+
+public class ProductDto
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public decimal Price { get; set; }
+    public decimal DiscountedPrice { get; set; }  // Computed in AfterMap
+}
+
+// Generated: Only AfterMap is called
+public static ProductDto MapToProductDto(this Product source)
+{
+    if (source is null)
+    {
+        return default!;
+    }
+
+    var target = new ProductDto
+    {
+        Id = source.Id,
+        Name = source.Name,
+        Price = source.Price
+    };
+
+    Product.CalculateDiscountPrice(source, target);  // ✅ Enrichment after mapping
+
+    return target;
+}
+```
+
+#### Hooks with Constructor Mapping
+
+Hooks work seamlessly with constructor-based mappings:
+
+```csharp
+public record PersonDto(Guid Id, string FullName)
+{
+    public string Initials { get; set; } = string.Empty;
+}
+
+[MapTo(typeof(PersonDto), AfterMap = nameof(SetInitials))]
+public partial class Person
+{
+    public Guid Id { get; set; }
+    public string FullName { get; set; } = string.Empty;
+
+    private static void SetInitials(Person source, PersonDto target)
+    {
+        var names = source.FullName.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        target.Initials = string.Join("", names.Select(n => n[0]));
+    }
+}
+
+// Generated: Constructor + AfterMap hook
+public static PersonDto MapToPersonDto(this Person source)
+{
+    if (source is null)
+    {
+        return default!;
+    }
+
+    var target = new PersonDto(  // Constructor call
+        source.Id,
+        source.FullName);
+
+    Person.SetInitials(source, target);  // AfterMap hook
+
+    return target;
+}
+```
+
+#### Use Cases
+
+**Validation (BeforeMap):**
+```csharp
+private static void ValidateUser(User source)
+{
+    if (string.IsNullOrWhiteSpace(source.Email))
+    {
+        throw new ArgumentException("Email is required");
+    }
+
+    if (!source.Email.Contains('@'))
+    {
+        throw new ArgumentException("Invalid email format");
+    }
+}
+```
+
+**Logging (BeforeMap or AfterMap):**
+```csharp
+private static void LogMapping(User source, UserDto target)
+{
+    Console.WriteLine($"Mapped User {source.Id} to UserDto");
+}
+```
+
+**Enrichment (AfterMap):**
+```csharp
+private static void EnrichUserDto(User source, UserDto target)
+{
+    target.FullName = $"{source.FirstName} {source.LastName}";
+    target.Age = DateTime.UtcNow.Year - source.DateOfBirth.Year;
+}
+```
+
+**Auditing (AfterMap):**
+```csharp
+private static void AuditMapping(Order source, OrderDto target)
+{
+    target.MappedAt = DateTime.UtcNow;
+    target.MappedBy = "ObjectMappingGenerator";
+}
+```
+
+**Side Effects (AfterMap):**
+```csharp
+private static void UpdateCache(Product source, ProductDto target)
+{
+    // Update cache after successful mapping
+    _cache.Set($"product:{source.Id}", target);
+}
+```
+
+#### Important Notes
+
+- ✅ Hook methods **must be static**
+- ✅ Both hooks are **optional** - use one, both, or neither
+- ✅ Hooks are specified by method name (use `nameof()` for type safety)
+- ✅ Hooks work with all mapping features (collections, nested objects, polymorphic types, etc.)
+- ✅ **Reverse mappings** (Bidirectional = true) do NOT inherit hooks from the forward mapping
+- ✅ Hooks are called via fully qualified name (e.g., `User.ValidateUser(source)`)
+- ✅ Full **Native AOT compatibility**
+
+#### Hooks in Bidirectional Mappings
+
+When using bidirectional mappings, each direction can have its own hooks:
+
+```csharp
+[MapTo(typeof(UserDto), Bidirectional = true, BeforeMap = nameof(ValidateUser), AfterMap = nameof(EnrichDto))]
+public partial class User
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+
+    private static void ValidateUser(User source) { /* Validation */ }
+    private static void EnrichDto(User source, UserDto target) { /* Enrichment */ }
+}
+
+// Generated forward mapping: User → UserDto (includes hooks)
+public static UserDto MapToUserDto(this User source)
+{
+    // ... includes ValidateUser and EnrichDto hooks
+}
+
+// Generated reverse mapping: UserDto → User (NO hooks)
+public static User MapToUser(this UserDto source)
+{
+    // ... reverse mapping does NOT call ValidateUser or EnrichDto
+}
+```
+
+If you need hooks in the reverse direction, define them on the target type:
+
+```csharp
+[MapTo(typeof(User), BeforeMap = nameof(ValidateDto))]
+public partial class UserDto
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+
+    private static void ValidateDto(UserDto source) { /* Validation */ }
+}
+```
+
 ---
 
 ## ⚙️ MapToAttribute Parameters
@@ -1721,6 +2050,8 @@ The `MapToAttribute` accepts the following parameters:
 | `targetType` | `Type` | ✅ Yes | - | The type to map to |
 | `Bidirectional` | `bool` | ❌ No | `false` | Generate bidirectional mappings (both Source → Target and Target → Source) |
 | `EnableFlattening` | `bool` | ❌ No | `false` | Enable property flattening (nested properties are flattened using {PropertyName}{NestedPropertyName} convention) |
+| `BeforeMap` | `string?` | ❌ No | `null` | Name of a static method to call before performing the mapping. Signature: `static void MethodName(SourceType source)` |
+| `AfterMap` | `string?` | ❌ No | `null` | Name of a static method to call after performing the mapping. Signature: `static void MethodName(SourceType source, TargetType target)` |
 
 **Example:**
 ```csharp

@@ -1825,4 +1825,129 @@ public class ObjectMappingGeneratorTests
         Assert.Contains("MapToSquare()", output, StringComparison.Ordinal);
         Assert.Contains("MapToTriangle()", output, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void Generator_Should_Call_BeforeMap_Hook()
+    {
+        // Arrange
+        const string source = """
+            using System;
+            using Atc.SourceGenerators.Annotations;
+
+            namespace TestNamespace;
+
+            [MapTo(typeof(UserDto), BeforeMap = nameof(ValidateUser))]
+            public partial class User
+            {
+                public Guid Id { get; set; }
+                public string Name { get; set; } = string.Empty;
+
+                private static void ValidateUser(User source)
+                {
+                    // Validation logic
+                }
+            }
+
+            public class UserDto
+            {
+                public Guid Id { get; set; }
+                public string Name { get; set; } = string.Empty;
+            }
+            """;
+
+        // Act
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        // Assert
+        Assert.DoesNotContain(diagnostics, d => d.Severity == DiagnosticSeverity.Error);
+        Assert.Contains("ValidateUser(source);", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generator_Should_Call_AfterMap_Hook()
+    {
+        // Arrange
+        const string source = """
+            using System;
+            using Atc.SourceGenerators.Annotations;
+
+            namespace TestNamespace;
+
+            [MapTo(typeof(UserDto), AfterMap = nameof(EnrichDto))]
+            public partial class User
+            {
+                public Guid Id { get; set; }
+                public string Name { get; set; } = string.Empty;
+
+                private static void EnrichDto(User source, UserDto target)
+                {
+                    // Post-processing logic
+                }
+            }
+
+            public class UserDto
+            {
+                public Guid Id { get; set; }
+                public string Name { get; set; } = string.Empty;
+            }
+            """;
+
+        // Act
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        // Assert
+        Assert.DoesNotContain(diagnostics, d => d.Severity == DiagnosticSeverity.Error);
+        Assert.Contains("EnrichDto(source, target);", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generator_Should_Call_Both_BeforeMap_And_AfterMap_Hooks()
+    {
+        // Arrange
+        const string source = """
+            using System;
+            using Atc.SourceGenerators.Annotations;
+
+            namespace TestNamespace;
+
+            [MapTo(typeof(UserDto), BeforeMap = nameof(ValidateUser), AfterMap = nameof(EnrichDto))]
+            public partial class User
+            {
+                public Guid Id { get; set; }
+                public string Name { get; set; } = string.Empty;
+
+                private static void ValidateUser(User source)
+                {
+                    // Validation logic
+                }
+
+                private static void EnrichDto(User source, UserDto target)
+                {
+                    // Post-processing logic
+                }
+            }
+
+            public class UserDto
+            {
+                public Guid Id { get; set; }
+                public string Name { get; set; } = string.Empty;
+            }
+            """;
+
+        // Act
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        // Assert
+        Assert.DoesNotContain(diagnostics, d => d.Severity == DiagnosticSeverity.Error);
+        Assert.Contains("ValidateUser(source);", output, StringComparison.Ordinal);
+        Assert.Contains("EnrichDto(source, target);", output, StringComparison.Ordinal);
+
+        // Verify hook order: BeforeMap should be before the mapping, AfterMap should be after
+        var beforeMapIndex = output.IndexOf(".ValidateUser(source);", StringComparison.Ordinal);
+        var newTargetIndex = output.IndexOf("var target = new", StringComparison.Ordinal);
+        var afterMapIndex = output.IndexOf(".EnrichDto(source, target);", StringComparison.Ordinal);
+
+        Assert.True(beforeMapIndex < newTargetIndex, "BeforeMap hook should be called before object creation");
+        Assert.True(newTargetIndex < afterMapIndex, "AfterMap hook should be called after object creation");
+    }
 }

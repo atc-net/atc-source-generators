@@ -74,4 +74,49 @@ public sealed class MapToAttribute : Attribute
     /// Default is false.
     /// </summary>
     public bool EnableFlattening { get; set; }
+
+    /// <summary>
+    /// Gets or sets the name of a static method to call before performing the mapping.
+    /// The method must have the signature: static void MethodName(SourceType source).
+    /// Use this for custom validation or preprocessing logic before mapping.
+    /// </summary>
+    /// <example>
+    /// <code>
+    /// [MapTo(typeof(UserDto), BeforeMap = nameof(ValidateUser))]
+    /// public partial class User
+    /// {
+    ///     public Guid Id { get; set; }
+    ///     public string Name { get; set; } = string.Empty;
+    ///
+    ///     private static void ValidateUser(User source)
+    ///     {
+    ///         if (string.IsNullOrWhiteSpace(source.Name))
+    ///             throw new ArgumentException("Name cannot be empty");
+    ///     }
+    /// }
+    /// </code>
+    /// </example>
+    public string? BeforeMap { get; set; }
+
+    /// <summary>
+    /// Gets or sets the name of a static method to call after performing the mapping.
+    /// The method must have the signature: static void MethodName(SourceType source, TargetType target).
+    /// Use this for custom post-processing logic after mapping.
+    /// </summary>
+    /// <example>
+    /// <code>
+    /// [MapTo(typeof(UserDto), AfterMap = nameof(EnrichUserDto))]
+    /// public partial class User
+    /// {
+    ///     public Guid Id { get; set; }
+    ///     public string Name { get; set; } = string.Empty;
+    ///
+    ///     private static void EnrichUserDto(User source, UserDto target)
+    ///     {
+    ///         target.DisplayName = $"{source.Name} (ID: {source.Id})";
+    ///     }
+    /// }
+    /// </code>
+    /// </example>
+    public string? AfterMap { get; set; }
 }
