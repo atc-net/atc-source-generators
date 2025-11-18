@@ -549,9 +549,12 @@ UserEntity → User → UserDto
 - Clean and readable code
 
 🔄 **Automatic Type Handling**
-- Direct property mapping (same name and type)
+- Direct property mapping (same name and type, case-insensitive)
+- **Constructor mapping** - Automatically detects and uses constructors for records and classes with primary constructors
+- Mixed initialization support (constructor + object initializer for remaining properties)
 - Automatic enum conversion
 - Nested object mapping
+- Collection mapping with LINQ
 - Null safety built-in
 
 ⚡ **Compile-Time Generation**
@@ -1110,6 +1113,124 @@ public class TagDto
 // Usage with LINQ
 List<Tag> tags = GetTags();
 List<TagDto> tagDtos = tags.Select(t => t.MapToTagDto()).ToList();
+```
+
+---
+
+### 🏗️ Constructor Mapping
+
+The generator automatically detects and uses constructors when mapping to records or classes with primary constructors (C# 12+). This provides a more natural mapping approach for immutable types.
+
+#### Simple Record Mapping
+
+```csharp
+// Target: Record with constructor
+public record OrderDto(Guid Id, string CustomerName, decimal Total);
+
+// Source: Class with properties
+[MapTo(typeof(OrderDto))]
+public partial class Order
+{
+    public Guid Id { get; set; }
+    public string CustomerName { get; set; } = string.Empty;
+    public decimal Total { get; set; }
+}
+
+// Generated: Constructor call instead of object initializer
+public static OrderDto MapToOrderDto(this Order source)
+{
+    if (source is null)
+    {
+        return default!;
+    }
+
+    return new OrderDto(
+        source.Id,
+        source.CustomerName,
+        source.Total);
+}
+```
+
+#### Bidirectional Record Mapping
+
+```csharp
+// Both sides are records with constructors
+public record UserDto(Guid Id, string Name);
+
+[MapTo(typeof(UserDto), Bidirectional = true)]
+public partial record User(Guid Id, string Name);
+
+// Generated: Both directions use constructors
+// Forward: User → UserDto
+public static UserDto MapToUserDto(this User source) =>
+    new UserDto(source.Id, source.Name);
+
+// Reverse: UserDto → User
+public static User MapToUser(this UserDto source) =>
+    new User(source.Id, source.Name);
+```
+
+#### Mixed Constructor + Initializer
+
+When the target has constructor parameters AND additional settable properties, the generator uses both:
+
+```csharp
+// Target: Constructor for required properties, settable for optional
+public record ProductDto(Guid Id, string Name, decimal Price)
+{
+    public string Description { get; set; } = string.Empty;
+    public bool InStock { get; set; }
+}
+
+// Source: All properties settable
+[MapTo(typeof(ProductDto))]
+public partial class Product
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public decimal Price { get; set; }
+    public string Description { get; set; } = string.Empty;
+    public bool InStock { get; set; }
+}
+
+// Generated: Constructor for primary properties, initializer for extras
+public static ProductDto MapToProductDto(this Product source)
+{
+    if (source is null)
+    {
+        return default!;
+    }
+
+    return new ProductDto(
+        source.Id,
+        source.Name,
+        source.Price)
+    {
+        Description = source.Description,
+        InStock = source.InStock
+    };
+}
+```
+
+#### Case-Insensitive Parameter Matching
+
+The generator matches properties to constructor parameters case-insensitively:
+
+```csharp
+// Target: camelCase parameters (less common but supported)
+public record ItemDto(int id, string name);
+
+// Source: PascalCase properties (standard C# convention)
+[MapTo(typeof(ItemDto))]
+public partial class Item
+{
+    public int Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+}
+
+// Generated: Correctly matches despite casing difference
+public static ItemDto MapToItemDto(this Item source) =>
+    new ItemDto(source.Id, source.Name);
 ```
 
 ---
