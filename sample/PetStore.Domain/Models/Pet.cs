@@ -8,6 +8,7 @@ namespace PetStore.Domain.Models;
 [MapTo(typeof(PetDetailsDto))]
 [MapTo(typeof(UpdatePetRequest))]
 [MapTo(typeof(PetEntity), Bidirectional = true, UpdateTarget = true)]
+[MapTo(typeof(PetListItemDto), GenerateProjection = true)]
 public partial class Pet
 {
     /// <summary>

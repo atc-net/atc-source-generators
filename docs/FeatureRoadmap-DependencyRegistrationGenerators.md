@@ -75,6 +75,34 @@ This roadmap is based on comprehensive analysis of:
 
 ---
 
+## 📋 Feature Status Overview
+
+| Status | Feature | Priority | Version |
+|:------:|---------|----------|---------|
+| ✅ | [Generic Interface Registration](#1-generic-interface-registration) | 🔴 Critical | v1.1 |
+| ✅ | [Keyed Service Registration](#2-keyed-service-registration) | 🔴 High | v1.1 |
+| ✅ | [Factory Method Registration](#3-factory-method-registration) | 🔴 High | v1.1 |
+| ✅ | [TryAdd* Registration](#4-tryadd-registration) | 🟡 Medium | v1.2 |
+| ✅ | [Assembly Scanning Filters](#5-assembly-scanning-filters) | 🟡 Medium | v1.2 |
+| ✅ | [Decorator Pattern Support](#6-decorator-pattern-support) | 🟢 Low-Medium | v1.3 |
+| ✅ | [Implementation Instance Registration](#7-implementation-instance-registration) | 🟢 Low-Medium | v1.4 |
+| ✅ | [Conditional Registration](#8-conditional-registration) | 🟢 Low-Medium | v1.5 |
+| ❌ | [Auto-Discovery by Convention](#9-auto-discovery-by-convention) | 🟢 Low | - |
+| ❌ | [Registration Validation Diagnostics](#10-registration-validation-diagnostics) | 🟢 Low | - |
+| ⚠️ | [Multi-Interface Registration](#11-multi-interface-registration-enhanced) | 🟢 Low | Partial |
+| 🚫 | [Runtime Assembly Scanning](#12-runtime-assembly-scanning) | - | Out of Scope |
+| 🚫 | [Property/Field Injection](#13-propertyfield-injection) | - | Not Planned |
+| 🚫 | [Auto-Wiring Based on Reflection](#14-auto-wiring-based-on-reflection) | - | Out of Scope |
+| 🚫 | [Service Replacement/Override at Runtime](#15-service-replacementoverride-at-runtime) | - | Not Planned |
+
+**Legend:**
+- ✅ **Implemented** - Feature is complete and available
+- ⚠️ **Partially Implemented** - Some aspects are available, others are in progress
+- ❌ **Not Implemented** - Feature is planned but not yet developed
+- 🚫 **Not Planned** - Feature is out of scope or not aligned with project goals
+
+---
+
 ## 🎯 Need to Have (High Priority)
 
 These features are essential based on Scrutor's popularity and real-world DI patterns.

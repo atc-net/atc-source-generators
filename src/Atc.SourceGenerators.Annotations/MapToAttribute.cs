@@ -168,4 +168,55 @@ public sealed class MapToAttribute : Attribute
     /// </code>
     /// </example>
     public bool UpdateTarget { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether to generate an Expression projection method
+    /// for use with IQueryable (EF Core server-side projection).
+    /// When enabled, generates a ProjectToX() method that returns Expression&lt;Func&lt;TSource, TTarget&gt;&gt;.
+    /// This enables efficient database queries with only required columns selected.
+    /// Default is false.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Projection expressions have limitations:
+    /// - Cannot use BeforeMap/AfterMap hooks (expressions can't call methods)
+    /// - Cannot use Factory methods (expressions must use object initializers)
+    /// - Cannot map nested objects (no chained mapping calls in expressions)
+    /// - Only simple property-to-property mappings are supported
+    /// </para>
+    /// <para>
+    /// Use projections for read-only scenarios where you need efficient database queries.
+    /// Use standard mapping methods for complex mappings with hooks and nested objects.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// [MapTo(typeof(UserDto), GenerateProjection = true)]
+    /// public partial class User
+    /// {
+    ///     public Guid Id { get; set; }
+    ///     public string Name { get; set; } = string.Empty;
+    ///     public string Email { get; set; } = string.Empty;
+    /// }
+    ///
+    /// // Generated method:
+    /// // public static Expression&lt;Func&lt;User, UserDto&gt;&gt; ProjectToUserDto()
+    /// // {
+    /// //     return source =&gt; new UserDto
+    /// //     {
+    /// //         Id = source.Id,
+    /// //         Name = source.Name,
+    /// //         Email = source.Email
+    /// //     };
+    /// // }
+    ///
+    /// // Usage with EF Core:
+    /// var users = await dbContext.Users
+    ///     .Where(u =&gt; u.IsActive)
+    ///     .Select(User.ProjectToUserDto())
+    ///     .ToListAsync();
+    /// // SQL: SELECT Id, Name, Email FROM Users WHERE IsActive = 1
+    /// </code>
+    /// </example>
+    public bool GenerateProjection { get; set; }
 }

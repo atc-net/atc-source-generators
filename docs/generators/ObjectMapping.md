@@ -58,6 +58,7 @@ public static UserDto MapToUserDto(this User source) =>
   - [🪝 Before/After Mapping Hooks](#-beforeafter-mapping-hooks)
   - [🏭 Object Factories](#-object-factories)
   - [🔄 Update Existing Target Instance](#-update-existing-target-instance)
+  - [📊 IQueryable Projections](#-iqueryable-projections)
 - [⚙️ MapToAttribute Parameters](#️-maptoattribute-parameters)
 - [🛡️ Diagnostics](#️-diagnostics)
   - [❌ ATCMAP001: Mapping Class Must Be Partial](#-atcmap001-mapping-class-must-be-partial)
@@ -2462,6 +2463,268 @@ ProcessSettings(settingsDto);
 
 ---
 
+## 📊 IQueryable Projections
+
+Generate `Expression<Func<TSource, TTarget>>` for use with EF Core `.Select()` queries to enable server-side projection. This feature optimizes database queries by selecting only the required columns instead of fetching entire entities.
+
+### When to Use IQueryable Projections
+
+✅ **Use projections when:**
+- Fetching data for list/grid views where you need minimal fields
+- Optimizing database query performance
+- Reducing network traffic between application and database
+- Working with large datasets where full entity hydration is expensive
+- Need server-side filtering and sorting with minimal data transfer
+
+❌ **Don't use projections when:**
+- You need BeforeMap/AfterMap hooks (not supported in expressions)
+- You need Factory methods (not supported in expressions)
+- You have nested objects or collections (require method calls)
+- You need complex type conversions (only simple casts work)
+- The mapping is used for write operations (projections are read-only)
+
+### Basic Example
+
+```csharp
+using Atc.SourceGenerators.Annotations;
+
+// Define a lightweight DTO for list views
+public class UserSummaryDto
+{
+    public Guid Id { get; set; }
+    public string FirstName { get; set; } = string.Empty;
+    public string LastName { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+    public UserStatusDto Status { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+}
+
+// Enable projection with GenerateProjection = true
+[MapTo(typeof(UserSummaryDto), GenerateProjection = true)]
+public partial class User
+{
+    public Guid Id { get; set; }
+    public string FirstName { get; set; } = string.Empty;
+    public string LastName { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+    public string PreferredName { get; set; } = string.Empty;  // Not in DTO, excluded from projection
+    public UserStatus Status { get; set; }
+    public Address? Address { get; set; }  // Nested object, excluded from projection
+    public DateTimeOffset CreatedAt { get; set; }
+    public byte[] PasswordHash { get; set; } = [];  // Not in DTO, excluded from projection
+}
+
+// Generated projection method
+public static Expression<Func<User, UserSummaryDto>> ProjectToUserSummaryDto()
+{
+    return source => new UserSummaryDto
+    {
+        Id = source.Id,
+        FirstName = source.FirstName,
+        LastName = source.LastName,
+        Email = source.Email,
+        Status = (UserStatusDto)source.Status,  // Simple enum cast
+        CreatedAt = source.CreatedAt
+    };
+}
+
+// Usage with EF Core
+var users = await dbContext.Users
+    .Where(u => u.IsActive)
+    .OrderBy(u => u.LastName)
+    .Select(User.ProjectToUserSummaryDto())
+    .ToListAsync();
+
+// SQL generated (optimized - only selected columns):
+// SELECT Id, FirstName, LastName, Email, Status, CreatedAt
+// FROM Users
+// WHERE IsActive = 1
+// ORDER BY LastName
+```
+
+### Projection Limitations
+
+IQueryable projections have important limitations because they generate Expression trees that EF Core translates to SQL:
+
+| Feature | Standard Mapping | IQueryable Projection |
+|---------|------------------|----------------------|
+| **BeforeMap Hook** | ✅ Supported | ❌ Not supported (expressions can't call methods) |
+| **AfterMap Hook** | ✅ Supported | ❌ Not supported (expressions can't call methods) |
+| **Factory Method** | ✅ Supported | ❌ Not supported (must use object initializer) |
+| **Nested Objects** | ✅ Supported | ❌ Not supported (would require `.MapToX()` calls) |
+| **Collections** | ✅ Supported | ❌ Not supported (would require `.Select()` calls) |
+| **Built-in Type Conversions** | ✅ Supported | ❌ Not supported (only simple casts work) |
+| **Simple Properties** | ✅ Supported | ✅ Supported |
+| **Enum Conversions** | ✅ Supported | ✅ Supported (via simple casts) |
+| **UpdateTarget** | ✅ Supported | ❌ Not applicable (projections are read-only) |
+
+### What Gets Included in Projections
+
+The generator **automatically excludes** the following from projection expressions:
+
+1. **Nested Objects** - Properties of class/struct types (other than primitives/enums)
+2. **Collections** - `IEnumerable<T>`, `List<T>`, arrays, etc.
+3. **Properties without matching target** - Source properties not found in target DTO
+4. **Properties marked with `[MapIgnore]`** - Excluded from all mappings
+
+**Only simple properties are included:**
+- Primitive types (`int`, `string`, `Guid`, `DateTime`, `DateTimeOffset`, etc.)
+- Enums (converted via simple casts)
+- Value types (`decimal`, `bool`, etc.)
+
+### Comparison: Standard Mapping vs. Projection
+
+```csharp
+// Standard mapping (loads entire entity, then maps in memory)
+var users = await dbContext.Users
+    .Where(u => u.IsActive)
+    .ToListAsync();  // ⚠️ Fetches ALL columns for ALL users
+var dtos = users.Select(u => u.MapToUserDto()).ToList();  // ✅ Maps in-memory
+
+// SQL: SELECT * FROM Users WHERE IsActive = 1  (fetches all columns)
+
+// ---
+
+// Projection (maps on the database server)
+var dtos = await dbContext.Users
+    .Where(u => u.IsActive)
+    .Select(User.ProjectToUserDto())  // ✅ Translates to SQL SELECT
+    .ToListAsync();
+
+// SQL: SELECT Id, Name, Email FROM Users WHERE IsActive = 1  (only required columns)
+```
+
+### Performance Benefits
+
+**Database Query Optimization:**
+- ✅ Reduced data transfer (only selected columns)
+- ✅ Smaller result sets (fewer bytes over network)
+- ✅ Faster queries (database processes less data)
+- ✅ Better index usage (covering indexes possible)
+
+**Memory Optimization:**
+- ✅ Less memory allocated (no full entity objects)
+- ✅ Fewer GC collections (smaller object graphs)
+- ✅ Better cache locality (smaller DTO objects)
+
+### Real-World Example: Pet Store List View
+
+```csharp
+using Atc.SourceGenerators.Annotations;
+
+// Lightweight DTO for pet list/grid view
+public class PetListItemDto
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Species { get; set; } = string.Empty;
+    public string Breed { get; set; } = string.Empty;
+    public int Age { get; set; }
+    public PetStatus Status { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+}
+
+// Domain model with projection enabled
+[MapTo(typeof(PetListItemDto), GenerateProjection = true)]
+public partial class Pet
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Species { get; set; } = string.Empty;
+    public string Breed { get; set; } = string.Empty;
+    public int Age { get; set; }
+    public PetStatus Status { get; set; }
+    public Owner? Owner { get; set; }  // ❌ Excluded (nested object)
+    public IList<Pet> Children { get; set; } = new List<Pet>();  // ❌ Excluded (collection)
+    public DateTimeOffset CreatedAt { get; set; }
+}
+
+// API endpoint using projection
+app.MapGet("/pets", async (PetDbContext db) =>
+{
+    var pets = await db.Pets
+        .Where(p => p.Status == PetStatus.Available)
+        .OrderBy(p => p.Name)
+        .Select(Pet.ProjectToPetListItemDto())  // ✅ Server-side projection
+        .Take(100)
+        .ToListAsync();
+
+    return Results.Ok(pets);
+});
+
+// SQL (optimized):
+// SELECT TOP(100) Id, Name, Species, Breed, Age, Status, CreatedAt
+// FROM Pets
+// WHERE Status = 1
+// ORDER BY Name
+```
+
+### Best Practices
+
+**1. Create Dedicated DTOs for Projections**
+```csharp
+// ✅ Good: Lightweight DTO designed for projections
+public class UserSummaryDto
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+}
+
+// ❌ Bad: Heavy DTO with nested objects
+public class UserDetailsDto
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public AddressDto Address { get; set; } = null!;  // Won't work in projection
+}
+```
+
+**2. Use Standard Mapping for Complex Scenarios**
+```csharp
+// For read-only lists: Use projection
+var summary = await db.Users.Select(User.ProjectToUserSummaryDto()).ToListAsync();
+
+// For create/update: Use standard mapping with hooks
+var userDto = user.MapToUserDto();  // Supports hooks, factory, etc.
+```
+
+**3. Combine Projections with EF Core Features**
+```csharp
+// Filtering, sorting, paging - all on the server
+var results = await db.Pets
+    .Where(p => p.Age > 2)               // Server-side filter
+    .OrderBy(p => p.Name)                // Server-side sort
+    .Skip(pageIndex * pageSize)          // Server-side skip
+    .Take(pageSize)                      // Server-side take
+    .Select(Pet.ProjectToPetListItemDto())  // Server-side projection
+    .ToListAsync();                      // Single optimized SQL query
+```
+
+### Troubleshooting
+
+**Q: Why isn't my nested object included in the projection?**
+
+A: Projections only support simple properties. Nested objects require method calls like `.MapToX()` which can't be translated to SQL.
+
+**Solution:** Either flatten the nested properties using `EnableFlattening = true` in a separate mapping, or use standard mapping instead.
+
+**Q: Why can't I use BeforeMap/AfterMap with projections?**
+
+A: Expression trees (which projections use) can only contain expressions that EF Core can translate to SQL. Method calls like hooks aren't supported.
+
+**Solution:** Use standard mapping (`MapToX()`) when you need hooks. Use projections only for read-only, simple scenarios.
+
+**Q: The generator excluded all my properties from the projection!**
+
+A: Check that:
+1. Target DTO properties match source properties by name (case-insensitive)
+2. Properties are simple types (not classes, collections, or complex types)
+3. Properties aren't marked with `[MapIgnore]`
+4. Source and target types are compatible (or enum-to-enum)
+
+---
+
 ## ⚙️ MapToAttribute Parameters
 
 The `MapToAttribute` accepts the following parameters:
@@ -2475,6 +2738,7 @@ The `MapToAttribute` accepts the following parameters:
 | `AfterMap` | `string?` | ❌ No | `null` | Name of a static method to call after performing the mapping. Signature: `static void MethodName(SourceType source, TargetType target)` |
 | `Factory` | `string?` | ❌ No | `null` | Name of a static factory method to use for creating the target instance. Signature: `static TargetType MethodName()` |
 | `UpdateTarget` | `bool` | ❌ No | `false` | Generate an additional method overload that updates an existing target instance instead of creating a new one. Generates both `MapToX()` and `MapToX(target)` methods |
+| `GenerateProjection` | `bool` | ❌ No | `false` | Generate an Expression projection method for use with IQueryable (EF Core server-side projection). Generates `ProjectToX()` method that returns `Expression<Func<TSource, TTarget>>`. Only simple property mappings are supported (no hooks, factory, nested objects, or collections) |
 
 **Example:**
 ```csharp
