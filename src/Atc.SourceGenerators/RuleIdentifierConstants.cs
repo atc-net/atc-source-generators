@@ -102,6 +102,11 @@ internal static class RuleIdentifierConstants
         /// ATCMAP003: MapProperty target property not found.
         /// </summary>
         internal const string MapPropertyTargetNotFound = "ATCMAP003";
+
+        /// <summary>
+        /// ATCMAP004: Required property on target type has no mapping.
+        /// </summary>
+        internal const string RequiredPropertyNotMapped = "ATCMAP004";
     }
 
     /// <summary>

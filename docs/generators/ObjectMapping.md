@@ -52,12 +52,14 @@ public static UserDto MapToUserDto(this User source) =>
   - [🏷️ Custom Property Name Mapping with `[MapProperty]`](#️-custom-property-name-mapping-with-mapproperty)
   - [🔄 Property Flattening](#-property-flattening)
   - [🔀 Built-in Type Conversion](#-built-in-type-conversion)
+  - [✅ Required Property Validation](#-required-property-validation)
   - [🏗️ Constructor Mapping](#️-constructor-mapping)
 - [⚙️ MapToAttribute Parameters](#️-maptoattribute-parameters)
 - [🛡️ Diagnostics](#️-diagnostics)
   - [❌ ATCMAP001: Mapping Class Must Be Partial](#-atcmap001-mapping-class-must-be-partial)
   - [❌ ATCMAP002: Target Type Must Be Class or Struct](#-atcmap002-target-type-must-be-class-or-struct)
   - [❌ ATCMAP003: MapProperty Target Property Not Found](#-atcmap003-mapproperty-target-property-not-found)
+  - [⚠️ ATCMAP004: Required Property Not Mapped](#️-atcmap004-required-property-not-mapped)
 - [🚀 Native AOT Compatibility](#-native-aot-compatibility)
 - [📚 Additional Examples](#-additional-examples)
 
@@ -1315,6 +1317,120 @@ DurationSeconds = int.Parse(source.DurationSeconds, global::System.Globalization
 - **Configuration** - Convert configuration values between types
 - **Export/Import** - Generate CSV or other text-based formats from typed data
 
+### ✅ Required Property Validation
+
+The generator validates at **compile time** that all `required` properties (C# 11+) on the target type have corresponding mappings from the source type. This catches missing property mappings during development instead of discovering issues at runtime.
+
+#### Basic Example
+
+```csharp
+// ❌ This will generate ATCMAP004 warning at compile time
+[MapTo(typeof(UserRegistrationDto))]
+public partial class UserRegistration
+{
+    public Guid Id { get; set; }
+    public string FullName { get; set; } = string.Empty;
+    // Missing: Email property (required in target)
+}
+
+public class UserRegistrationDto
+{
+    public Guid Id { get; set; }
+    public required string Email { get; set; }     // ⚠️ Required but not mapped!
+    public required string FullName { get; set; }  // ✅ Mapped
+}
+
+// Compiler output:
+// Warning ATCMAP004: Required property 'Email' on target type 'UserRegistrationDto' has no mapping from source type 'UserRegistration'
+```
+
+#### Correct Implementation
+
+```csharp
+// ✅ All required properties have mappings - no warnings
+[MapTo(typeof(UserRegistrationDto))]
+public partial class UserRegistration
+{
+    public Guid Id { get; set; }
+    public string Email { get; set; } = string.Empty;     // ✅ Maps to required property
+    public string FullName { get; set; } = string.Empty;   // ✅ Maps to required property
+    public string? PhoneNumber { get; set; }               // Optional property (can be omitted)
+}
+
+public class UserRegistrationDto
+{
+    public Guid Id { get; set; }
+    public required string Email { get; set; }     // ✅ Mapped from source
+    public required string FullName { get; set; }  // ✅ Mapped from source
+    public string? PhoneNumber { get; set; }       // Not required (can be omitted from source)
+}
+
+// Generated mapping method:
+public static UserRegistrationDto MapToUserRegistrationDto(this UserRegistration source)
+{
+    if (source is null)
+    {
+        return default!;
+    }
+
+    return new UserRegistrationDto
+    {
+        Id = source.Id,
+        Email = source.Email,        // ✅ Required property mapped
+        FullName = source.FullName,  // ✅ Required property mapped
+        PhoneNumber = source.PhoneNumber,
+    };
+}
+```
+
+#### Validation Behavior
+
+**When ATCMAP004 is Generated:**
+- Target property has the `required` modifier (C# 11+)
+- No corresponding property exists in the source type
+- Property is not marked with `[MapIgnore]`
+
+**When No Warning is Generated:**
+- All required properties have mappings (by name or via `[MapProperty]`)
+- Target property is NOT required (no `required` keyword)
+- Target property is marked with `[MapIgnore]`
+
+**Diagnostic Details:**
+- **ID**: ATCMAP004
+- **Severity**: Warning (can be elevated to Error in `.editorconfig`)
+- **Message**: "Required property '{PropertyName}' on target type '{TargetType}' has no mapping from source type '{SourceType}'"
+
+#### Elevating to Error
+
+You can configure the diagnostic as an error to enforce strict mapping validation:
+
+**.editorconfig:**
+```ini
+# Treat missing required property mappings as compilation errors
+dotnet_diagnostic.ATCMAP004.severity = error
+```
+
+**Project file:**
+```xml
+<PropertyGroup>
+  <WarningsAsErrors>$(WarningsAsErrors);ATCMAP004</WarningsAsErrors>
+</PropertyGroup>
+```
+
+**Works With:**
+- Type conversions (built-in and enum mappings)
+- Nested object mappings
+- Collection mappings
+- Custom property name mapping via `[MapProperty]`
+- Bidirectional mappings
+- Constructor mappings
+
+**Use Cases:**
+- **API contracts** - Ensure all required fields in request/response DTOs are mapped
+- **Data validation** - Catch missing required properties at compile time instead of runtime
+- **Refactoring safety** - Adding `required` to a DTO property immediately flags all unmapped sources
+- **Team standards** - Enforce property mapping completeness across large codebases
+
 ### 🏗️ Constructor Mapping
 
 The generator automatically detects and uses constructors when mapping to records or classes with primary constructors (C# 12+). This provides a more natural mapping approach for immutable types.
@@ -1543,6 +1659,50 @@ public partial class User
 ```
 
 **Why:** The generator validates at compile time that the target property exists to prevent runtime errors. This ensures type-safe mappings.
+
+---
+
+### ⚠️ ATCMAP004: Required Property Not Mapped
+
+**Warning:** A required property on the target type has no corresponding mapping from the source type.
+
+**Example:**
+```csharp
+[MapTo(typeof(UserRegistrationDto))]
+public partial class UserRegistration
+{
+    public Guid Id { get; set; }
+    public string FullName { get; set; } = string.Empty;
+    // Missing: Email property
+}
+
+public class UserRegistrationDto
+{
+    public Guid Id { get; set; }
+    public required string Email { get; set; }     // ⚠️ Required but not mapped!
+    public required string FullName { get; set; }
+}
+
+// Warning ATCMAP004: Required property 'Email' on target type 'UserRegistrationDto' has no mapping from source type 'UserRegistration'
+```
+
+**Fix:**
+```csharp
+[MapTo(typeof(UserRegistrationDto))]
+public partial class UserRegistration
+{
+    public Guid Id { get; set; }
+    public string Email { get; set; } = string.Empty;     // ✅ Added to fix ATCMAP004
+    public string FullName { get; set; } = string.Empty;
+}
+```
+
+**Why:** The generator validates at compile time that all `required` properties (C# 11+) on the target type have mappings. This catches missing required properties during development instead of discovering issues at runtime or during object initialization.
+
+**Elevating to Error:** You can configure this diagnostic as an error in `.editorconfig`:
+```ini
+dotnet_diagnostic.ATCMAP004.severity = error
+```
 
 ---
 

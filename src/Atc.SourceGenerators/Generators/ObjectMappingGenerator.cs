@@ -38,6 +38,14 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 
+    private static readonly DiagnosticDescriptor RequiredPropertyNotMappedDescriptor = new(
+        id: RuleIdentifierConstants.ObjectMapping.RequiredPropertyNotMapped,
+        title: "Required property on target type has no mapping",
+        messageFormat: "Required property '{0}' on target type '{1}' has no mapping from source type '{2}'",
+        category: RuleCategoryConstants.ObjectMapping,
+        DiagnosticSeverity.Warning,
+        isEnabledByDefault: true);
+
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         // Generate the attribute definitions as fallback
@@ -400,6 +408,12 @@ public class ObjectMappingGenerator : IIncrementalGenerator
             }
         }
 
+        // Validate required properties
+        if (context.HasValue)
+        {
+            ValidateRequiredProperties(targetType, sourceType, mappings, context.Value);
+        }
+
         return mappings;
     }
 
@@ -551,6 +565,49 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         => typeName is "int" or "long" or "short" or "byte" or "sbyte" or
            "uint" or "ulong" or "ushort" or
            "decimal" or "double" or "float";
+
+    private static void ValidateRequiredProperties(
+        INamedTypeSymbol targetType,
+        INamedTypeSymbol sourceType,
+        List<PropertyMapping> mappings,
+        SourceProductionContext context)
+    {
+        // Get all target properties
+        var targetProperties = targetType
+            .GetMembers()
+            .OfType<IPropertySymbol>()
+            .Where(p => (p.SetMethod is not null || targetType.TypeKind == TypeKind.Struct) &&
+                        !HasMapIgnoreAttribute(p))
+            .ToList();
+
+        // Get all mapped target property names
+        var mappedPropertyNames = new HashSet<string>(
+            mappings.Select(m => m.TargetProperty.Name),
+            StringComparer.OrdinalIgnoreCase);
+
+        // Check each target property to see if it's required and not mapped
+        foreach (var targetProp in targetProperties)
+        {
+            // Skip if already mapped
+            if (mappedPropertyNames.Contains(targetProp.Name))
+            {
+                continue;
+            }
+
+            // Check if property is required (C# 11+ required keyword)
+            if (targetProp.IsRequired)
+            {
+                // Generate warning for unmapped required property
+                context.ReportDiagnostic(
+                    Diagnostic.Create(
+                        RequiredPropertyNotMappedDescriptor,
+                        targetType.Locations.FirstOrDefault() ?? Location.None,
+                        targetProp.Name,
+                        targetType.Name,
+                        sourceType.Name));
+            }
+        }
+    }
 
     private static bool IsCollectionType(
         ITypeSymbol type,

@@ -1525,4 +1525,160 @@ public class ObjectMappingGeneratorTests
         // Should convert string to bool
         Assert.Contains("IsAvailable = bool.Parse(source.IsAvailable)", output, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void Generator_Should_Generate_Warning_For_Missing_Required_Property()
+    {
+        // Arrange
+        const string source = """
+            using System;
+            using Atc.SourceGenerators.Annotations;
+
+            namespace TestNamespace;
+
+            [MapTo(typeof(UserDto))]
+            public partial class User
+            {
+                public Guid Id { get; set; }
+                public string Name { get; set; } = string.Empty;
+                // Missing: Email property
+            }
+
+            public class UserDto
+            {
+                public Guid Id { get; set; }
+                public string Name { get; set; } = string.Empty;
+
+                // This property is required but not mapped
+                public required string Email { get; set; }
+            }
+            """;
+
+        // Act
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        // Assert
+        var warning = diagnostics.FirstOrDefault(d => d.Id == "ATCMAP004");
+        Assert.NotNull(warning);
+        Assert.Equal(DiagnosticSeverity.Warning, warning!.Severity);
+        Assert.Contains("Email", warning.GetMessage(CultureInfo.InvariantCulture), StringComparison.Ordinal);
+        Assert.Contains("UserDto", warning.GetMessage(CultureInfo.InvariantCulture), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generator_Should_Not_Generate_Warning_When_All_Required_Properties_Are_Mapped()
+    {
+        // Arrange
+        const string source = """
+            using System;
+            using Atc.SourceGenerators.Annotations;
+
+            namespace TestNamespace;
+
+            [MapTo(typeof(UserDto))]
+            public partial class User
+            {
+                public Guid Id { get; set; }
+                public string Name { get; set; } = string.Empty;
+                public string Email { get; set; } = string.Empty;
+            }
+
+            public class UserDto
+            {
+                public Guid Id { get; set; }
+                public string Name { get; set; } = string.Empty;
+
+                // This property is required AND is mapped
+                public required string Email { get; set; }
+            }
+            """;
+
+        // Act
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        // Assert
+        var warning = diagnostics.FirstOrDefault(d => d.Id == "ATCMAP004");
+        Assert.Null(warning);
+
+        // Verify mapping was generated
+        Assert.Contains("Email = source.Email", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generator_Should_Generate_Warning_For_Multiple_Missing_Required_Properties()
+    {
+        // Arrange
+        const string source = """
+            using System;
+            using Atc.SourceGenerators.Annotations;
+
+            namespace TestNamespace;
+
+            [MapTo(typeof(UserDto))]
+            public partial class User
+            {
+                public Guid Id { get; set; }
+                // Missing: Name and Email properties
+            }
+
+            public class UserDto
+            {
+                public Guid Id { get; set; }
+                public required string Name { get; set; }
+                public required string Email { get; set; }
+            }
+            """;
+
+        // Act
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        // Assert
+        var warnings = diagnostics
+            .Where(d => d.Id == "ATCMAP004")
+            .ToList();
+        Assert.Equal(2, warnings.Count);
+
+        // Check that both properties are reported
+        var messages = warnings
+            .Select(w => w.GetMessage(CultureInfo.InvariantCulture))
+            .ToList();
+        Assert.Contains(messages, m => m.Contains("Name", StringComparison.Ordinal));
+        Assert.Contains(messages, m => m.Contains("Email", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Generator_Should_Not_Generate_Warning_For_Non_Required_Properties()
+    {
+        // Arrange
+        const string source = """
+            using System;
+            using Atc.SourceGenerators.Annotations;
+
+            namespace TestNamespace;
+
+            [MapTo(typeof(UserDto))]
+            public partial class User
+            {
+                public Guid Id { get; set; }
+                public string Name { get; set; } = string.Empty;
+                // Missing: Email property (but it's not required)
+            }
+
+            public class UserDto
+            {
+                public Guid Id { get; set; }
+                public string Name { get; set; } = string.Empty;
+
+                // This property is NOT required
+                public string Email { get; set; } = string.Empty;
+            }
+            """;
+
+        // Act
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        // Assert
+        var warning = diagnostics.FirstOrDefault(d => d.Id == "ATCMAP004");
+        Assert.Null(warning);
+    }
 }
