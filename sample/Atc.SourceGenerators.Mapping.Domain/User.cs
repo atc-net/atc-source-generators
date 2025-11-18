@@ -44,6 +44,22 @@ public partial class User
 
     /// <summary>
     /// Gets or sets when the user was last updated.
+    /// Internal audit field - excluded from DTO mapping.
     /// </summary>
+    [MapIgnore]
     public DateTimeOffset? UpdatedAt { get; set; }
+
+    /// <summary>
+    /// Gets or sets the user's password hash.
+    /// Sensitive data - never map to DTOs.
+    /// </summary>
+    [MapIgnore]
+    public byte[] PasswordHash { get; set; } = [];
+
+    /// <summary>
+    /// Gets or sets internal notes for administrative purposes.
+    /// Internal field - excluded from all mappings.
+    /// </summary>
+    [MapIgnore]
+    public string InternalNotes { get; set; } = string.Empty;
 }

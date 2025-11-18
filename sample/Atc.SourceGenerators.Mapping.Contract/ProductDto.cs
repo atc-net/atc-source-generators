@@ -14,5 +14,3 @@ public record ProductDto(
     decimal Price,
     string Description,
     DateTimeOffset CreatedAt);
-
-

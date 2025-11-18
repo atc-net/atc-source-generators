@@ -346,6 +346,7 @@ services.AddOptionsFromDomain(configuration, "DataAccess", "Infrastructure");
 
 **Key Features:**
 - Automatic property-to-property mapping by name (case-insensitive)
+- **Property exclusion** - Use `[MapIgnore]` attribute to exclude sensitive or internal properties from mapping (works on both source and target properties)
 - **Constructor mapping** - Automatically detects and uses constructors when mapping to records or classes with primary constructors:
   - Prefers constructor calls over object initializers when available
   - Supports records with positional parameters (C# 9+)

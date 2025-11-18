@@ -202,7 +202,7 @@ return new UserDto(source.Id, source.Name);
 
 **Priority**: 🔴 **High**
 **Generator**: ObjectMappingGenerator
-**Status**: ❌ Not Implemented
+**Status**: ✅ **Implemented** (v1.1 - January 2025)
 
 **Description**: Explicitly exclude specific properties from mapping using an attribute.
 
@@ -235,11 +235,44 @@ public class UserDto
 }
 ```
 
-**Implementation Notes**:
+**Implementation Details**:
 
-- Create `[MapIgnore]` attribute in Atc.SourceGenerators.Annotations
-- Skip properties decorated with this attribute during mapping generation
-- Consider allowing ignore on target properties as well (different use case)
+✅ **MapIgnoreAttribute Created**:
+- Attribute available in Atc.SourceGenerators.Annotations
+- Fallback attribute generated automatically by ObjectMappingGenerator
+- Applied to properties: `[AttributeUsage(AttributeTargets.Property)]`
+
+✅ **Source Property Filtering**:
+- Properties with `[MapIgnore]` on source type are excluded from mapping
+- Ignored source properties are never read during mapping generation
+
+✅ **Target Property Filtering**:
+- Properties with `[MapIgnore]` on target type are excluded from mapping
+- Ignored target properties are never set during mapping generation
+
+✅ **Features**:
+- Works with simple properties
+- Works with nested objects (ignored properties in nested objects are excluded)
+- Works with bidirectional mappings (properties can be ignored in either direction)
+- Works with constructor mappings (ignored properties excluded from constructor parameters)
+- Full Native AOT compatibility
+
+✅ **Testing**:
+- 4 comprehensive unit tests covering all scenarios:
+  - Source property ignore
+  - Target property ignore
+  - Nested object property ignore
+  - Bidirectional mapping property ignore
+
+✅ **Documentation**:
+- Added comprehensive section in `docs/generators/ObjectMapping.md`
+- Updated CLAUDE.md with MapIgnore information
+- Includes examples and use cases
+
+✅ **Sample Code**:
+- Added to `User` in `sample/Atc.SourceGenerators.Mapping.Domain`
+- Added to `Pet` in `sample/PetStore.Domain`
+- Demonstrates sensitive data and audit field exclusion
 
 ---
 

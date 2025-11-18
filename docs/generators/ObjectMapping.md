@@ -48,6 +48,7 @@ public static UserDto MapToUserDto(this User source) =>
   - [🪆 Nested Object Mapping](#-nested-object-mapping)
   - [📦 Collection Mapping](#-collection-mapping)
   - [🔁 Multi-Layer Mapping](#-multi-layer-mapping)
+  - [🚫 Excluding Properties with `[MapIgnore]`](#-excluding-properties-with-mapignore)
   - [🏗️ Constructor Mapping](#️-constructor-mapping)
 - [⚙️ MapToAttribute Parameters](#️-maptoattribute-parameters)
 - [🛡️ Diagnostics](#️-diagnostics)
@@ -576,6 +577,7 @@ UserEntity → User → UserDto
 - Direct property mapping (same name and type, case-insensitive)
 - **Constructor mapping** - Automatically detects and uses constructors for records and classes with primary constructors
 - Mixed initialization support (constructor + object initializer for remaining properties)
+- **Property exclusion** - Use `[MapIgnore]` to exclude sensitive or internal properties
 - Automatic enum conversion
 - Nested object mapping
 - Collection mapping with LINQ
@@ -967,6 +969,69 @@ var dtos = repository.GetAll()
     .Select(p => p.MapToProductDto())
     .ToList();
 ```
+
+### 🚫 Excluding Properties with `[MapIgnore]`
+
+Use the `[MapIgnore]` attribute to exclude specific properties from mapping. This is useful for sensitive data, internal state, or audit fields that should not be mapped to DTOs.
+
+```csharp
+using Atc.SourceGenerators.Annotations;
+
+[MapTo(typeof(UserDto))]
+public partial class User
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+
+    // Sensitive data - never map to DTOs
+    [MapIgnore]
+    public byte[] PasswordHash { get; set; } = Array.Empty<byte>();
+
+    // Internal audit fields - excluded from mapping
+    [MapIgnore]
+    public DateTimeOffset CreatedAt { get; set; }
+
+    [MapIgnore]
+    public string? ModifiedBy { get; set; }
+}
+
+public class UserDto
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+    // PasswordHash, CreatedAt, and ModifiedBy are NOT mapped
+}
+
+// Generated: Only Id, Name, and Email are mapped
+public static UserDto MapToUserDto(this User source)
+{
+    if (source is null)
+    {
+        return default!;
+    }
+
+    return new UserDto
+    {
+        Id = source.Id,
+        Name = source.Name,
+        Email = source.Email
+    };
+}
+```
+
+**Use Cases:**
+- **Sensitive data** - Password hashes, API keys, tokens
+- **Audit fields** - CreatedAt, UpdatedAt, ModifiedBy
+- **Internal state** - Cache values, computed fields, temporary flags
+- **Navigation properties** - Complex relationships managed separately
+
+**Works with:**
+- Simple properties
+- Nested objects (ignored properties in nested objects are also excluded)
+- Bidirectional mappings (properties can be ignored in either direction)
+- Constructor mappings (ignored properties are excluded from constructor parameters)
 
 ### 🏗️ Constructor Mapping
 
