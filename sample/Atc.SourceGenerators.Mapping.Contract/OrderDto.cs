@@ -12,4 +12,3 @@ public record OrderDto(
     string CustomerName,
     decimal TotalAmount,
     DateTimeOffset OrderDate);
-

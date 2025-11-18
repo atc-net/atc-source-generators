@@ -815,4 +815,173 @@ public class ObjectMappingGeneratorTests
         Assert.Contains("source.Id,", output, StringComparison.Ordinal);
         Assert.Contains("source.Name", output, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void Generator_Should_Ignore_Properties_With_MapIgnore_Attribute()
+    {
+        const string source = """
+                              using Atc.SourceGenerators.Annotations;
+
+                              namespace TestNamespace;
+
+                              public class TargetDto
+                              {
+                                  public int Id { get; set; }
+                                  public string Name { get; set; } = string.Empty;
+                              }
+
+                              [MapTo(typeof(TargetDto))]
+                              public partial class Source
+                              {
+                                  public int Id { get; set; }
+                                  public string Name { get; set; } = string.Empty;
+
+                                  [MapIgnore]
+                                  public byte[] PasswordHash { get; set; } = System.Array.Empty<byte>();
+
+                                  [MapIgnore]
+                                  public System.DateTime CreatedAt { get; set; }
+                              }
+                              """;
+
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        Assert.Empty(diagnostics);
+        Assert.Contains("MapToTargetDto", output, StringComparison.Ordinal);
+        Assert.Contains("Id = source.Id", output, StringComparison.Ordinal);
+        Assert.Contains("Name = source.Name", output, StringComparison.Ordinal);
+
+        // Should NOT contain ignored properties
+        Assert.DoesNotContain("PasswordHash", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("CreatedAt", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generator_Should_Ignore_Target_Properties_With_MapIgnore_Attribute()
+    {
+        const string source = """
+                              using Atc.SourceGenerators.Annotations;
+
+                              namespace TestNamespace;
+
+                              public partial class TargetDto
+                              {
+                                  public int Id { get; set; }
+                                  public string Name { get; set; } = string.Empty;
+
+                                  [MapIgnore]
+                                  public System.DateTime UpdatedAt { get; set; }
+                              }
+
+                              [MapTo(typeof(TargetDto))]
+                              public partial class Source
+                              {
+                                  public int Id { get; set; }
+                                  public string Name { get; set; } = string.Empty;
+                                  public System.DateTime UpdatedAt { get; set; }
+                              }
+                              """;
+
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        Assert.Empty(diagnostics);
+        Assert.Contains("MapToTargetDto", output, StringComparison.Ordinal);
+        Assert.Contains("Id = source.Id", output, StringComparison.Ordinal);
+        Assert.Contains("Name = source.Name", output, StringComparison.Ordinal);
+
+        // Should NOT contain ignored target property
+        Assert.DoesNotContain("UpdatedAt", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generator_Should_Ignore_Properties_In_Nested_Objects()
+    {
+        const string source = """
+                              using Atc.SourceGenerators.Annotations;
+
+                              namespace TestNamespace;
+
+                              public class TargetAddress
+                              {
+                                  public string Street { get; set; } = string.Empty;
+                                  public string City { get; set; } = string.Empty;
+                              }
+
+                              public class TargetDto
+                              {
+                                  public int Id { get; set; }
+                                  public TargetAddress? Address { get; set; }
+                              }
+
+                              [MapTo(typeof(TargetAddress))]
+                              public partial class SourceAddress
+                              {
+                                  public string Street { get; set; } = string.Empty;
+                                  public string City { get; set; } = string.Empty;
+
+                                  [MapIgnore]
+                                  public string PostalCode { get; set; } = string.Empty;
+                              }
+
+                              [MapTo(typeof(TargetDto))]
+                              public partial class Source
+                              {
+                                  public int Id { get; set; }
+                                  public SourceAddress? Address { get; set; }
+
+                                  [MapIgnore]
+                                  public string InternalNotes { get; set; } = string.Empty;
+                              }
+                              """;
+
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        Assert.Empty(diagnostics);
+        Assert.Contains("MapToTargetDto", output, StringComparison.Ordinal);
+        Assert.Contains("MapToTargetAddress", output, StringComparison.Ordinal);
+
+        // Should NOT contain ignored properties
+        Assert.DoesNotContain("InternalNotes", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("PostalCode", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generator_Should_Ignore_Properties_With_Bidirectional_Mapping()
+    {
+        const string source = """
+                              using Atc.SourceGenerators.Annotations;
+
+                              namespace TestNamespace;
+
+                              [MapTo(typeof(Source), Bidirectional = true)]
+                              public partial class TargetDto
+                              {
+                                  public int Id { get; set; }
+                                  public string Name { get; set; } = string.Empty;
+
+                                  [MapIgnore]
+                                  public System.DateTime LastModified { get; set; }
+                              }
+
+                              public partial class Source
+                              {
+                                  public int Id { get; set; }
+                                  public string Name { get; set; } = string.Empty;
+                                  public System.DateTime LastModified { get; set; }
+
+                                  [MapIgnore]
+                                  public byte[] Metadata { get; set; } = System.Array.Empty<byte>();
+                              }
+                              """;
+
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        Assert.Empty(diagnostics);
+        Assert.Contains("MapToSource", output, StringComparison.Ordinal);
+        Assert.Contains("MapToTargetDto", output, StringComparison.Ordinal);
+
+        // Should NOT contain ignored properties in either direction
+        Assert.DoesNotContain("LastModified", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("Metadata", output, StringComparison.Ordinal);
+    }
 }

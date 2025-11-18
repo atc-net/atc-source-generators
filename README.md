@@ -481,6 +481,7 @@ var dtos = users.Select(u => u.MapToUserDto()).ToList();
   - Supports special case handling (None → Unknown, etc.) via EnumMappingGenerator
 - **🪆 Nested Object Mapping**: Automatically chains mappings for nested properties
 - **🔁 Multi-Layer Support**: Build Entity → Domain → DTO mapping chains effortlessly
+- **🚫 Property Exclusion**: Use `[MapIgnore]` attribute to exclude sensitive or internal properties from mapping (works on both source and target properties)
 - **⚡ Zero Runtime Cost**: All code generated at compile time
 - **🚀 Native AOT Compatible**: No reflection or runtime code generation - fully trimming-safe
 - **🛡️ Type-Safe**: Compile-time validation catches mapping errors before runtime

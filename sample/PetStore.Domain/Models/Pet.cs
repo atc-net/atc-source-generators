@@ -44,12 +44,16 @@ public partial class Pet
 
     /// <summary>
     /// Gets or sets when the pet was last modified.
+    /// Internal audit field - excluded from API response.
     /// </summary>
+    [MapIgnore]
     public DateTimeOffset? ModifiedAt { get; set; }
 
     /// <summary>
     /// Gets or sets who last modified the pet.
+    /// Internal audit field - excluded from API response.
     /// </summary>
+    [MapIgnore]
     public string? ModifiedBy { get; set; }
 
     /// <summary>
