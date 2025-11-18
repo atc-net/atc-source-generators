@@ -51,6 +51,7 @@ public static UserDto MapToUserDto(this User source) =>
   - [🚫 Excluding Properties with `[MapIgnore]`](#-excluding-properties-with-mapignore)
   - [🏷️ Custom Property Name Mapping with `[MapProperty]`](#️-custom-property-name-mapping-with-mapproperty)
   - [🔄 Property Flattening](#-property-flattening)
+  - [🔀 Built-in Type Conversion](#-built-in-type-conversion)
   - [🏗️ Constructor Mapping](#️-constructor-mapping)
 - [⚙️ MapToAttribute Parameters](#️-maptoattribute-parameters)
 - [🛡️ Diagnostics](#️-diagnostics)
@@ -1212,6 +1213,107 @@ public class PersonDto
 - **Report generation** - Flatten hierarchical data for tabular export
 - **Legacy integration** - Map to flat database schemas or external APIs
 - **Performance optimization** - Reduce object graph complexity in data transfer
+
+### 🔀 Built-in Type Conversion
+
+The generator automatically converts between common types when property names match but types differ. This is particularly useful when mapping domain models with strongly-typed properties to DTOs that use string representations.
+
+**Example:**
+
+```csharp
+using Atc.SourceGenerators.Annotations;
+using System;
+
+// Domain model with strongly-typed properties
+[MapTo(typeof(UserEventDto))]
+public partial class UserEvent
+{
+    public Guid EventId { get; set; }
+    public Guid UserId { get; set; }
+    public DateTimeOffset Timestamp { get; set; }
+    public int DurationSeconds { get; set; }
+    public bool Success { get; set; }
+}
+
+// DTO with string-based properties
+public class UserEventDto
+{
+    public string EventId { get; set; } = string.Empty;
+    public string UserId { get; set; } = string.Empty;
+    public string Timestamp { get; set; } = string.Empty;
+    public string DurationSeconds { get; set; } = string.Empty;
+    public string Success { get; set; } = string.Empty;
+}
+
+// Generated: Automatic type conversion
+public static UserEventDto MapToUserEventDto(this UserEvent source)
+{
+    if (source is null)
+    {
+        return default!;
+    }
+
+    return new UserEventDto
+    {
+        EventId = source.EventId.ToString(),  // Guid → string
+        UserId = source.UserId.ToString(),
+        Timestamp = source.Timestamp.ToString("O", global::System.Globalization.CultureInfo.InvariantCulture),  // DateTimeOffset → string (ISO 8601)
+        DurationSeconds = source.DurationSeconds.ToString(global::System.Globalization.CultureInfo.InvariantCulture),  // int → string
+        Success = source.Success.ToString()  // bool → string
+    };
+}
+```
+
+**Supported Conversions:**
+
+| Source Type | Target Type | Conversion Method |
+|------------|-------------|-------------------|
+| `DateTime` | `string` | `.ToString("O", InvariantCulture)` (ISO 8601) |
+| `string` | `DateTime` | `DateTime.Parse(value, InvariantCulture)` |
+| `DateTimeOffset` | `string` | `.ToString("O", InvariantCulture)` (ISO 8601) |
+| `string` | `DateTimeOffset` | `DateTimeOffset.Parse(value, InvariantCulture)` |
+| `Guid` | `string` | `.ToString()` |
+| `string` | `Guid` | `Guid.Parse(value)` |
+| Numeric types* | `string` | `.ToString(InvariantCulture)` |
+| `string` | Numeric types* | `{Type}.Parse(value, InvariantCulture)` |
+| `bool` | `string` | `.ToString()` |
+| `string` | `bool` | `bool.Parse(value)` |
+
+*Numeric types: `int`, `long`, `short`, `byte`, `sbyte`, `uint`, `ulong`, `ushort`, `decimal`, `double`, `float`
+
+**Reverse Conversion Example:**
+
+```csharp
+// Reverse mapping: string → strong types
+[MapTo(typeof(UserEvent))]
+public partial class UserEventDto
+{
+    public string EventId { get; set; } = string.Empty;
+    public string Timestamp { get; set; } = string.Empty;
+    public string DurationSeconds { get; set; } = string.Empty;
+}
+
+// Generated: Parse methods for string → strong types
+EventId = global::System.Guid.Parse(source.EventId),
+Timestamp = global::System.DateTimeOffset.Parse(source.Timestamp, global::System.Globalization.CultureInfo.InvariantCulture),
+DurationSeconds = int.Parse(source.DurationSeconds, global::System.Globalization.CultureInfo.InvariantCulture)
+```
+
+**Culture and Format:**
+- All numeric and DateTime conversions use `InvariantCulture` for consistency
+- DateTime/DateTimeOffset use ISO 8601 format ("O") for string conversion
+- This ensures the generated mappings are culture-independent and portable
+
+**Works with:**
+- Bidirectional mappings (automatic conversion in both directions)
+- Nullable types (proper null handling for both source and target)
+- Other mapping features (MapIgnore, MapProperty, constructor mapping, etc.)
+
+**Use Cases:**
+- **API boundaries** - Convert strongly-typed domain models to string-based JSON DTOs
+- **Database mappings** - Map between typed entities and string-based legacy schemas
+- **Configuration** - Convert configuration values between types
+- **Export/Import** - Generate CSV or other text-based formats from typed data
 
 ### 🏗️ Constructor Mapping
 

@@ -108,6 +108,22 @@ app
     .Produces<IEnumerable<PetSummaryResponse>>(StatusCodes.Status200OK);
 
 app
+    .MapGet("/pets/details", (IPetService petService) =>
+    {
+        var pets = petService.GetAll();
+
+        // ✨ Demonstrate built-in type conversion: Strong types → String DTOs
+        // Shows automatic conversion of Guid → string, int → string, DateTimeOffset → string (ISO 8601)
+        var response = pets.Select(p => p.MapToPetDetailsDto());
+
+        return Results.Ok(response);
+    })
+    .WithName("GetAllPetsDetails")
+    .WithSummary("Get all pets with type conversion to strings")
+    .WithDescription("Demonstrates built-in type conversion where Guid → string, int → string, DateTimeOffset → string (ISO 8601)")
+    .Produces<IEnumerable<PetDetailsDto>>(StatusCodes.Status200OK);
+
+app
     .MapPost("/pets", ([FromBody] CreatePetRequest request, IPetService petService) =>
     {
         var pet = petService.CreatePet(request);

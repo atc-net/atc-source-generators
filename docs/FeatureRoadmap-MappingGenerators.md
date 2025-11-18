@@ -446,7 +446,7 @@ AddressStreet = source.Address?.Street!
 
 **Priority**: 🟡 **Medium**
 **Generator**: ObjectMappingGenerator
-**Status**: ❌ Not Implemented
+**Status**: ✅ **Implemented** (v1.1 - January 2025)
 
 **Description**: Automatically convert between common types (DateTime ↔ string, int ↔ string, GUID ↔ string, etc.).
 
@@ -456,37 +456,61 @@ AddressStreet = source.Address?.Street!
 **Example**:
 
 ```csharp
-[MapTo(typeof(UserDto))]
-public partial class User
+[MapTo(typeof(UserEventDto))]
+public partial class UserEvent
 {
-    public DateTime CreatedAt { get; set; }
-    public Guid Id { get; set; }
-    public int Age { get; set; }
+    public Guid EventId { get; set; }
+    public DateTimeOffset Timestamp { get; set; }
+    public int DurationSeconds { get; set; }
+    public bool Success { get; set; }
 }
 
-public class UserDto
+public class UserEventDto
 {
-    public string CreatedAt { get; set; } = string.Empty;  // DateTime → string
-    public string Id { get; set; } = string.Empty;          // Guid → string
-    public string Age { get; set; } = string.Empty;         // int → string
+    public string EventId { get; set; } = string.Empty;  // Guid → string
+    public string Timestamp { get; set; } = string.Empty;  // DateTimeOffset → string (ISO 8601)
+    public string DurationSeconds { get; set; } = string.Empty;  // int → string
+    public string Success { get; set; } = string.Empty;  // bool → string
 }
 
 // Generated code:
-CreatedAt = source.CreatedAt.ToString("O"),  // ISO 8601 format
-Id = source.Id.ToString(),
-Age = source.Age.ToString()
+EventId = source.EventId.ToString(),
+Timestamp = source.Timestamp.ToString("O", global::System.Globalization.CultureInfo.InvariantCulture),
+DurationSeconds = source.DurationSeconds.ToString(global::System.Globalization.CultureInfo.InvariantCulture),
+Success = source.Success.ToString()
 ```
 
-**Implementation Notes**:
+**Implementation Details**:
 
-- Support common conversions:
-  - `DateTime` ↔ `string` (use ISO 8601 format)
-  - `DateTimeOffset` ↔ `string`
-  - `Guid` ↔ `string`
-  - Numeric types ↔ `string`
-  - `bool` ↔ `string`
-- Use invariant culture for string conversions
-- Consider adding `[MapFormat("format")]` attribute for custom formats
+✅ **Supported Conversions**:
+- `DateTime` ↔ `string` (ISO 8601 format: "O")
+- `DateTimeOffset` ↔ `string` (ISO 8601 format: "O")
+- `Guid` ↔ `string`
+- Numeric types ↔ `string` (int, long, short, byte, decimal, double, float, etc.)
+- `bool` ↔ `string`
+
+✅ **Features**:
+- Automatic type detection and conversion code generation
+- Uses InvariantCulture for all numeric and DateTime conversions
+- ISO 8601 format for DateTime/DateTimeOffset to string conversion
+- Parse methods for string to strong type conversions
+- Full Native AOT compatibility
+
+✅ **Testing**:
+- 4 comprehensive unit tests covering all scenarios:
+  - DateTime/DateTimeOffset/Guid to string conversion
+  - String to DateTime/DateTimeOffset/Guid conversion
+  - Numeric types to string conversion
+  - String to numeric types conversion
+
+✅ **Documentation**:
+- Added comprehensive section in `docs/generators/ObjectMapping.md`
+- Includes examples and conversion rules
+
+✅ **Sample Code**:
+- Added `UserEvent` and `UserEventDto` in `sample/Atc.SourceGenerators.Mapping`
+- Added `PetDetailsDto` in `sample/PetStore.Api`
+- Demonstrates real-world usage with API endpoints
 
 ---
 
