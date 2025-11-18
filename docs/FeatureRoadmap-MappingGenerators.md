@@ -45,7 +45,9 @@ This roadmap is based on comprehensive analysis of:
 
 - **Direct property mapping** - Same name and type properties mapped automatically
 - **Smart enum conversion** - Uses EnumMapping extension methods when available, falls back to casts
+- **Collection mapping** - Automatic mapping of List, IEnumerable, arrays, IReadOnlyList, etc.
 - **Nested object mapping** - Automatic chaining of MapTo methods
+- **Record support** - Works with classes, records, and structs
 - **Null safety** - Proper handling of nullable reference types
 - **Multi-layer support** - Entity → Domain → DTO mapping chains
 - **Bidirectional mapping** - Generate both Source → Target and Target → Source
@@ -62,7 +64,7 @@ These features are essential for real-world usage and align with common mapping 
 
 **Priority**: 🔴 **Critical**
 **Generator**: ObjectMappingGenerator
-**Status**: ❌ Not Implemented
+**Status**: ✅ **Implemented** (v1.0 - January 2025)
 
 **Description**: Automatically map collections between types (List, IEnumerable, arrays, ICollection, etc.).
 
@@ -76,25 +78,49 @@ These features are essential for real-world usage and align with common mapping 
 public partial class User
 {
     public Guid Id { get; set; }
-    public List<Address> Addresses { get; set; } = new();  // Collection property
+    public IList<Address> Addresses { get; set; } = new List<Address>();
 }
 
 public class UserDto
 {
     public Guid Id { get; set; }
-    public List<AddressDto> Addresses { get; set; } = new();
+    public IReadOnlyList<AddressDto> Addresses { get; set; } = Array.Empty<AddressDto>();
 }
 
-// Generated code should automatically handle:
-Addresses = source.Addresses.Select(a => a.MapToAddressDto()).ToList()
+// Generated code automatically handles collection mapping:
+Addresses = source.Addresses?.Select(x => x.MapToAddressDto()).ToList()!
 ```
 
-**Implementation Notes**:
+**Implementation Details**:
 
-- Support `List<T>`, `IEnumerable<T>`, `ICollection<T>`, `IReadOnlyList<T>`, `T[]`
-- Automatically detect when a property is a collection type
-- Use LINQ `.Select()` with the appropriate mapping method
-- Handle empty collections and null collections appropriately
+✅ **Supported Collection Types**:
+- `List<T>`, `IList<T>` → `.ToList()`
+- `IEnumerable<T>` → `.ToList()`
+- `ICollection<T>`, `IReadOnlyCollection<T>` → `.ToList()`
+- `IReadOnlyList<T>` → `.ToList()`
+- `T[]` (arrays) → `.ToArray()`
+- `Collection<T>` → `new Collection<T>(...)`
+- `ReadOnlyCollection<T>` → `new ReadOnlyCollection<T>(...)`
+
+✅ **Features**:
+- Automatic collection type detection
+- LINQ `.Select()` with element mapping method
+- Null-safe handling with `?.` operator
+- Proper collection constructor selection based on target type
+- Works with nested collections and multi-layer architectures
+- Full Native AOT compatibility
+
+✅ **Testing**:
+- 5 comprehensive unit tests covering all collection types
+- Tested in PetStore.Api sample across 3 layers:
+  - `PetEntity`: `ICollection<PetEntity> Children`
+  - `Pet`: `IList<Pet> Children`
+  - `PetResponse`: `IReadOnlyList<PetResponse> Children`
+
+✅ **Documentation**:
+- Added comprehensive section in `docs/generators/ObjectMapping.md`
+- Updated CLAUDE.md with collection mapping details
+- Includes examples and conversion rules
 
 ---
 

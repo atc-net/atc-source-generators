@@ -49,4 +49,9 @@ public class PetEntity
     /// Gets or sets who last modified the pet.
     /// </summary>
     public string? ModifiedBy { get; set; }
+
+    /// <summary>
+    /// Gets or sets the pet's offspring/children.
+    /// </summary>
+    public ICollection<PetEntity> Children { get; set; } = new List<PetEntity>();
 }

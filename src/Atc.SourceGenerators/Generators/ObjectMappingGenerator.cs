@@ -55,14 +55,15 @@ public class ObjectMappingGenerator : IIncrementalGenerator
     }
 
     private static bool IsSyntaxTargetForGeneration(SyntaxNode node)
-        => node is ClassDeclarationSyntax { AttributeLists.Count: > 0 };
+        => node is ClassDeclarationSyntax { AttributeLists.Count: > 0 } or
+           RecordDeclarationSyntax { AttributeLists.Count: > 0 };
 
-    private static ClassDeclarationSyntax? GetSemanticTargetForGeneration(
+    private static TypeDeclarationSyntax? GetSemanticTargetForGeneration(
         GeneratorSyntaxContext context)
     {
-        var classDeclaration = (ClassDeclarationSyntax)context.Node;
+        var typeDeclaration = (TypeDeclarationSyntax)context.Node;
 
-        foreach (var attributeListSyntax in classDeclaration.AttributeLists)
+        foreach (var attributeListSyntax in typeDeclaration.AttributeLists)
         {
             foreach (var attributeSyntax in attributeListSyntax.Attributes)
             {
@@ -76,7 +77,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
 
                 if (fullName == FullAttributeName)
                 {
-                    return classDeclaration;
+                    return typeDeclaration;
                 }
             }
         }
@@ -86,7 +87,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
 
     private static void Execute(
         Compilation compilation,
-        ImmutableArray<ClassDeclarationSyntax> classes,
+        ImmutableArray<TypeDeclarationSyntax> classes,
         SourceProductionContext context)
     {
         if (classes.IsDefaultOrEmpty)
@@ -127,9 +128,9 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         INamedTypeSymbol classSymbol,
         SourceProductionContext context)
     {
-        // Check if class is partial
-        if (!classSymbol.DeclaringSyntaxReferences.Any(r => r.GetSyntax() is ClassDeclarationSyntax c &&
-                                                            c.Modifiers.Any(SyntaxKind.PartialKeyword)))
+        // Check if class or record is partial
+        if (!classSymbol.DeclaringSyntaxReferences.Any(r =>
+            r.GetSyntax() is TypeDeclarationSyntax t && t.Modifiers.Any(SyntaxKind.PartialKeyword)))
         {
             context.ReportDiagnostic(
                 Diagnostic.Create(
@@ -225,31 +226,59 @@ public class ObjectMappingGenerator : IIncrementalGenerator
 
             if (targetProp is not null)
             {
+                // Direct type match
                 mappings.Add(new PropertyMapping(
                     SourceProperty: sourceProp,
                     TargetProperty: targetProp,
                     RequiresConversion: false,
                     IsNested: false,
-                    HasEnumMapping: false));
+                    HasEnumMapping: false,
+                    IsCollection: false,
+                    CollectionElementType: null,
+                    CollectionTargetType: null));
             }
             else
             {
-                // Check if types are different but might be mappable (nested objects or enums)
+                // Check if types are different but might be mappable (nested objects, enums, or collections)
                 targetProp = targetProperties.FirstOrDefault(t => t.Name == sourceProp.Name);
                 if (targetProp is not null)
                 {
-                    var requiresConversion = IsEnumConversion(sourceProp.Type, targetProp.Type);
-                    var isNested = IsNestedMapping(sourceProp.Type, targetProp.Type);
-                    var hasEnumMapping = requiresConversion && HasEnumMappingAttribute(sourceProp.Type, targetProp.Type);
+                    // Check for collection mapping
+                    var isSourceCollection = IsCollectionType(sourceProp.Type, out var sourceElementType);
+                    var isTargetCollection = IsCollectionType(targetProp.Type, out var targetElementType);
 
-                    if (requiresConversion || isNested)
+                    if (isSourceCollection && isTargetCollection && sourceElementType is not null && targetElementType is not null)
                     {
+                        // Collection mapping
                         mappings.Add(new PropertyMapping(
                             SourceProperty: sourceProp,
                             TargetProperty: targetProp,
-                            RequiresConversion: requiresConversion,
-                            IsNested: isNested,
-                            HasEnumMapping: hasEnumMapping));
+                            RequiresConversion: false,
+                            IsNested: false,
+                            HasEnumMapping: false,
+                            IsCollection: true,
+                            CollectionElementType: targetElementType,
+                            CollectionTargetType: GetCollectionTargetType(targetProp.Type)));
+                    }
+                    else
+                    {
+                        // Check for enum conversion or nested mapping
+                        var requiresConversion = IsEnumConversion(sourceProp.Type, targetProp.Type);
+                        var isNested = IsNestedMapping(sourceProp.Type, targetProp.Type);
+                        var hasEnumMapping = requiresConversion && HasEnumMappingAttribute(sourceProp.Type, targetProp.Type);
+
+                        if (requiresConversion || isNested)
+                        {
+                            mappings.Add(new PropertyMapping(
+                                SourceProperty: sourceProp,
+                                TargetProperty: targetProp,
+                                RequiresConversion: requiresConversion,
+                                IsNested: isNested,
+                                HasEnumMapping: hasEnumMapping,
+                                IsCollection: false,
+                                CollectionElementType: null,
+                                CollectionTargetType: null));
+                        }
                     }
                 }
             }
@@ -342,6 +371,104 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                !tt.StartsWith("System", StringComparison.Ordinal);
     }
 
+    private static bool IsCollectionType(
+        ITypeSymbol type,
+        out ITypeSymbol? elementType)
+    {
+        elementType = null;
+
+        // Handle arrays first
+        if (type is IArrayTypeSymbol arrayType)
+        {
+            elementType = arrayType.ElementType;
+            return true;
+        }
+
+        if (type is not INamedTypeSymbol namedType)
+        {
+            return false;
+        }
+
+        // Handle generic collections: List<T>, IEnumerable<T>, ICollection<T>, IReadOnlyList<T>, etc.
+        if (namedType.IsGenericType && namedType.TypeArguments.Length == 1)
+        {
+            var typeName = namedType.ConstructedFrom.ToDisplayString();
+
+            if (typeName.StartsWith("System.Collections.Generic.List<", StringComparison.Ordinal) ||
+                typeName.StartsWith("System.Collections.Generic.IEnumerable<", StringComparison.Ordinal) ||
+                typeName.StartsWith("System.Collections.Generic.ICollection<", StringComparison.Ordinal) ||
+                typeName.StartsWith("System.Collections.Generic.IList<", StringComparison.Ordinal) ||
+                typeName.StartsWith("System.Collections.Generic.IReadOnlyList<", StringComparison.Ordinal) ||
+                typeName.StartsWith("System.Collections.Generic.IReadOnlyCollection<", StringComparison.Ordinal) ||
+                typeName.StartsWith("System.Collections.ObjectModel.Collection<", StringComparison.Ordinal) ||
+                typeName.StartsWith("System.Collections.ObjectModel.ReadOnlyCollection<", StringComparison.Ordinal))
+            {
+                elementType = namedType.TypeArguments[0];
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static string GetCollectionTargetType(
+        ITypeSymbol targetPropertyType)
+    {
+        if (targetPropertyType is IArrayTypeSymbol)
+        {
+            return "Array";
+        }
+
+        if (targetPropertyType is not INamedTypeSymbol namedType)
+        {
+            return "List";
+        }
+
+        var typeName = namedType.ConstructedFrom.ToDisplayString();
+
+        if (typeName.StartsWith("System.Collections.Generic.List<", StringComparison.Ordinal))
+        {
+            return "List";
+        }
+
+        if (typeName.StartsWith("System.Collections.Generic.IEnumerable<", StringComparison.Ordinal))
+        {
+            return "List";
+        }
+
+        if (typeName.StartsWith("System.Collections.Generic.ICollection<", StringComparison.Ordinal))
+        {
+            return "List";
+        }
+
+        if (typeName.StartsWith("System.Collections.Generic.IList<", StringComparison.Ordinal))
+        {
+            return "List";
+        }
+
+        if (typeName.StartsWith("System.Collections.Generic.IReadOnlyList<", StringComparison.Ordinal))
+        {
+            return "List";
+        }
+
+        if (typeName.StartsWith("System.Collections.Generic.IReadOnlyCollection<", StringComparison.Ordinal))
+        {
+            return "List";
+        }
+
+        if (typeName.StartsWith("System.Collections.ObjectModel.Collection<", StringComparison.Ordinal))
+        {
+            return "Collection";
+        }
+
+        if (typeName.StartsWith("System.Collections.ObjectModel.ReadOnlyCollection<", StringComparison.Ordinal))
+        {
+            return "ReadOnlyCollection";
+        }
+
+        return "List";
+    }
+
     private static string GenerateMappingExtensions(List<MappingInfo> mappings)
     {
         var sb = new StringBuilder();
@@ -424,7 +551,32 @@ public class ObjectMappingGenerator : IIncrementalGenerator
             var isLast = i == mapping.PropertyMappings.Count - 1;
             var comma = isLast ? string.Empty : ",";
 
-            if (prop.RequiresConversion)
+            if (prop.IsCollection)
+            {
+                // Collection mapping
+                var elementTypeName = prop.CollectionElementType!.Name;
+                var mappingMethodName = $"MapTo{elementTypeName}";
+                var collectionType = prop.CollectionTargetType!;
+
+                if (collectionType == "Array")
+                {
+                    sb.AppendLineLf($"            {prop.TargetProperty.Name} = source.{prop.SourceProperty.Name}?.Select(x => x.{mappingMethodName}()).ToArray()!{comma}");
+                }
+                else if (collectionType == "Collection")
+                {
+                    sb.AppendLineLf($"            {prop.TargetProperty.Name} = new global::System.Collections.ObjectModel.Collection<{prop.CollectionElementType.ToDisplayString()}>(source.{prop.SourceProperty.Name}?.Select(x => x.{mappingMethodName}()).ToList()!){comma}");
+                }
+                else if (collectionType == "ReadOnlyCollection")
+                {
+                    sb.AppendLineLf($"            {prop.TargetProperty.Name} = new global::System.Collections.ObjectModel.ReadOnlyCollection<{prop.CollectionElementType.ToDisplayString()}>(source.{prop.SourceProperty.Name}?.Select(x => x.{mappingMethodName}()).ToList()!){comma}");
+                }
+                else
+                {
+                    // Default to List (handles List, IEnumerable, ICollection, IList, IReadOnlyList, IReadOnlyCollection)
+                    sb.AppendLineLf($"            {prop.TargetProperty.Name} = source.{prop.SourceProperty.Name}?.Select(x => x.{mappingMethodName}()).ToList()!{comma}");
+                }
+            }
+            else if (prop.RequiresConversion)
             {
                 // Enum conversion
                 if (prop.HasEnumMapping)
