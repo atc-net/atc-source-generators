@@ -119,4 +119,26 @@ public sealed class MapToAttribute : Attribute
     /// </code>
     /// </example>
     public string? AfterMap { get; set; }
+
+    /// <summary>
+    /// Gets or sets the name of a static factory method to use for creating the target instance.
+    /// The method must have the signature: static TargetType MethodName().
+    /// Use this to customize object creation (e.g., setting default values, using object pooling, etc.).
+    /// </summary>
+    /// <example>
+    /// <code>
+    /// [MapTo(typeof(UserDto), Factory = nameof(CreateUserDto))]
+    /// public partial class User
+    /// {
+    ///     public Guid Id { get; set; }
+    ///     public string Name { get; set; } = string.Empty;
+    ///
+    ///     private static UserDto CreateUserDto()
+    ///     {
+    ///         return new UserDto { CreatedAt = DateTime.UtcNow };
+    ///     }
+    /// }
+    /// </code>
+    /// </example>
+    public string? Factory { get; set; }
 }
