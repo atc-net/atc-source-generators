@@ -98,4 +98,3 @@ internal static class PropertyNameUtility
         return builder.ToString();
     }
 }
-

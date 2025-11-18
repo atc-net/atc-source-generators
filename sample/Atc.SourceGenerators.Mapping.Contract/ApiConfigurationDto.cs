@@ -34,4 +34,3 @@ public class ApiConfigurationDto
 #pragma warning restore SA1300 // Element should begin with an uppercase letter
 #pragma warning restore IDE1006 // Naming Styles
 }
-

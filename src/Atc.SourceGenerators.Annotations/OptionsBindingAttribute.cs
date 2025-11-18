@@ -11,8 +11,9 @@ namespace Atc.SourceGenerators.Annotations;
 /// <item><description>Public const string Name in the class</description></item>
 /// <item><description>Auto-inferred from class name (uses full class name)</description></item>
 /// </list>
+/// <para>Supports multiple named instances by applying the attribute multiple times with different Name values.</para>
 /// </summary>
-[AttributeUsage(AttributeTargets.Class, Inherited = false, AllowMultiple = false)]
+[AttributeUsage(AttributeTargets.Class, Inherited = false, AllowMultiple = true)]
 public sealed class OptionsBindingAttribute : Attribute
 {
     /// <summary>
@@ -61,4 +62,12 @@ public sealed class OptionsBindingAttribute : Attribute
     /// Default is null (no custom validator).
     /// </summary>
     public Type? Validator { get; set; }
+
+    /// <summary>
+    /// Gets or sets the name for named options instances.
+    /// When specified, enables multiple configurations of the same options type with different names.
+    /// Use <c>IOptionsSnapshot&lt;T&gt;.Get(name)</c> to retrieve specific named instances.
+    /// Default is null (unnamed options).
+    /// </summary>
+    public string? Name { get; set; }
 }

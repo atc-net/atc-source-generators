@@ -54,6 +54,8 @@ This roadmap is based on comprehensive analysis of:
 
 - **Section name resolution** - 5-level priority system (explicit → const SectionName → const NameTitle → const Name → auto-inferred)
 - **Validation support** - `ValidateDataAnnotations` and `ValidateOnStart` parameters
+- **Custom validation** - `IValidateOptions<T>` for complex business rules beyond DataAnnotations
+- **Named options** - Multiple configurations of the same options type with different names
 - **Lifetime selection** - Singleton (`IOptions`), Scoped (`IOptionsSnapshot`), Monitor (`IOptionsMonitor`)
 - **Multi-project support** - Assembly-specific extension methods with smart naming
 - **Transitive registration** - 4 overloads for automatic/selective assembly registration
@@ -68,7 +70,7 @@ This roadmap is based on comprehensive analysis of:
 | Status | Feature | Priority |
 |:------:|---------|----------|
 | ✅ | [Custom Validation Support (IValidateOptions)](#1-custom-validation-support-ivalidateoptions) | 🔴 High |
-| ❌ | [Named Options Support](#2-named-options-support) | 🔴 High |
+| ✅ | [Named Options Support](#2-named-options-support) | 🔴 High |
 | ❌ | [Post-Configuration Support](#3-post-configuration-support) | 🟡 Medium-High |
 | ❌ | [Error on Missing Configuration Keys](#4-error-on-missing-configuration-keys) | 🔴 High |
 | ❌ | [Configuration Change Callbacks](#5-configuration-change-callbacks) | 🟡 Medium |
@@ -165,7 +167,7 @@ services.AddOptions<ConnectionPoolOptions>()
 ### 2. Named Options Support
 
 **Priority**: 🔴 **High**
-**Status**: ❌ Not Implemented
+**Status**: ✅ **Implemented**
 **Inspiration**: Microsoft.Extensions.Options named options
 
 **Description**: Support multiple configuration sections binding to the same options class with different names.
@@ -224,12 +226,19 @@ public class DataService
 }
 ```
 
-**Implementation Notes**:
+**Implementation Details**:
 
-- Allow multiple `[OptionsBinding]` attributes on same class
-- Add `Name` parameter to distinguish named instances
-- Use `Configure<T>(string name, ...)` for named options
-- Generate helper properties/methods for easy access
+- ✅ `[OptionsBinding]` attribute supports `AllowMultiple = true`
+- ✅ Added `Name` property to distinguish named instances
+- ✅ Named options use `Configure<T>(name, section)` pattern
+- ✅ Named options accessed via `IOptionsSnapshot<T>.Get(name)`
+- ✅ Can mix named and unnamed options on the same class
+- ⚠️ Named options do NOT support validation chain (ValidateDataAnnotations, ValidateOnStart, Validator)
+
+**Testing**:
+- ✅ 8 comprehensive unit tests covering all scenarios
+- ✅ Sample project with EmailOptions demonstrating Primary/Secondary/Fallback servers
+- ✅ PetStore.Api sample with NotificationOptions (Email/SMS/Push channels)
 
 ---
 

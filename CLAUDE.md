@@ -298,6 +298,7 @@ services.AddDependencyRegistrationsFromDomain(
   4. `public const string Name`
   5. Auto-inferred from class name
 - Supports validation: `ValidateDataAnnotations`, `ValidateOnStart`, Custom validators (`IValidateOptions<T>`)
+- **Named options support**: Multiple configurations of the same options type with different names (e.g., Primary/Secondary email servers)
 - Supports lifetime selection: Singleton (IOptions), Scoped (IOptionsSnapshot), Monitor (IOptionsMonitor)
 - Requires classes to be declared `partial`
 - **Smart naming** - uses short suffix if unique, full name if conflicts exist
@@ -323,6 +324,22 @@ services.AddOptions<DatabaseOptions>()
     .ValidateOnStart();
 
 services.AddSingleton<IValidateOptions<DatabaseOptions>, DatabaseOptionsValidator>();
+
+// Input with named options (multiple configurations):
+[OptionsBinding("Email:Primary", Name = "Primary")]
+[OptionsBinding("Email:Secondary", Name = "Secondary")]
+[OptionsBinding("Email:Fallback", Name = "Fallback")]
+public partial class EmailOptions { }
+
+// Output with named options:
+services.Configure<EmailOptions>("Primary", configuration.GetSection("Email:Primary"));
+services.Configure<EmailOptions>("Secondary", configuration.GetSection("Email:Secondary"));
+services.Configure<EmailOptions>("Fallback", configuration.GetSection("Email:Fallback"));
+
+// Usage: Access via IOptionsSnapshot<T>.Get(name)
+var emailSnapshot = serviceProvider.GetRequiredService<IOptionsSnapshot<EmailOptions>>();
+var primaryEmail = emailSnapshot.Get("Primary");
+var secondaryEmail = emailSnapshot.Get("Secondary");
 ```
 
 **Smart Naming:**

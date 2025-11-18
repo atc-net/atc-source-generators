@@ -318,6 +318,8 @@ services.AddOptionsFromApp(configuration);
 
 - **🧠 Automatic Section Name Inference**: Smart resolution from explicit names, const fields (`SectionName`, `NameTitle`, `Name`), or auto-inferred from class names
 - **🔒 Built-in Validation**: Integrated DataAnnotations validation (`ValidateDataAnnotations`) and startup validation (`ValidateOnStart`)
+- **🎯 Custom Validation**: Support for `IValidateOptions<T>` for complex business rules beyond DataAnnotations
+- **📛 Named Options**: Multiple configurations of the same options type with different names (e.g., Primary/Secondary email servers)
 - **🎯 Explicit Section Paths**: Support for nested sections like `"App:Database"` or `"Services:Email"`
 - **📦 Multiple Options Classes**: Register multiple configuration sections in a single assembly with one method call
 - **🏗️ Multi-Project Support**: Smart naming generates assembly-specific extension methods (e.g., `AddOptionsFromDomain()`, `AddOptionsFromDataAccess()`)

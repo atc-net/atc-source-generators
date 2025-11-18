@@ -741,6 +741,7 @@ Console.WriteLine($"Other interval: {otherOptions.Value.RepeatIntervalInSeconds}
 - **🧠 Automatic section name inference** - Smart resolution from explicit names, const fields (`SectionName`, `NameTitle`, `Name`), or auto-inferred from class names
 - **🔒 Built-in validation** - Integrated DataAnnotations validation (`ValidateDataAnnotations`) and startup validation (`ValidateOnStart`)
 - **🎯 Custom validation** - Support for `IValidateOptions<T>` for complex business rules beyond DataAnnotations
+- **📛 Named options** - Multiple configurations of the same options type with different names (e.g., Primary/Secondary email servers)
 - **🎯 Explicit section paths** - Support for nested sections like `"App:Database"` or `"Services:Email"`
 - **📦 Multiple options classes** - Register multiple configuration sections in a single assembly with one method call
 - **🏗️ Multi-project support** - Smart naming generates assembly-specific extension methods (e.g., `AddOptionsFromDomain()`, `AddOptionsFromDataAccess()`)
@@ -1268,6 +1269,133 @@ var configuration = new ConfigurationBuilder()
     .Build();
 
 services.AddOptionsFromApp(configuration);
+```
+
+### 📛 Named Options (Multiple Configurations)
+
+**Named Options** allow you to have multiple configurations of the same options type with different names. This is useful when you need different configurations for the same logical service (e.g., Primary/Secondary email servers, Production/Staging databases).
+
+#### ✨ Use Cases
+
+- **🔄 Fallback Servers**: Primary, Secondary, and Fallback email/database servers
+- **🌍 Multi-Region**: Different API endpoints for different regions (US, EU, Asia)
+- **🎯 Multi-Tenant**: Tenant-specific configurations
+- **🔧 Environment Tiers**: Production, Staging, Development endpoints
+
+#### 🎯 Basic Example
+
+**Define options with multiple named instances:**
+
+```csharp
+[OptionsBinding("Email:Primary", Name = "Primary")]
+[OptionsBinding("Email:Secondary", Name = "Secondary")]
+[OptionsBinding("Email:Fallback", Name = "Fallback")]
+public partial class EmailOptions
+{
+    public string SmtpServer { get; set; } = string.Empty;
+    public int Port { get; set; } = 587;
+    public bool UseSsl { get; set; } = true;
+    public string FromAddress { get; set; } = string.Empty;
+}
+```
+
+**Configure appsettings.json:**
+
+```json
+{
+  "Email": {
+    "Primary": {
+      "SmtpServer": "smtp.primary.example.com",
+      "Port": 587,
+      "UseSsl": true,
+      "FromAddress": "noreply@primary.example.com"
+    },
+    "Secondary": {
+      "SmtpServer": "smtp.secondary.example.com",
+      "Port": 587,
+      "UseSsl": true,
+      "FromAddress": "noreply@secondary.example.com"
+    },
+    "Fallback": {
+      "SmtpServer": "smtp.fallback.example.com",
+      "Port": 25,
+      "UseSsl": false,
+      "FromAddress": "noreply@fallback.example.com"
+    }
+  }
+}
+```
+
+**Access named options using IOptionsSnapshot:**
+
+```csharp
+public class EmailService
+{
+    private readonly IOptionsSnapshot<EmailOptions> _emailOptionsSnapshot;
+
+    public EmailService(IOptionsSnapshot<EmailOptions> emailOptionsSnapshot)
+    {
+        _emailOptionsSnapshot = emailOptionsSnapshot;
+    }
+
+    public async Task SendAsync(string to, string body)
+    {
+        // Try primary first
+        var primaryOptions = _emailOptionsSnapshot.Get("Primary");
+        if (await TrySendAsync(primaryOptions, to, body))
+            return;
+
+        // Fallback to secondary
+        var secondaryOptions = _emailOptionsSnapshot.Get("Secondary");
+        if (await TrySendAsync(secondaryOptions, to, body))
+            return;
+
+        // Last resort: fallback server
+        var fallbackOptions = _emailOptionsSnapshot.Get("Fallback");
+        await TrySendAsync(fallbackOptions, to, body);
+    }
+}
+```
+
+#### 🔧 Generated Code
+
+```csharp
+// Generated registration methods
+services.Configure<EmailOptions>("Primary", configuration.GetSection("Email:Primary"));
+services.Configure<EmailOptions>("Secondary", configuration.GetSection("Email:Secondary"));
+services.Configure<EmailOptions>("Fallback", configuration.GetSection("Email:Fallback"));
+```
+
+#### ⚠️ Important Notes
+
+- **📝 Use `IOptionsSnapshot<T>`**: Named options are accessed via `IOptionsSnapshot<T>.Get(name)`, not `IOptions<T>.Value`
+- **🚫 No Validation Chain**: Named options use the simpler `Configure<T>(name, section)` pattern without validation support
+- **🔄 AllowMultiple**: The `[OptionsBinding]` attribute supports `AllowMultiple = true` to enable multiple configurations
+
+#### 🎯 Mixing Named and Unnamed Options
+
+You can have both named and unnamed options on the same class:
+
+```csharp
+// Default unnamed instance
+[OptionsBinding("Email")]
+
+// Named instances for specific use cases
+[OptionsBinding("Email:Backup", Name = "Backup")]
+public partial class EmailOptions
+{
+    public string SmtpServer { get; set; } = string.Empty;
+    public int Port { get; set; } = 587;
+}
+```
+
+```csharp
+// Access default (unnamed) instance
+var defaultEmail = serviceProvider.GetRequiredService<IOptions<EmailOptions>>();
+
+// Access named instances
+var emailSnapshot = serviceProvider.GetRequiredService<IOptionsSnapshot<EmailOptions>>();
+var backupEmail = emailSnapshot.Get("Backup");
 ```
 
 ---
