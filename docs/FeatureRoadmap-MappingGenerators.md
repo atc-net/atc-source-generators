@@ -669,29 +669,124 @@ These features would improve usability and flexibility but are not critical for 
 ### 9. Before/After Mapping Hooks
 
 **Priority**: 🟢 **Low-Medium**
-**Status**: ❌ Not Implemented
+**Generator**: ObjectMappingGenerator
+**Status**: ✅ **Implemented** (v1.1 - January 2025)
 
 **Description**: Execute custom logic before or after the mapping operation.
+
+**User Story**:
+> "As a developer, I want to execute custom validation or post-processing logic before or after mapping objects, without having to write wrapper methods around the generated mapping code."
 
 **Example**:
 
 ```csharp
-[MapTo(typeof(UserDto), BeforeMap = nameof(BeforeMapUser), AfterMap = nameof(AfterMapUser))]
+using Atc.SourceGenerators.Annotations;
+
+[MapTo(typeof(UserDto), BeforeMap = nameof(ValidateUser), AfterMap = nameof(EnrichDto))]
 public partial class User
 {
     public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
 
-    private static void BeforeMapUser(User source)
+    // Called before the mapping operation (after null check)
+    private static void ValidateUser(User source)
     {
-        // Custom validation or preprocessing
+        if (string.IsNullOrWhiteSpace(source.Name))
+        {
+            throw new ArgumentException("Name cannot be empty");
+        }
     }
 
-    private static void AfterMapUser(User source, UserDto target)
+    // Called after the mapping operation (before return)
+    private static void EnrichDto(User source, UserDto target)
     {
-        // Custom post-processing
+        target.DisplayName = $"{source.Name} (ID: {source.Id})";
     }
 }
+
+public class UserDto
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string DisplayName { get; set; } = string.Empty;
+}
+
+// Generated code:
+public static UserDto MapToUserDto(this User source)
+{
+    if (source is null)
+    {
+        return default!;
+    }
+
+    // BeforeMap hook - called after null check, before mapping
+    User.ValidateUser(source);
+
+    var target = new UserDto
+    {
+        Id = source.Id,
+        Name = source.Name
+    };
+
+    // AfterMap hook - called after mapping, before return
+    User.EnrichDto(source, target);
+
+    return target;
+}
 ```
+
+**Implementation Details**:
+
+✅ **BeforeMap Hook**:
+- Called after null check, before object creation
+- Signature: `static void MethodName(SourceType source)`
+- Use for validation, preprocessing, or throwing exceptions
+- Has access to source object only
+
+✅ **AfterMap Hook**:
+- Called after object creation, before return
+- Signature: `static void MethodName(SourceType source, TargetType target)`
+- Use for post-processing, enrichment, or additional property setting
+- Has access to both source and target objects
+
+✅ **Features**:
+- Hook methods must be static
+- Hooks are called via fully qualified name (e.g., `User.ValidateUser(source)`)
+- Both hooks are optional - use one, both, or neither
+- Hooks are specified by method name as string (e.g., `BeforeMap = nameof(ValidateUser)`)
+- Works with all mapping features (collections, nested objects, constructors, etc.)
+- Reverse mappings (Bidirectional = true) do not inherit hooks
+- Full Native AOT compatibility
+
+✅ **Execution Order**:
+1. Null check on source
+2. **BeforeMap hook** (if specified)
+3. Polymorphic type check (if derived type mappings exist)
+4. Object creation (constructor or object initializer)
+5. **AfterMap hook** (if specified)
+6. Return target object
+
+✅ **Testing**:
+- 3 comprehensive unit tests covering all scenarios:
+  - BeforeMap hook called before mapping
+  - AfterMap hook called after mapping
+  - Both hooks called in correct order
+
+✅ **Documentation**:
+- Added comprehensive section in `docs/generators/ObjectMapping.md`
+- Updated CLAUDE.md with hooks information
+- Includes examples and use cases
+
+✅ **Sample Code**:
+- Planned to be added to `sample/Atc.SourceGenerators.Mapping`
+- Planned to be added to `sample/PetStore.Api`
+
+**Use Cases**:
+- **Validation** - Throw exceptions if source data is invalid before mapping
+- **Logging** - Log mapping operations for debugging
+- **Enrichment** - Add computed properties to target that don't exist in source
+- **Auditing** - Track when objects are mapped
+- **Side Effects** - Call external services or update caches
 
 ---
 

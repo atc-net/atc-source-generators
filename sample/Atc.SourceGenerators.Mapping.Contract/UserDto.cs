@@ -49,4 +49,16 @@ public class UserDto
     /// Gets or sets when the user was last updated.
     /// </summary>
     public DateTimeOffset? UpdatedAt { get; set; }
+
+    /// <summary>
+    /// Gets or sets the user's full name (computed from FirstName and LastName).
+    /// This property is enriched by the AfterMap hook.
+    /// </summary>
+    public string FullName { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the user info label (combines FullName and ID).
+    /// This property is enriched by the AfterMap hook.
+    /// </summary>
+    public string UserInfo { get; set; } = string.Empty;
 }

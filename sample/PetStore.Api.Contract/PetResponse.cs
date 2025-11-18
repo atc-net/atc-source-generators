@@ -59,4 +59,16 @@ public class PetResponse
     /// Gets or sets the pet's offspring/children.
     /// </summary>
     public IReadOnlyList<PetResponse> Children { get; set; } = Array.Empty<PetResponse>();
+
+    /// <summary>
+    /// Gets or sets the pet's formatted description.
+    /// This property is enriched by the AfterMap hook.
+    /// </summary>
+    public string Description { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the pet's age category (Young, Adult, Mature, Senior).
+    /// This property is enriched by the AfterMap hook.
+    /// </summary>
+    public string AgeCategory { get; set; } = string.Empty;
 }
