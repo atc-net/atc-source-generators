@@ -345,7 +345,13 @@ services.AddOptionsFromDomain(configuration, "DataAccess", "Infrastructure");
 ### MappingGenerator
 
 **Key Features:**
-- Automatic property-to-property mapping by name
+- Automatic property-to-property mapping by name (case-insensitive)
+- **Constructor mapping** - Automatically detects and uses constructors when mapping to records or classes with primary constructors:
+  - Prefers constructor calls over object initializers when available
+  - Supports records with positional parameters (C# 9+)
+  - Supports classes with primary constructors (C# 12+)
+  - **Mixed initialization** - Uses constructor for required parameters and object initializer for remaining properties
+  - **Case-insensitive parameter matching** - Matches property names to constructor parameter names regardless of casing
 - **Smart enum conversion**:
   - Uses EnumMapping extension methods when enums have `[MapTo]` attributes (safe, with special case handling)
   - Falls back to simple casts for enums without `[MapTo]` attributes
@@ -360,7 +366,7 @@ services.AddOptionsFromDomain(configuration, "DataAccess", "Infrastructure");
 - **Record support** - Works with classes, records, and structs
 - Requires types to be declared `partial`
 
-**Generated Code Pattern:**
+**Generated Code Pattern (Object Initializer):**
 ```csharp
 // Input:
 [MapTo(typeof(UserDto))]
@@ -391,19 +397,89 @@ public static UserDto MapToUserDto(this User source)
 }
 ```
 
+**Generated Code Pattern (Constructor Mapping):**
+```csharp
+// Input - Record with constructor:
+public record OrderDto(Guid Id, string CustomerName, decimal Total, DateTimeOffset OrderDate);
+
+[MapTo(typeof(OrderDto))]
+public partial record Order(Guid Id, string CustomerName, decimal Total, DateTimeOffset OrderDate);
+
+// Output - Constructor call:
+public static OrderDto MapToOrderDto(this Order source)
+{
+    if (source is null)
+    {
+        return default!;
+    }
+
+    return new OrderDto(
+        source.Id,
+        source.CustomerName,
+        source.Total,
+        source.OrderDate);
+}
+```
+
+**Generated Code Pattern (Mixed Constructor + Initializer):**
+```csharp
+// Input - Record with constructor and extra properties:
+public record ProductDto(Guid Id, string Name, decimal Price)
+{
+    public string Description { get; set; } = string.Empty;
+    public bool InStock { get; set; }
+}
+
+[MapTo(typeof(ProductDto))]
+public partial class Product
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public decimal Price { get; set; }
+    public string Description { get; set; } = string.Empty;
+    public bool InStock { get; set; }
+}
+
+// Output - Mixed constructor + initializer:
+public static ProductDto MapToProductDto(this Product source)
+{
+    if (source is null)
+    {
+        return default!;
+    }
+
+    return new ProductDto(
+        source.Id,
+        source.Name,
+        source.Price)
+    {
+        Description = source.Description,
+        InStock = source.InStock
+    };
+}
+```
+
 **Mapping Rules:**
-1. **Direct Mapping**: Properties with same name and type are mapped directly
-2. **Smart Enum Conversion**:
+1. **Constructor Detection**: Generator automatically detects suitable constructors:
+   - Finds public constructors where ALL parameters match source properties (case-insensitive)
+   - Prefers constructors with more parameters
+   - Uses constructor call syntax when a suitable constructor is found
+   - Falls back to object initializer syntax when no matching constructor exists
+2. **Property Matching**: Properties are matched by name (case-insensitive):
+   - `Id` matches `id`, `ID`, `Id` (supports different casing conventions)
+   - Enables mapping between PascalCase properties and camelCase constructor parameters
+3. **Direct Mapping**: Properties with same name and type are mapped directly
+4. **Smart Enum Conversion**:
    - If source enum has `[MapTo(typeof(TargetEnum))]`, uses `.MapToTargetEnum()` extension method (safe)
    - If target enum has `[MapTo(typeof(SourceEnum), Bidirectional = true)]`, uses reverse mapping method (safe)
    - Otherwise, falls back to `(TargetEnum)source.Enum` cast (less safe)
-3. **Collection Mapping**: If both source and target properties are collections:
+5. **Collection Mapping**: If both source and target properties are collections:
    - Extracts element types and generates `.Select(x => x.MapToXxx())` code
    - Uses `.ToList()` for most collection types (List, IEnumerable, ICollection, IList, IReadOnlyList)
    - Uses `.ToArray()` for array types
    - Uses collection constructors for `Collection<T>` and `ReadOnlyCollection<T>`
-4. **Nested Objects**: If a property type has a `MapToXxx()` method, it's used automatically
-5. **Null Safety**: Nullable properties use `?.` and `!` for proper null handling
+6. **Nested Objects**: If a property type has a `MapToXxx()` method, it's used automatically
+7. **Null Safety**: Nullable properties use `?.` and `!` for proper null handling
 
 **3-Layer Architecture Support:**
 ```

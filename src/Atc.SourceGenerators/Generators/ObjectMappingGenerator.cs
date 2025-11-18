@@ -189,11 +189,16 @@ public class ObjectMappingGenerator : IIncrementalGenerator
             // Get property mappings
             var propertyMappings = GetPropertyMappings(classSymbol, targetType);
 
+            // Find best matching constructor
+            var (constructor, constructorParameterNames) = FindBestConstructor(classSymbol, targetType);
+
             mappings.Add(new MappingInfo(
                 SourceType: classSymbol,
                 TargetType: targetType,
                 PropertyMappings: propertyMappings,
-                Bidirectional: bidirectional));
+                Bidirectional: bidirectional,
+                Constructor: constructor,
+                ConstructorParameterNames: constructorParameterNames));
         }
 
         return mappings.Count > 0 ? mappings : null;
@@ -221,7 +226,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         foreach (var sourceProp in sourceProperties)
         {
             var targetProp = targetProperties.FirstOrDefault(t =>
-                t.Name == sourceProp.Name &&
+                string.Equals(t.Name, sourceProp.Name, StringComparison.OrdinalIgnoreCase) &&
                 SymbolEqualityComparer.Default.Equals(t.Type, sourceProp.Type));
 
             if (targetProp is not null)
@@ -240,7 +245,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
             else
             {
                 // Check if types are different but might be mappable (nested objects, enums, or collections)
-                targetProp = targetProperties.FirstOrDefault(t => t.Name == sourceProp.Name);
+                targetProp = targetProperties.FirstOrDefault(t => string.Equals(t.Name, sourceProp.Name, StringComparison.OrdinalIgnoreCase));
                 if (targetProp is not null)
                 {
                     // Check for collection mapping
@@ -469,6 +474,58 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         return "List";
     }
 
+    private static (IMethodSymbol? Constructor, List<string> ParameterNames) FindBestConstructor(
+        INamedTypeSymbol sourceType,
+        INamedTypeSymbol targetType)
+    {
+        // Get all public constructors
+        var constructors = targetType
+            .Constructors
+            .Where(c => c.DeclaredAccessibility == Accessibility.Public && !c.IsStatic)
+            .ToList();
+
+        if (constructors.Count == 0)
+        {
+            return (null, new List<string>());
+        }
+
+        // Get source properties that we can map from
+        var sourceProperties = sourceType
+            .GetMembers()
+            .OfType<IPropertySymbol>()
+            .Where(p => p.GetMethod is not null)
+            .ToList();
+
+        // Find constructor where all parameters match source properties (case-insensitive)
+        foreach (var constructor in constructors.OrderByDescending(c => c.Parameters.Length))
+        {
+            var parameterNames = new List<string>();
+            var allParametersMatch = true;
+
+            foreach (var parameter in constructor.Parameters)
+            {
+                // Check if we have a matching source property (case-insensitive)
+                var matchingSourceProperty = sourceProperties.FirstOrDefault(p =>
+                    string.Equals(p.Name, parameter.Name, StringComparison.OrdinalIgnoreCase));
+
+                if (matchingSourceProperty is null)
+                {
+                    allParametersMatch = false;
+                    break;
+                }
+
+                parameterNames.Add(parameter.Name);
+            }
+
+            if (allParametersMatch && constructor.Parameters.Length > 0)
+            {
+                return (constructor, parameterNames);
+            }
+        }
+
+        return (null, new List<string>());
+    }
+
     private static string GenerateMappingExtensions(List<MappingInfo> mappings)
     {
         var sb = new StringBuilder();
@@ -510,11 +567,16 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                     sourceType: mapping.TargetType,
                     targetType: mapping.SourceType);
 
+                // Find best matching constructor for reverse mapping
+                var (reverseConstructor, reverseConstructorParams) = FindBestConstructor(mapping.TargetType, mapping.SourceType);
+
                 var reverseMapping = new MappingInfo(
                     SourceType: mapping.TargetType,
                     TargetType: mapping.SourceType,
                     PropertyMappings: reverseMappings,
-                    Bidirectional: false); // Don't generate reverse of reverse
+                    Bidirectional: false, // Don't generate reverse of reverse
+                    Constructor: reverseConstructor,
+                    ConstructorParameterNames: reverseConstructorParams);
 
                 GenerateMappingMethod(sb, reverseMapping);
             }
@@ -542,71 +604,147 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         sb.AppendLineLf($"            return default!;");
         sb.AppendLineLf("        }");
         sb.AppendLineLf();
-        sb.AppendLineLf($"        return new {mapping.TargetType.ToDisplayString()}");
-        sb.AppendLineLf("        {");
 
-        for (var i = 0; i < mapping.PropertyMappings.Count; i++)
+        // Check if we should use constructor-based initialization
+        var useConstructor = mapping.Constructor is not null && mapping.ConstructorParameterNames.Count > 0;
+
+        if (useConstructor)
         {
-            var prop = mapping.PropertyMappings[i];
-            var isLast = i == mapping.PropertyMappings.Count - 1;
-            var comma = isLast ? string.Empty : ",";
+            // Separate properties into constructor parameters and initializer properties
+            var constructorParamSet = new HashSet<string>(mapping.ConstructorParameterNames, StringComparer.OrdinalIgnoreCase);
+            var constructorProps = new List<PropertyMapping>();
+            var initializerProps = new List<PropertyMapping>();
 
-            if (prop.IsCollection)
+            foreach (var prop in mapping.PropertyMappings)
             {
-                // Collection mapping
-                var elementTypeName = prop.CollectionElementType!.Name;
-                var mappingMethodName = $"MapTo{elementTypeName}";
-                var collectionType = prop.CollectionTargetType!;
-
-                if (collectionType == "Array")
+                if (constructorParamSet.Contains(prop.TargetProperty.Name))
                 {
-                    sb.AppendLineLf($"            {prop.TargetProperty.Name} = source.{prop.SourceProperty.Name}?.Select(x => x.{mappingMethodName}()).ToArray()!{comma}");
-                }
-                else if (collectionType == "Collection")
-                {
-                    sb.AppendLineLf($"            {prop.TargetProperty.Name} = new global::System.Collections.ObjectModel.Collection<{prop.CollectionElementType.ToDisplayString()}>(source.{prop.SourceProperty.Name}?.Select(x => x.{mappingMethodName}()).ToList()!){comma}");
-                }
-                else if (collectionType == "ReadOnlyCollection")
-                {
-                    sb.AppendLineLf($"            {prop.TargetProperty.Name} = new global::System.Collections.ObjectModel.ReadOnlyCollection<{prop.CollectionElementType.ToDisplayString()}>(source.{prop.SourceProperty.Name}?.Select(x => x.{mappingMethodName}()).ToList()!){comma}");
+                    constructorProps.Add(prop);
                 }
                 else
                 {
-                    // Default to List (handles List, IEnumerable, ICollection, IList, IReadOnlyList, IReadOnlyCollection)
-                    sb.AppendLineLf($"            {prop.TargetProperty.Name} = source.{prop.SourceProperty.Name}?.Select(x => x.{mappingMethodName}()).ToList()!{comma}");
+                    initializerProps.Add(prop);
                 }
             }
-            else if (prop.RequiresConversion)
+
+            // Order constructor props by parameter order
+            var orderedConstructorProps = new List<PropertyMapping>();
+            foreach (var paramName in mapping.ConstructorParameterNames)
             {
-                // Enum conversion
-                if (prop.HasEnumMapping)
+                var prop = constructorProps.FirstOrDefault(p =>
+                    string.Equals(p.TargetProperty.Name, paramName, StringComparison.OrdinalIgnoreCase));
+                if (prop is not null)
                 {
-                    // Use EnumMapping extension method (safe mapping with special case handling)
-                    var enumMappingMethodName = $"MapTo{prop.TargetProperty.Type.Name}";
-                    sb.AppendLineLf($"            {prop.TargetProperty.Name} = source.{prop.SourceProperty.Name}.{enumMappingMethodName}(){comma}");
-                }
-                else
-                {
-                    // Fall back to simple cast (less safe but works when no mapping is defined)
-                    sb.AppendLineLf($"            {prop.TargetProperty.Name} = ({prop.TargetProperty.Type.ToDisplayString()})source.{prop.SourceProperty.Name}{comma}");
+                    orderedConstructorProps.Add(prop);
                 }
             }
-            else if (prop.IsNested)
+
+            // Generate constructor call
+            sb.AppendLineLf($"        return new {mapping.TargetType.ToDisplayString()}(");
+
+            for (var i = 0; i < orderedConstructorProps.Count; i++)
             {
-                // Nested object mapping
-                var nestedMethodName = $"MapTo{prop.TargetProperty.Type.Name}";
-                sb.AppendLineLf($"            {prop.TargetProperty.Name} = source.{prop.SourceProperty.Name}?.{nestedMethodName}()!{comma}");
+                var prop = orderedConstructorProps[i];
+                var isLast = i == orderedConstructorProps.Count - 1;
+                var comma = isLast && initializerProps.Count == 0 ? string.Empty : ",";
+
+                var value = GeneratePropertyMappingValue(prop, "source");
+                sb.AppendLineLf($"            {value}{comma}");
+            }
+
+            if (initializerProps.Count > 0)
+            {
+                sb.AppendLineLf("        )");
+                sb.AppendLineLf("        {");
+                GeneratePropertyInitializers(sb, initializerProps);
+                sb.AppendLineLf("        };");
             }
             else
             {
-                // Direct property mapping
-                sb.AppendLineLf($"            {prop.TargetProperty.Name} = source.{prop.SourceProperty.Name}{comma}");
+                sb.AppendLineLf("        );");
             }
         }
+        else
+        {
+            // Use object initializer syntax
+            sb.AppendLineLf($"        return new {mapping.TargetType.ToDisplayString()}");
+            sb.AppendLineLf("        {");
+            GeneratePropertyInitializers(sb, mapping.PropertyMappings);
+            sb.AppendLineLf("        };");
+        }
 
-        sb.AppendLineLf("        };");
         sb.AppendLineLf("    }");
         sb.AppendLineLf();
+    }
+
+    private static void GeneratePropertyInitializers(
+        StringBuilder sb,
+        List<PropertyMapping> properties)
+    {
+        for (var i = 0; i < properties.Count; i++)
+        {
+            var prop = properties[i];
+            var isLast = i == properties.Count - 1;
+            var comma = isLast ? string.Empty : ",";
+
+            var value = GeneratePropertyMappingValue(prop, "source");
+            sb.AppendLineLf($"            {prop.TargetProperty.Name} = {value}{comma}");
+        }
+    }
+
+    private static string GeneratePropertyMappingValue(
+        PropertyMapping prop,
+        string sourceVariable)
+    {
+        if (prop.IsCollection)
+        {
+            // Collection mapping
+            var elementTypeName = prop.CollectionElementType!.Name;
+            var mappingMethodName = $"MapTo{elementTypeName}";
+            var collectionType = prop.CollectionTargetType!;
+
+            if (collectionType == "Array")
+            {
+                return $"{sourceVariable}.{prop.SourceProperty.Name}?.Select(x => x.{mappingMethodName}()).ToArray()!";
+            }
+
+            if (collectionType == "Collection")
+            {
+                return $"new global::System.Collections.ObjectModel.Collection<{prop.CollectionElementType.ToDisplayString()}>({sourceVariable}.{prop.SourceProperty.Name}?.Select(x => x.{mappingMethodName}()).ToList()!)";
+            }
+
+            if (collectionType == "ReadOnlyCollection")
+            {
+                return $"new global::System.Collections.ObjectModel.ReadOnlyCollection<{prop.CollectionElementType.ToDisplayString()}>({sourceVariable}.{prop.SourceProperty.Name}?.Select(x => x.{mappingMethodName}()).ToList()!)";
+            }
+
+            // Default to List (handles List, IEnumerable, ICollection, IList, IReadOnlyList, IReadOnlyCollection)
+            return $"{sourceVariable}.{prop.SourceProperty.Name}?.Select(x => x.{mappingMethodName}()).ToList()!";
+        }
+
+        if (prop.RequiresConversion)
+        {
+            // Enum conversion
+            if (prop.HasEnumMapping)
+            {
+                // Use EnumMapping extension method (safe mapping with special case handling)
+                var enumMappingMethodName = $"MapTo{prop.TargetProperty.Type.Name}";
+                return $"{sourceVariable}.{prop.SourceProperty.Name}.{enumMappingMethodName}()";
+            }
+
+            // Fall back to simple cast (less safe but works when no mapping is defined)
+            return $"({prop.TargetProperty.Type.ToDisplayString()}){sourceVariable}.{prop.SourceProperty.Name}";
+        }
+
+        if (prop.IsNested)
+        {
+            // Nested object mapping
+            var nestedMethodName = $"MapTo{prop.TargetProperty.Type.Name}";
+            return $"{sourceVariable}.{prop.SourceProperty.Name}?.{nestedMethodName}()!";
+        }
+
+        // Direct property mapping
+        return $"{sourceVariable}.{prop.SourceProperty.Name}";
     }
 
     private static string GenerateAttributeSource()

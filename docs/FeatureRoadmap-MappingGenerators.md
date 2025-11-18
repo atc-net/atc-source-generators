@@ -43,7 +43,9 @@ This roadmap is based on comprehensive analysis of:
 
 ### ✅ ObjectMappingGenerator - Implemented Features
 
-- **Direct property mapping** - Same name and type properties mapped automatically
+- **Direct property mapping** - Same name and type properties mapped automatically (case-insensitive)
+- **Constructor mapping** - Automatically detects and uses constructors for records and classes with primary constructors
+- **Mixed initialization** - Constructor parameters + object initializer for remaining properties
 - **Smart enum conversion** - Uses EnumMapping extension methods when available, falls back to casts
 - **Collection mapping** - Automatic mapping of List, IEnumerable, arrays, IReadOnlyList, etc.
 - **Nested object mapping** - Automatic chaining of MapTo methods
@@ -128,7 +130,7 @@ Addresses = source.Addresses?.Select(x => x.MapToAddressDto()).ToList()!
 
 **Priority**: 🔴 **High**
 **Generator**: ObjectMappingGenerator
-**Status**: ❌ Not Implemented
+**Status**: ✅ **Implemented** (v1.0 - January 2025)
 
 **Description**: Map to types that use constructors instead of object initializers (common with records and immutable types).
 
@@ -148,16 +150,51 @@ public partial class User
 // Target uses constructor
 public record UserDto(Guid Id, string Name);
 
-// Generated code should use constructor:
+// Generated code uses constructor:
 return new UserDto(source.Id, source.Name);
 ```
 
-**Implementation Notes**:
+**Implementation Details**:
 
-- Detect if target type has a constructor with parameters matching source properties
-- Prefer constructors over object initializers when available
-- Fall back to object initializers for unmapped properties
-- Support both positional records and classes with primary constructors (C# 12+)
+✅ **Constructor Detection**:
+- Automatically detects public constructors where ALL parameters match source properties
+- Uses case-insensitive matching (supports `Id` matching `id`, `ID`, etc.)
+- Prefers constructors with more parameters
+- Falls back to object initializer syntax when no matching constructor exists
+
+✅ **Supported Scenarios**:
+- **Records with positional parameters** (C# 9+)
+- **Classes with primary constructors** (C# 12+)
+- **Mixed initialization** - Constructor for required parameters + object initializer for remaining properties
+- **Bidirectional mapping** - Both directions automatically detect and use constructors
+
+✅ **Features**:
+- Case-insensitive parameter matching (PascalCase properties → camelCase parameters)
+- Automatic ordering of constructor arguments
+- Mixed constructor + initializer generation
+- Works with nested objects and collections
+- Full Native AOT compatibility
+
+✅ **Testing**:
+- 9 comprehensive unit tests covering all scenarios:
+  - Simple record constructors
+  - Record with all properties in constructor
+  - Mixed constructor + initializer
+  - Bidirectional record mapping
+  - Nested object mapping with constructors
+  - Enum mapping with constructors
+  - Collection mapping with constructors
+  - Case-insensitive parameter matching
+  - Class-to-record and record-to-record mappings
+
+✅ **Documentation**:
+- Added comprehensive section in `docs/generators/ObjectMapping.md`
+- Updated CLAUDE.md with constructor mapping details
+- Includes examples for simple, bidirectional, mixed, and case-insensitive scenarios
+
+✅ **Sample Code**:
+- Added `Product` and `Order` examples in `sample/Atc.SourceGenerators.Mapping.Domain`
+- Demonstrates record-to-record and class-to-record mapping with constructors
 
 ---
 
