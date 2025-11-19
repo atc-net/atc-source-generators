@@ -58,13 +58,14 @@ This roadmap is based on comprehensive analysis of:
 - **Named options** - Multiple configurations of the same options type with different names
 - **Error on missing keys** - `ErrorOnMissingKeys` fail-fast validation when configuration sections are missing
 - **Configuration change callbacks** - `OnChange` callbacks for Monitor lifetime (auto-generates IHostedService)
+- **Post-configuration support** - `PostConfigure` callbacks for normalizing/transforming values after binding (e.g., path normalization, URL lowercase)
 - **Nested subsection binding** - Automatic binding of complex properties to configuration subsections (e.g., `Storage:Database:Retry`)
 - **Lifetime selection** - Singleton (`IOptions`), Scoped (`IOptionsSnapshot`), Monitor (`IOptionsMonitor`)
 - **Multi-project support** - Assembly-specific extension methods with smart naming
 - **Transitive registration** - 4 overloads for automatic/selective assembly registration
 - **Partial class requirement** - Enforced at compile time
 - **Native AOT compatible** - Zero reflection, compile-time generation
-- **Compile-time diagnostics** - Validate partial class, section names, OnChange callbacks (ATCOPT001-007)
+- **Compile-time diagnostics** - Validate partial class, section names, OnChange/PostConfigure callbacks (ATCOPT001-010)
 
 ---
 
@@ -74,7 +75,7 @@ This roadmap is based on comprehensive analysis of:
 |:------:|---------|----------|
 | ✅ | [Custom Validation Support (IValidateOptions)](#1-custom-validation-support-ivalidateoptions) | 🔴 High |
 | ✅ | [Named Options Support](#2-named-options-support) | 🔴 High |
-| ❌ | [Post-Configuration Support](#3-post-configuration-support) | 🟡 Medium-High |
+| ✅ | [Post-Configuration Support](#3-post-configuration-support) | 🟡 Medium-High |
 | ✅ | [Error on Missing Configuration Keys](#4-error-on-missing-configuration-keys) | 🔴 High |
 | ✅ | [Configuration Change Callbacks](#5-configuration-change-callbacks) | 🟡 Medium |
 | ✅ | [Bind Configuration Subsections to Properties](#6-bind-configuration-subsections-to-properties) | 🟡 Medium |
@@ -249,7 +250,7 @@ public class DataService
 ### 3. Post-Configuration Support
 
 **Priority**: 🟡 **Medium-High**
-**Status**: ❌ Not Implemented
+**Status**: ✅ **Implemented**
 **Inspiration**: `IPostConfigureOptions<T>` pattern
 
 **Description**: Support post-configuration actions that run after binding and validation to apply defaults or transformations.
@@ -288,12 +289,28 @@ services.AddOptions<StorageOptions>()
     .PostConfigure(options => StorageOptions.NormalizePaths(options));
 ```
 
-**Implementation Notes**:
+**Implementation Details**:
 
-- Add `PostConfigure` parameter pointing to static method
-- Method signature: `static void Configure(TOptions options)`
-- Runs after binding and validation
-- Useful for normalization, defaults, computed properties
+- ✅ Added `PostConfigure` property to `[OptionsBinding]` attribute
+- ✅ Generator calls `.PostConfigure()` method on the options builder
+- ✅ PostConfigure method must have signature: `static void MethodName(TOptions options)`
+- ✅ Runs after binding and validation
+- ✅ PostConfigure method can be `internal` or `public` (not `private`)
+- ⚠️ Cannot be used with named options
+- ✅ Comprehensive compile-time validation with 3 diagnostic codes (ATCOPT008-010)
+- ✅ Useful for normalization, defaults, computed properties
+
+**Diagnostics**:
+
+- **ATCOPT008**: PostConfigure callback not supported with named options
+- **ATCOPT009**: PostConfigure callback method not found
+- **ATCOPT010**: PostConfigure callback method has invalid signature
+
+**Testing**:
+
+- ✅ Unit tests covering all scenarios and error cases
+- ✅ Sample project: StoragePathsOptions demonstrates path normalization (trailing slash)
+- ✅ PetStore.Api sample: ExternalApiOptions demonstrates URL normalization (lowercase + trailing slash removal)
 
 ---
 

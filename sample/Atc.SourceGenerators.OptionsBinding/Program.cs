@@ -83,9 +83,43 @@ Console.WriteLine($"   ✓ Port: {fallbackEmail.Port}");
 Console.WriteLine($"   ✓ FromAddress: {fallbackEmail.FromAddress}");
 Console.WriteLine($"   ✓ UseSsl: {fallbackEmail.UseSsl}");
 
+Console.WriteLine("\n5. Testing CloudStorageOptions (Nested Subsection Binding):");
+Console.WriteLine("   - Section: \"CloudStorage\"");
+Console.WriteLine("   - Demonstrates automatic binding of nested configuration subsections");
+
+var cloudStorageOptions = serviceProvider.GetRequiredService<IOptions<CloudStorageOptions>>();
+var cloudStorage = cloudStorageOptions.Value;
+
+Console.WriteLine($"   ✓ Provider: {cloudStorage.Provider}");
+Console.WriteLine($"   ✓ Azure.ConnectionString: {cloudStorage.Azure.ConnectionString.Substring(0, Math.Min(40, cloudStorage.Azure.ConnectionString.Length))}...");
+Console.WriteLine($"   ✓ Azure.ContainerName: {cloudStorage.Azure.ContainerName}");
+Console.WriteLine($"   ✓ Azure.Blob.MaxBlockSize: {cloudStorage.Azure.Blob.MaxBlockSize}");
+Console.WriteLine($"   ✓ RetryPolicy.MaxRetries: {cloudStorage.RetryPolicy.MaxRetries}");
+
+Console.WriteLine("\n6. Testing StoragePathsOptions (PostConfigure Feature):");
+Console.WriteLine("   - Section: \"StoragePaths\"");
+Console.WriteLine("   - Demonstrates PostConfigure for normalizing paths after binding");
+Console.WriteLine("   - All paths are automatically normalized to end with directory separator");
+
+var storagePathsOptions = serviceProvider.GetRequiredService<IOptions<StoragePathsOptions>>();
+var storagePaths = storagePathsOptions.Value;
+
+Console.WriteLine("\n   Original values from appsettings.json:");
+Console.WriteLine("   - BasePath: \"C:\\\\Data\\\\Storage\" (no trailing separator)");
+Console.WriteLine("   - CachePath: \"/var/cache/myapp\" (no trailing separator)");
+Console.WriteLine("   - TempPath: \"C:\\\\Temp\\\\MyApp\" (no trailing separator)");
+Console.WriteLine("   - LogPath: \"/var/log/myapp\" (no trailing separator)");
+
+Console.WriteLine("\n   After PostConfigure normalization:");
+Console.WriteLine($"   ✓ BasePath: \"{storagePaths.BasePath}\" (now ends with '{Path.DirectorySeparatorChar}')");
+Console.WriteLine($"   ✓ CachePath: \"{storagePaths.CachePath}\"");
+Console.WriteLine($"   ✓ TempPath: \"{storagePaths.TempPath}\"");
+Console.WriteLine($"   ✓ LogPath: \"{storagePaths.LogPath}\"");
+Console.WriteLine("   → PostConfigure automatically ensures consistent path formatting!");
+
 Console.WriteLine("\n--- Domain Project Options ---\n");
 
-Console.WriteLine("5. Testing CacheOptions (from Domain project):");
+Console.WriteLine("7. Testing CacheOptions (from Domain project):");
 Console.WriteLine("   - Section: \"CacheOptions\" (auto-inferred, full class name)");
 
 var cacheOptions = serviceProvider.GetRequiredService<IOptions<CacheOptions>>();
@@ -95,7 +129,7 @@ Console.WriteLine($"   ✓ MaxSize: {cache.MaxSize}");
 Console.WriteLine($"   ✓ DefaultExpirationSeconds: {cache.DefaultExpirationSeconds}");
 Console.WriteLine($"   ✓ EnableDistributedCache: {cache.EnableDistributedCache}");
 
-Console.WriteLine("\n6. Testing FeatureOptions (from Domain project):");
+Console.WriteLine("\n8. Testing FeatureOptions (from Domain project):");
 Console.WriteLine("   - Section: \"Features\"");
 Console.WriteLine("   - Lifetime: Monitor (use IOptionsMonitor<T>)");
 

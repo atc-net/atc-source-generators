@@ -320,6 +320,7 @@ services.AddOptionsFromApp(configuration);
 - **🔒 Built-in Validation**: Integrated DataAnnotations validation (`ValidateDataAnnotations`) and startup validation (`ValidateOnStart`)
 - **🎯 Custom Validation**: Support for `IValidateOptions<T>` for complex business rules beyond DataAnnotations
 - **🔔 Configuration Change Callbacks**: Auto-generated IHostedService for OnChange notifications with Monitor lifetime - perfect for feature flags and runtime config updates
+- **🔧 Post-Configuration Support**: Normalize or transform values after binding with `PostConfigure` callbacks (e.g., ensure paths have trailing slashes, lowercase URLs)
 - **📛 Named Options**: Multiple configurations of the same options type with different names (e.g., Primary/Secondary email servers)
 - **🎯 Explicit Section Paths**: Support for nested sections like `"App:Database"` or `"Services:Email"`
 - **📂 Nested Subsection Binding**: Automatic binding of complex properties to configuration subsections (e.g., `StorageOptions.Database.Retry` → `"Storage:Database:Retry"`)
@@ -422,6 +423,9 @@ public class MyService
 | ATCOPT005 | OnChange not supported with named options |
 | ATCOPT006 | OnChange callback method not found |
 | ATCOPT007 | OnChange callback has invalid signature |
+| ATCOPT008 | PostConfigure not supported with named options |
+| ATCOPT009 | PostConfigure callback method not found |
+| ATCOPT010 | PostConfigure callback has invalid signature |
 
 ---
 

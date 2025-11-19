@@ -70,6 +70,30 @@ public class OptionsBindingGenerator : IIncrementalGenerator
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 
+    private static readonly DiagnosticDescriptor PostConfigureNotSupportedWithNamedOptionsDescriptor = new(
+        RuleIdentifierConstants.OptionsBinding.PostConfigureNotSupportedWithNamedOptions,
+        "PostConfigure callback not supported with named options",
+        "PostConfigure callback '{0}' cannot be used with named options (Name = '{1}')",
+        RuleCategoryConstants.OptionsBinding,
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    private static readonly DiagnosticDescriptor PostConfigureCallbackNotFoundDescriptor = new(
+        RuleIdentifierConstants.OptionsBinding.PostConfigureCallbackNotFound,
+        "PostConfigure callback method not found",
+        "PostConfigure callback method '{0}' not found in class '{1}'",
+        RuleCategoryConstants.OptionsBinding,
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    private static readonly DiagnosticDescriptor PostConfigureCallbackInvalidSignatureDescriptor = new(
+        RuleIdentifierConstants.OptionsBinding.PostConfigureCallbackInvalidSignature,
+        "PostConfigure callback method has invalid signature",
+        "PostConfigure callback method '{0}' must have signature: static void {0}({1} options)",
+        RuleCategoryConstants.OptionsBinding,
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
     /// <inheritdoc />
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
@@ -274,6 +298,7 @@ public class OptionsBindingGenerator : IIncrementalGenerator
         string? name = null;
         var errorOnMissingKeys = false;
         string? onChange = null;
+        string? postConfigure = null;
 
         foreach (var namedArg in attribute.NamedArguments)
         {
@@ -299,6 +324,9 @@ public class OptionsBindingGenerator : IIncrementalGenerator
                     break;
                 case "OnChange":
                     onChange = namedArg.Value.Value as string;
+                    break;
+                case "PostConfigure":
+                    postConfigure = namedArg.Value.Value as string;
                     break;
             }
         }
@@ -382,6 +410,71 @@ public class OptionsBindingGenerator : IIncrementalGenerator
             }
         }
 
+        // Validate PostConfigure callback requirements
+        if (!string.IsNullOrWhiteSpace(postConfigure))
+        {
+            // PostConfigure not allowed with named options
+            if (!string.IsNullOrWhiteSpace(name))
+            {
+                context.ReportDiagnostic(
+                    Diagnostic.Create(
+                        PostConfigureNotSupportedWithNamedOptionsDescriptor,
+                        attribute.ApplicationSyntaxReference?.GetSyntax().GetLocation() ?? Location.None,
+                        postConfigure,
+                        name));
+
+                return null;
+            }
+
+            // Validate callback method exists and has correct signature
+            var callbackMethod = classSymbol
+                .GetMembers(postConfigure!)
+                .OfType<IMethodSymbol>()
+                .FirstOrDefault();
+
+            if (callbackMethod is null)
+            {
+                context.ReportDiagnostic(
+                    Diagnostic.Create(
+                        PostConfigureCallbackNotFoundDescriptor,
+                        attribute.ApplicationSyntaxReference?.GetSyntax().GetLocation() ?? Location.None,
+                        postConfigure,
+                        classSymbol.Name));
+
+                return null;
+            }
+
+            // Validate method signature: static void MethodName(TOptions options)
+            if (!callbackMethod.IsStatic ||
+                !callbackMethod.ReturnsVoid ||
+                callbackMethod.Parameters.Length != 1)
+            {
+                context.ReportDiagnostic(
+                    Diagnostic.Create(
+                        PostConfigureCallbackInvalidSignatureDescriptor,
+                        attribute.ApplicationSyntaxReference?.GetSyntax().GetLocation() ?? Location.None,
+                        postConfigure,
+                        classSymbol.Name));
+
+                return null;
+            }
+
+            // Validate parameter type
+            var firstParam = callbackMethod.Parameters[0];
+
+            if (!SymbolEqualityComparer.Default.Equals(firstParam.Type, classSymbol))
+            {
+                context.ReportDiagnostic(
+                    Diagnostic.Create(
+                        PostConfigureCallbackInvalidSignatureDescriptor,
+                        attribute.ApplicationSyntaxReference?.GetSyntax().GetLocation() ?? Location.None,
+                        postConfigure,
+                        classSymbol.Name));
+
+                return null;
+            }
+        }
+
         // Convert validator type to full name if present
         var validatorTypeName = validatorType?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 
@@ -396,7 +489,8 @@ public class OptionsBindingGenerator : IIncrementalGenerator
             validatorTypeName,
             name,
             errorOnMissingKeys,
-            onChange);
+            onChange,
+            postConfigure);
     }
 
     private static string InferSectionNameFromClassName(string className)
@@ -753,6 +847,16 @@ public static class OptionsBindingExtensions
                 sb.AppendLineLf("            })");
             }
 
+            if (!string.IsNullOrWhiteSpace(option.PostConfigure))
+            {
+                sb.AppendLineLf();
+                sb.Append("            .PostConfigure(options => ");
+                sb.Append(optionsType);
+                sb.Append('.');
+                sb.Append(option.PostConfigure);
+                sb.Append("(options))");
+            }
+
             if (option.ValidateOnStart)
             {
                 sb.AppendLineLf();
@@ -1039,6 +1143,21 @@ public static class OptionsBindingExtensions
                    /// The callback is invoked whenever the configuration file changes and is reloaded.
                    /// </remarks>
                    public string? OnChange { get; set; }
+
+                   /// <summary>
+                   /// Gets or sets the name of a static method to call after configuration binding and validation.
+                   /// The method must have the signature: <c>static void MethodName(TOptions options)</c>
+                   /// where TOptions is the options class type.
+                   /// This is useful for applying defaults, normalizing values, or computing derived properties.
+                   /// The post-configuration action runs after binding and validation, using the <c>.PostConfigure()</c> pattern.
+                   /// Default is null (no post-configuration).
+                   /// </summary>
+                   /// <remarks>
+                   /// Post-configuration is executed after the options are bound from configuration and after validation.
+                   /// This allows for final transformations like ensuring paths end with separators, normalizing URLs, or setting computed properties.
+                   /// Cannot be used with named options.
+                   /// </remarks>
+                   public string? PostConfigure { get; set; }
                }
            }
            """;

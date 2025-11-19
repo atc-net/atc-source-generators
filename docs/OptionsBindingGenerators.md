@@ -745,6 +745,7 @@ Console.WriteLine($"Other interval: {otherOptions.Value.RepeatIntervalInSeconds}
 - **🎯 Custom validation** - Support for `IValidateOptions<T>` for complex business rules beyond DataAnnotations
 - **🚨 Error on missing keys** - Fail-fast validation when configuration sections are missing (`ErrorOnMissingKeys`) to catch deployment issues at startup
 - **🔔 Configuration change callbacks** - Automatically respond to configuration changes at runtime with `OnChange` callbacks (requires Monitor lifetime)
+- **🔧 Post-configuration support** - Normalize or transform values after binding with `PostConfigure` callbacks (e.g., ensure paths have trailing slashes, lowercase URLs)
 - **📛 Named options** - Multiple configurations of the same options type with different names (e.g., Primary/Secondary email servers)
 - **🎯 Explicit section paths** - Support for nested sections like `"App:Database"` or `"Services:Email"`
 - **📂 Nested subsection binding** - Automatically bind complex properties to configuration subsections (e.g., `StorageOptions.Database.Retry` → `"Storage:Database:Retry"`)
@@ -1324,6 +1325,159 @@ The generator performs compile-time validation of OnChange callbacks:
 
 ---
 
+### 🔧 Post-Configuration Support
+
+Automatically normalize, validate, or transform configuration values after binding using the `PostConfigure` property. This feature enables applying defaults, normalizing paths, lowercasing URLs, or computing derived properties.
+
+**Requirements:**
+- Cannot be used with named options
+- Callback method must have signature: `static void MethodName(TOptions options)`
+- Runs after binding and validation
+
+**Basic Example:**
+
+```csharp
+[OptionsBinding("Storage", PostConfigure = nameof(NormalizePaths))]
+public partial class StoragePathsOptions
+{
+    public string BasePath { get; set; } = string.Empty;
+    public string CachePath { get; set; } = string.Empty;
+    public string TempPath { get; set; } = string.Empty;
+
+    private static void NormalizePaths(StoragePathsOptions options)
+    {
+        // Ensure all paths end with directory separator
+        options.BasePath = EnsureTrailingSlash(options.BasePath);
+        options.CachePath = EnsureTrailingSlash(options.CachePath);
+        options.TempPath = EnsureTrailingSlash(options.TempPath);
+    }
+
+    private static string EnsureTrailingSlash(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+            return path;
+
+        return path.EndsWith(Path.DirectorySeparatorChar)
+            ? path
+            : path + Path.DirectorySeparatorChar;
+    }
+}
+```
+
+**Generated Code:**
+
+The generator automatically calls `.PostConfigure()` after binding:
+
+```csharp
+services.AddOptions<StoragePathsOptions>()
+    .Bind(configuration.GetSection("Storage"))
+    .PostConfigure(options => StoragePathsOptions.NormalizePaths(options));
+```
+
+**Usage Scenarios:**
+
+```csharp
+// Path normalization - ensure trailing slashes
+[OptionsBinding("Storage", PostConfigure = nameof(NormalizePaths))]
+public partial class StoragePathsOptions
+{
+    public string BasePath { get; set; } = string.Empty;
+    public string CachePath { get; set; } = string.Empty;
+
+    private static void NormalizePaths(StoragePathsOptions options)
+    {
+        options.BasePath = EnsureTrailingSlash(options.BasePath);
+        options.CachePath = EnsureTrailingSlash(options.CachePath);
+    }
+
+    private static string EnsureTrailingSlash(string path)
+        => string.IsNullOrWhiteSpace(path) || path.EndsWith(Path.DirectorySeparatorChar)
+            ? path
+            : path + Path.DirectorySeparatorChar;
+}
+
+// URL normalization - lowercase and remove trailing slashes
+[OptionsBinding("ExternalApi", PostConfigure = nameof(NormalizeUrls))]
+public partial class ExternalApiOptions
+{
+    public string BaseUrl { get; set; } = string.Empty;
+    public string CallbackUrl { get; set; } = string.Empty;
+
+    private static void NormalizeUrls(ExternalApiOptions options)
+    {
+        options.BaseUrl = NormalizeUrl(options.BaseUrl);
+        options.CallbackUrl = NormalizeUrl(options.CallbackUrl);
+    }
+
+    private static string NormalizeUrl(string url)
+    {
+        if (string.IsNullOrWhiteSpace(url))
+            return url;
+
+        // Lowercase and remove trailing slash
+        return url.ToLowerInvariant().TrimEnd('/');
+    }
+}
+
+// Combined with validation
+[OptionsBinding("Database",
+    ValidateDataAnnotations = true,
+    ValidateOnStart = true,
+    PostConfigure = nameof(ApplyDefaults))]
+public partial class DatabaseOptions
+{
+    [Required] public string ConnectionString { get; set; } = string.Empty;
+    public int CommandTimeout { get; set; }
+
+    private static void ApplyDefaults(DatabaseOptions options)
+    {
+        // Apply default timeout if not set
+        if (options.CommandTimeout <= 0)
+        {
+            options.CommandTimeout = 30;
+        }
+    }
+}
+```
+
+**Validation Errors:**
+
+The generator performs compile-time validation of PostConfigure callbacks:
+
+- **ATCOPT008**: PostConfigure callback not supported with named options
+  ```csharp
+  // Error: Named options don't support PostConfigure
+  [OptionsBinding("Email", Name = "Primary", PostConfigure = nameof(Normalize))]
+  public partial class EmailOptions { }
+  ```
+
+- **ATCOPT009**: PostConfigure callback method not found
+  ```csharp
+  // Error: Method 'ApplyDefaults' does not exist
+  [OptionsBinding("Settings", PostConfigure = "ApplyDefaults")]
+  public partial class Settings { }
+  ```
+
+- **ATCOPT010**: PostConfigure callback method has invalid signature
+  ```csharp
+  // Error: Must be static void with (TOptions) parameter
+  [OptionsBinding("Settings", PostConfigure = nameof(Configure))]
+  public partial class Settings
+  {
+      private void Configure() { }  // Wrong: not static, missing parameter
+  }
+  ```
+
+**Important Notes:**
+
+- PostConfigure runs **after** binding and validation
+- Callback method can be `internal` or `public` (not `private`)
+- Cannot be combined with named options (use manual `.PostConfigure()` if needed)
+- Perfect for normalizing user input, applying business rules, or computed properties
+- Order of execution: Bind → Validate → PostConfigure
+
+---
+
 ## 🔧 How It Works
 
 ### 1️⃣ Attribute Detection
@@ -1887,6 +2041,14 @@ public partial class DatabaseOptions  // ✅ Inferred as "Database"
     // No const Name/NameTitle field
 }
 ```
+
+### ❌ ATCOPT004-007: OnChange Callback Diagnostics
+
+See [Configuration Change Callbacks](#-configuration-change-callbacks) section for details.
+
+### ❌ ATCOPT008-010: PostConfigure Callback Diagnostics
+
+See [Post-Configuration Support](#-post-configuration-support) section for details.
 
 ---
 

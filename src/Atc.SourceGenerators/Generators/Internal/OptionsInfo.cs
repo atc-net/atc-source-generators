@@ -11,4 +11,5 @@ internal sealed record OptionsInfo(
     string? ValidatorType,
     string? Name,
     bool ErrorOnMissingKeys,
-    string? OnChange);
+    string? OnChange,
+    string? PostConfigure);

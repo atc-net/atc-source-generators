@@ -437,4 +437,3 @@ public partial class OptionsBindingGeneratorTests
         Assert.Contains(".ValidateOnStart()", generatedCode, StringComparison.Ordinal);
     }
 }
-

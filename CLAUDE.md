@@ -299,6 +299,7 @@ services.AddDependencyRegistrationsFromDomain(
   5. Auto-inferred from class name
 - Supports validation: `ValidateDataAnnotations`, `ValidateOnStart`, `ErrorOnMissingKeys` (fail-fast for missing sections), Custom validators (`IValidateOptions<T>`)
 - **Configuration change callbacks**: Auto-generated IHostedService for OnChange notifications with Monitor lifetime - perfect for feature flags and runtime configuration updates
+- **Post-configuration support**: `PostConfigure` callbacks for normalizing/transforming values after binding (e.g., path normalization, URL lowercase)
 - **Named options support**: Multiple configurations of the same options type with different names (e.g., Primary/Secondary email servers)
 - **Nested subsection binding**: Automatic binding of complex properties to configuration subsections (e.g., `StorageOptions.Database.Retry` → `"Storage:Database:Retry"`) - supported out-of-the-box by Microsoft's `.Bind()` method
 - Supports lifetime selection: Singleton (IOptions), Scoped (IOptionsSnapshot), Monitor (IOptionsMonitor)
@@ -404,6 +405,30 @@ services.AddSingleton<IOptionsChangeTokenSource<FeaturesOptions>>(
     new ConfigurationChangeTokenSource<FeaturesOptions>(
         configuration.GetSection("Features")));
 services.Configure<FeaturesOptions>(configuration.GetSection("Features"));
+
+// Input with PostConfigure (path normalization):
+[OptionsBinding("Storage", PostConfigure = nameof(NormalizePaths))]
+public partial class StorageOptions
+{
+    public string BasePath { get; set; } = string.Empty;
+    public string CachePath { get; set; } = string.Empty;
+
+    private static void NormalizePaths(StorageOptions options)
+    {
+        options.BasePath = EnsureTrailingSlash(options.BasePath);
+        options.CachePath = EnsureTrailingSlash(options.CachePath);
+    }
+
+    private static string EnsureTrailingSlash(string path)
+        => string.IsNullOrWhiteSpace(path) || path.EndsWith(Path.DirectorySeparatorChar)
+            ? path
+            : path + Path.DirectorySeparatorChar;
+}
+
+// Output with PostConfigure:
+services.AddOptions<StorageOptions>()
+    .Bind(configuration.GetSection("Storage"))
+    .PostConfigure(options => StorageOptions.NormalizePaths(options));
 ```
 
 **Smart Naming:**
@@ -438,6 +463,9 @@ services.AddOptionsFromDomain(configuration, "DataAccess", "Infrastructure");
 - `ATCOPT005` - OnChange not supported with named options (Error)
 - `ATCOPT006` - OnChange callback method not found (Error)
 - `ATCOPT007` - OnChange callback has invalid signature (Error)
+- `ATCOPT008` - PostConfigure not supported with named options (Error)
+- `ATCOPT009` - PostConfigure callback method not found (Error)
+- `ATCOPT010` - PostConfigure callback has invalid signature (Error)
 
 ### MappingGenerator
 

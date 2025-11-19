@@ -101,6 +101,21 @@ internal static class RuleIdentifierConstants
         /// ATCOPT007: OnChange callback method has invalid signature.
         /// </summary>
         internal const string OnChangeCallbackInvalidSignature = "ATCOPT007";
+
+        /// <summary>
+        /// ATCOPT008: PostConfigure callback not supported with named options.
+        /// </summary>
+        internal const string PostConfigureNotSupportedWithNamedOptions = "ATCOPT008";
+
+        /// <summary>
+        /// ATCOPT009: PostConfigure callback method not found.
+        /// </summary>
+        internal const string PostConfigureCallbackNotFound = "ATCOPT009";
+
+        /// <summary>
+        /// ATCOPT010: PostConfigure callback method has invalid signature.
+        /// </summary>
+        internal const string PostConfigureCallbackInvalidSignature = "ATCOPT010";
     }
 
     /// <summary>
