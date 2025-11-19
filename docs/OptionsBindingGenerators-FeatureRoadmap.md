@@ -58,6 +58,7 @@ This roadmap is based on comprehensive analysis of:
 - **Named options** - Multiple configurations of the same options type with different names
 - **Error on missing keys** - `ErrorOnMissingKeys` fail-fast validation when configuration sections are missing
 - **Configuration change callbacks** - `OnChange` callbacks for Monitor lifetime (auto-generates IHostedService)
+- **Nested subsection binding** - Automatic binding of complex properties to configuration subsections (e.g., `Storage:Database:Retry`)
 - **Lifetime selection** - Singleton (`IOptions`), Scoped (`IOptionsSnapshot`), Monitor (`IOptionsMonitor`)
 - **Multi-project support** - Assembly-specific extension methods with smart naming
 - **Transitive registration** - 4 overloads for automatic/selective assembly registration
@@ -76,7 +77,7 @@ This roadmap is based on comprehensive analysis of:
 | ❌ | [Post-Configuration Support](#3-post-configuration-support) | 🟡 Medium-High |
 | ✅ | [Error on Missing Configuration Keys](#4-error-on-missing-configuration-keys) | 🔴 High |
 | ✅ | [Configuration Change Callbacks](#5-configuration-change-callbacks) | 🟡 Medium |
-| ❌ | [Bind Configuration Subsections to Properties](#6-bind-configuration-subsections-to-properties) | 🟡 Medium |
+| ✅ | [Bind Configuration Subsections to Properties](#6-bind-configuration-subsections-to-properties) | 🟡 Medium |
 | ❌ | [ConfigureAll Support](#7-configureall-support) | 🟢 Low-Medium |
 | ❌ | [Options Snapshots for Specific Sections](#8-options-snapshots-for-specific-sections) | 🟢 Low-Medium |
 | ❌ | [Compile-Time Section Name Validation](#9-compile-time-section-name-validation) | 🟡 Medium |
@@ -457,12 +458,13 @@ internal sealed class FeaturesOptionsChangeListener : IHostedService
 ### 6. Bind Configuration Subsections to Properties
 
 **Priority**: 🟡 **Medium**
-**Status**: ❌ Not Implemented
+**Status**: ✅ **Implemented**
+**Inspiration**: Microsoft.Extensions.Configuration.Binder automatic subsection binding
 
-**Description**: Support binding nested configuration sections to complex property types.
+**Description**: Microsoft's `.Bind()` method automatically handles nested configuration subsections. Complex properties are automatically bound to their corresponding configuration subsections without any additional configuration.
 
 **User Story**:
-> "As a developer, I want to bind nested configuration sections to nested properties without manually creating separate options classes."
+> "As a developer, I want to bind nested configuration sections to nested properties without manually creating separate options classes or writing additional binding code."
 
 **Example**:
 
@@ -470,12 +472,12 @@ internal sealed class FeaturesOptionsChangeListener : IHostedService
 // appsettings.json
 {
   "Email": {
+    "From": "noreply@example.com",
     "Smtp": {
       "Host": "smtp.gmail.com",
       "Port": 587,
       "UseSsl": true
     },
-    "From": "noreply@example.com",
     "Templates": {
       "Welcome": "welcome.html",
       "ResetPassword": "reset.html"
@@ -483,15 +485,16 @@ internal sealed class FeaturesOptionsChangeListener : IHostedService
   }
 }
 
+// Options class - nested objects automatically bind!
 [OptionsBinding("Email")]
 public partial class EmailOptions
 {
     public string From { get; set; } = string.Empty;
 
-    // Nested object - should automatically bind "Email:Smtp" section
+    // Automatically binds to "Email:Smtp" subsection - no special config needed!
     public SmtpSettings Smtp { get; set; } = new();
 
-    // Nested object - should automatically bind "Email:Templates" section
+    // Automatically binds to "Email:Templates" subsection
     public EmailTemplates Templates { get; set; } = new();
 }
 
@@ -509,12 +512,70 @@ public class EmailTemplates
 }
 ```
 
-**Implementation Notes**:
+**Real-World Example - Deeply Nested (3 Levels)**:
 
-- Automatically bind complex properties using `Bind()`
-- No special attribute required for nested types
-- Already supported by Microsoft.Extensions.Configuration.Binder
-- Our generator should leverage this automatically
+```csharp
+[OptionsBinding("Storage", ValidateDataAnnotations = true)]
+public partial class StorageOptions
+{
+    // Binds to "Storage:Database"
+    public DatabaseSettings Database { get; set; } = new();
+
+    // Binds to "Storage:FileStorage"
+    public FileStorageSettings FileStorage { get; set; } = new();
+}
+
+public class DatabaseSettings
+{
+    [Required]
+    public string ConnectionString { get; set; } = string.Empty;
+
+    [Range(1, 1000)]
+    public int MaxConnections { get; set; } = 100;
+
+    // Binds to "Storage:Database:Retry" - 3 levels deep!
+    public DatabaseRetryPolicy Retry { get; set; } = new();
+}
+
+public class DatabaseRetryPolicy
+{
+    [Range(0, 10)]
+    public int MaxAttempts { get; set; } = 3;
+
+    [Range(100, 10000)]
+    public int DelayMilliseconds { get; set; } = 500;
+}
+```
+
+**Implementation Details**:
+
+- ✅ **Zero configuration required** - Just use complex property types and `.Bind()` handles the rest
+- ✅ **Already supported by Microsoft.Extensions.Configuration.Binder** - Our generator leverages this natively
+- ✅ **Automatic path construction** - "Parent:Child:GrandChild" paths are built automatically
+- ✅ **Works with validation** - DataAnnotations validation applies to all nested levels
+- ✅ **Unlimited depth** - Supports deeply nested structures (e.g., CloudStorage → Azure → Blob)
+- ✅ **Collections supported** - List<T>, arrays, dictionaries all work automatically
+- ✅ **No breaking changes** - This feature works out-of-the-box with existing code
+
+**What Gets Automatically Bound**:
+
+- **Nested objects** - Properties with complex class types
+- **Collections** - List<T>, IEnumerable<T>, arrays
+- **Dictionaries** - Dictionary<string, string>, Dictionary<string, T>
+- **Multiple levels** - As deeply nested as needed
+
+**Testing**:
+
+- ✅ 9 comprehensive unit tests covering all scenarios
+- ✅ Sample project: CloudStorageOptions demonstrates Azure/AWS/Blob nested structure
+- ✅ PetStore.Api sample: StorageOptions demonstrates Database/FileStorage/Retry 3-level nesting
+
+**Key Benefits**:
+
+- **Cleaner configuration models** - Group related settings without flat structures
+- **Better organization** - Mirrors natural hierarchy of configuration
+- **Type-safe all the way down** - Compile-time safety for nested properties
+- **Works with existing features** - Validation, change detection, all lifetimes
 
 ---
 

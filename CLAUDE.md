@@ -300,6 +300,7 @@ services.AddDependencyRegistrationsFromDomain(
 - Supports validation: `ValidateDataAnnotations`, `ValidateOnStart`, `ErrorOnMissingKeys` (fail-fast for missing sections), Custom validators (`IValidateOptions<T>`)
 - **Configuration change callbacks**: Auto-generated IHostedService for OnChange notifications with Monitor lifetime - perfect for feature flags and runtime configuration updates
 - **Named options support**: Multiple configurations of the same options type with different names (e.g., Primary/Secondary email servers)
+- **Nested subsection binding**: Automatic binding of complex properties to configuration subsections (e.g., `StorageOptions.Database.Retry` → `"Storage:Database:Retry"`) - supported out-of-the-box by Microsoft's `.Bind()` method
 - Supports lifetime selection: Singleton (IOptions), Scoped (IOptionsSnapshot), Monitor (IOptionsMonitor)
 - Requires classes to be declared `partial`
 - **Smart naming** - uses short suffix if unique, full name if conflicts exist
