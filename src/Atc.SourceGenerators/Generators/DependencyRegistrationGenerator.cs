@@ -1128,25 +1128,30 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
         sb.AppendLineLf("        global::System.Collections.Generic.IEnumerable<string>? excludedPatterns = null,");
         sb.AppendLineLf("        global::System.Collections.Generic.IEnumerable<global::System.Type>? excludedTypes = null)");
         sb.AppendLineLf("    {");
-        sb.AppendLineLf("        if (includeReferencedAssemblies)");
-        sb.AppendLineLf("        {");
 
         // Build context for smart suffix calculation
         var allAssemblies = new List<string> { assemblyName };
         allAssemblies.AddRange(referencedAssemblies.Select(r => r.AssemblyName));
 
-        // Generate calls to all referenced assemblies (recursive)
-        // Note: We don't pass configuration to referenced assemblies as we don't know if they need it
-        // Each assembly manages its own conditional services and should be called directly with configuration if needed
-        foreach (var refAssembly in referencedAssemblies)
+        // Only generate the if block if there are referenced assemblies to call
+        if (referencedAssemblies.Length > 0)
         {
-            var refSmartSuffix = GetSmartMethodSuffixFromContext(refAssembly.AssemblyName, allAssemblies);
-            var refMethodName = $"AddDependencyRegistrationsFrom{refSmartSuffix}";
-            sb.AppendLineLf($"            services.{refMethodName}(includeReferencedAssemblies: true, excludedNamespaces: excludedNamespaces, excludedPatterns: excludedPatterns, excludedTypes: excludedTypes);");
-        }
+            sb.AppendLineLf("        if (includeReferencedAssemblies)");
+            sb.AppendLineLf("        {");
 
-        sb.AppendLineLf("        }");
-        sb.AppendLineLf();
+            // Generate calls to all referenced assemblies (recursive)
+            // Note: We don't pass configuration to referenced assemblies as we don't know if they need it
+            // Each assembly manages its own conditional services and should be called directly with configuration if needed
+            foreach (var refAssembly in referencedAssemblies)
+            {
+                var refSmartSuffix = GetSmartMethodSuffixFromContext(refAssembly.AssemblyName, allAssemblies);
+                var refMethodName = $"AddDependencyRegistrationsFrom{refSmartSuffix}";
+                sb.AppendLineLf($"            services.{refMethodName}(includeReferencedAssemblies: true, excludedNamespaces: excludedNamespaces, excludedPatterns: excludedPatterns, excludedTypes: excludedTypes);");
+            }
+
+            sb.AppendLineLf("        }");
+            sb.AppendLineLf();
+        }
 
         GenerateServiceRegistrationCalls(sb, services, includeRuntimeFiltering: true);
 
@@ -1264,8 +1269,6 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
         sb.AppendLineLf("        global::System.Collections.Generic.IEnumerable<global::System.Type>? excludedTypes = null,");
         sb.AppendLineLf("        params string[] referencedAssemblyNames)");
         sb.AppendLineLf("    {");
-        sb.AppendLineLf("        foreach (var name in referencedAssemblyNames)");
-        sb.AppendLineLf("        {");
 
         // Build context for smart suffix calculation
         var allAssemblies = new List<string> { assemblyName };
@@ -1276,24 +1279,31 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
             .Where(a => a.AssemblyName.StartsWith(assemblyPrefix, StringComparison.Ordinal))
             .ToList();
 
-        for (var i = 0; i < filteredAssemblies.Count; i++)
+        // Only generate the foreach block if there are filtered assemblies to process
+        if (filteredAssemblies.Count > 0)
         {
-            var refAssembly = filteredAssemblies[i];
-            var refSmartSuffix = GetSmartMethodSuffixFromContext(refAssembly.AssemblyName, allAssemblies);
-            var refMethodName = $"AddDependencyRegistrationsFrom{refSmartSuffix}";
-            var ifKeyword = i == 0 ? "if" : "else if";
+            sb.AppendLineLf("        foreach (var name in referencedAssemblyNames)");
+            sb.AppendLineLf("        {");
 
-            sb.AppendLineLf($"            {ifKeyword} (string.Equals(name, \"{refAssembly.AssemblyName}\", global::System.StringComparison.OrdinalIgnoreCase) ||");
-            sb.AppendLineLf($"                string.Equals(name, \"{refAssembly.ShortName}\", global::System.StringComparison.OrdinalIgnoreCase))");
-            sb.AppendLineLf("            {");
+            for (var i = 0; i < filteredAssemblies.Count; i++)
+            {
+                var refAssembly = filteredAssemblies[i];
+                var refSmartSuffix = GetSmartMethodSuffixFromContext(refAssembly.AssemblyName, allAssemblies);
+                var refMethodName = $"AddDependencyRegistrationsFrom{refSmartSuffix}";
+                var ifKeyword = i == 0 ? "if" : "else if";
 
-            sb.AppendLineLf($"                services.{refMethodName}(excludedNamespaces: excludedNamespaces, excludedPatterns: excludedPatterns, excludedTypes: excludedTypes, referencedAssemblyNames: referencedAssemblyNames);");
+                sb.AppendLineLf($"            {ifKeyword} (string.Equals(name, \"{refAssembly.AssemblyName}\", global::System.StringComparison.OrdinalIgnoreCase) ||");
+                sb.AppendLineLf($"                string.Equals(name, \"{refAssembly.ShortName}\", global::System.StringComparison.OrdinalIgnoreCase))");
+                sb.AppendLineLf("            {");
 
-            sb.AppendLineLf("            }");
+                sb.AppendLineLf($"                services.{refMethodName}(excludedNamespaces: excludedNamespaces, excludedPatterns: excludedPatterns, excludedTypes: excludedTypes, referencedAssemblyNames: referencedAssemblyNames);");
+
+                sb.AppendLineLf("            }");
+            }
+
+            sb.AppendLineLf("        }");
+            sb.AppendLineLf();
         }
-
-        sb.AppendLineLf("        }");
-        sb.AppendLineLf();
 
         GenerateServiceRegistrationCalls(sb, services, includeRuntimeFiltering: true);
 
@@ -1312,6 +1322,9 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
         var baseServices = nonDecoratorServices.ToList();
         var decoratorServices = services.Where(s => s.Decorator);
         var decorators = decoratorServices.ToList();
+
+        // Determine base indentation level based on runtime filtering
+        var baseIndent = includeRuntimeFiltering ? "            " : "        ";
 
         // Register base services first
         foreach (var service in baseServices)
@@ -1349,10 +1362,13 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
                     : $"configuration.GetValue<bool>(\"{configKey}\")";
 
                 sb.AppendLineLf();
-                sb.AppendLineLf($"        // Conditional registration for {service.ClassSymbol.Name}");
-                sb.AppendLineLf($"        if ({conditionCheck})");
-                sb.AppendLineLf("        {");
+                sb.AppendLineLf($"{baseIndent}// Conditional registration for {service.ClassSymbol.Name}");
+                sb.AppendLineLf($"{baseIndent}if ({conditionCheck})");
+                sb.AppendLineLf($"{baseIndent}{{");
             }
+
+            // Determine indentation for registration calls (may be nested in conditional)
+            var registrationIndent = hasCondition ? baseIndent + "    " : baseIndent;
 
             // Hosted services use AddHostedService instead of regular lifetime methods
             if (service.IsHostedService)
@@ -1360,11 +1376,11 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
                 if (isGeneric)
                 {
                     var openGenericImplementationType = GetOpenGenericTypeName(service.ClassSymbol);
-                    sb.AppendLineLf($"        services.AddHostedService(typeof({openGenericImplementationType}));");
+                    sb.AppendLineLf($"{registrationIndent}services.AddHostedService(typeof({openGenericImplementationType}));");
                 }
                 else
                 {
-                    sb.AppendLineLf($"        services.AddHostedService<{implementationType}>();");
+                    sb.AppendLineLf($"{registrationIndent}services.AddHostedService<{implementationType}>();");
                 }
             }
             else if (hasInstance)
@@ -1392,19 +1408,19 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
                     foreach (var asType in service.AsTypes)
                     {
                         var serviceType = asType.ToDisplayString();
-                        sb.AppendLineLf($"        services.{lifetimeMethod}<{serviceType}>({instanceExpression});");
+                        sb.AppendLineLf($"{registrationIndent}services.{lifetimeMethod}<{serviceType}>({instanceExpression});");
                     }
 
                     // Also register as self if requested
                     if (service.AsSelf)
                     {
-                        sb.AppendLineLf($"        services.{lifetimeMethod}<{implementationType}>({instanceExpression});");
+                        sb.AppendLineLf($"{registrationIndent}services.{lifetimeMethod}<{implementationType}>({instanceExpression});");
                     }
                 }
                 else
                 {
                     // No interfaces - register as concrete type with instance
-                    sb.AppendLineLf($"        services.{lifetimeMethod}<{implementationType}>({instanceExpression});");
+                    sb.AppendLineLf($"{registrationIndent}services.{lifetimeMethod}<{implementationType}>({instanceExpression});");
                 }
             }
             else if (hasFactory)
@@ -1432,19 +1448,19 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
                     foreach (var asType in service.AsTypes)
                     {
                         var serviceType = asType.ToDisplayString();
-                        sb.AppendLineLf($"        services.{lifetimeMethod}<{serviceType}>(sp => {implementationType}.{service.FactoryMethodName}(sp));");
+                        sb.AppendLineLf($"{registrationIndent}services.{lifetimeMethod}<{serviceType}>(sp => {implementationType}.{service.FactoryMethodName}(sp));");
                     }
 
                     // Also register as self if requested
                     if (service.AsSelf)
                     {
-                        sb.AppendLineLf($"        services.{lifetimeMethod}<{implementationType}>(sp => {implementationType}.{service.FactoryMethodName}(sp));");
+                        sb.AppendLineLf($"{registrationIndent}services.{lifetimeMethod}<{implementationType}>(sp => {implementationType}.{service.FactoryMethodName}(sp));");
                     }
                 }
                 else
                 {
                     // No interfaces - register as concrete type with factory
-                    sb.AppendLineLf($"        services.{lifetimeMethod}<{implementationType}>(sp => {implementationType}.{service.FactoryMethodName}(sp));");
+                    sb.AppendLineLf($"{registrationIndent}services.{lifetimeMethod}<{implementationType}>(sp => {implementationType}.{service.FactoryMethodName}(sp));");
                 }
             }
             else
@@ -1490,15 +1506,15 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
                             var openGenericImplementationType = GetOpenGenericTypeName(service.ClassSymbol);
 
                             sb.AppendLineLf(hasKey
-                                ? $"        services.{lifetimeMethod}(typeof({openGenericServiceType}), {keyString}, typeof({openGenericImplementationType}));"
-                                : $"        services.{lifetimeMethod}(typeof({openGenericServiceType}), typeof({openGenericImplementationType}));");
+                                ? $"{registrationIndent}services.{lifetimeMethod}(typeof({openGenericServiceType}), {keyString}, typeof({openGenericImplementationType}));"
+                                : $"{registrationIndent}services.{lifetimeMethod}(typeof({openGenericServiceType}), typeof({openGenericImplementationType}));");
                         }
                         else
                         {
                             // Regular non-generic registration
                             sb.AppendLineLf(hasKey
-                                ? $"        services.{lifetimeMethod}<{serviceType}, {implementationType}>({keyString});"
-                                : $"        services.{lifetimeMethod}<{serviceType}, {implementationType}>();");
+                                ? $"{registrationIndent}services.{lifetimeMethod}<{serviceType}, {implementationType}>({keyString});"
+                                : $"{registrationIndent}services.{lifetimeMethod}<{serviceType}, {implementationType}>();");
                         }
                     }
 
@@ -1510,14 +1526,14 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
                             var openGenericImplementationType = GetOpenGenericTypeName(service.ClassSymbol);
 
                             sb.AppendLineLf(hasKey
-                                ? $"        services.{lifetimeMethod}(typeof({openGenericImplementationType}), {keyString});"
-                                : $"        services.{lifetimeMethod}(typeof({openGenericImplementationType}));");
+                                ? $"{registrationIndent}services.{lifetimeMethod}(typeof({openGenericImplementationType}), {keyString});"
+                                : $"{registrationIndent}services.{lifetimeMethod}(typeof({openGenericImplementationType}));");
                         }
                         else
                         {
                             sb.AppendLineLf(hasKey
-                                ? $"        services.{lifetimeMethod}<{implementationType}>({keyString});"
-                                : $"        services.{lifetimeMethod}<{implementationType}>();");
+                                ? $"{registrationIndent}services.{lifetimeMethod}<{implementationType}>({keyString});"
+                                : $"{registrationIndent}services.{lifetimeMethod}<{implementationType}>();");
                         }
                     }
                 }
@@ -1529,14 +1545,14 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
                         var openGenericImplementationType = GetOpenGenericTypeName(service.ClassSymbol);
 
                         sb.AppendLineLf(hasKey
-                            ? $"        services.{lifetimeMethod}(typeof({openGenericImplementationType}), {keyString});"
-                            : $"        services.{lifetimeMethod}(typeof({openGenericImplementationType}));");
+                            ? $"{registrationIndent}services.{lifetimeMethod}(typeof({openGenericImplementationType}), {keyString});"
+                            : $"{registrationIndent}services.{lifetimeMethod}(typeof({openGenericImplementationType}));");
                     }
                     else
                     {
                         sb.AppendLineLf(hasKey
-                            ? $"        services.{lifetimeMethod}<{implementationType}>({keyString});"
-                            : $"        services.{lifetimeMethod}<{implementationType}>();");
+                            ? $"{registrationIndent}services.{lifetimeMethod}<{implementationType}>({keyString});"
+                            : $"{registrationIndent}services.{lifetimeMethod}<{implementationType}>();");
                     }
                 }
             }
@@ -1544,7 +1560,7 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
             // Close conditional registration check if needed
             if (hasCondition)
             {
-                sb.AppendLineLf("        }");
+                sb.AppendLineLf($"{baseIndent}}}");
             }
 
             // Close runtime filtering check if enabled
@@ -1580,8 +1596,8 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
             }
 
             // Generate conditional registration check if needed
-            var hasCondition = !string.IsNullOrEmpty(decorator.Condition);
-            if (hasCondition)
+            var hasDecoratorCondition = !string.IsNullOrEmpty(decorator.Condition);
+            if (hasDecoratorCondition)
             {
                 var condition = decorator.Condition!;
                 var isNegated = condition.StartsWith("!", StringComparison.Ordinal);
@@ -1591,10 +1607,13 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
                     : $"configuration.GetValue<bool>(\"{configKey}\")";
 
                 sb.AppendLineLf();
-                sb.AppendLineLf($"        // Conditional registration for decorator {decorator.ClassSymbol.Name}");
-                sb.AppendLineLf($"        if ({conditionCheck})");
-                sb.AppendLineLf("        {");
+                sb.AppendLineLf($"{baseIndent}// Conditional registration for decorator {decorator.ClassSymbol.Name}");
+                sb.AppendLineLf($"{baseIndent}if ({conditionCheck})");
+                sb.AppendLineLf($"{baseIndent}{{");
             }
+
+            // Determine indentation for decorator registration calls (may be nested in conditional)
+            var decoratorRegistrationIndent = hasDecoratorCondition ? baseIndent + "    " : baseIndent;
 
             // Generate decorator registration for each interface
             foreach (var asType in decorator.AsTypes)
@@ -1613,7 +1632,7 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
 #pragma warning restore S3923
 
                 sb.AppendLineLf();
-                sb.AppendLineLf($"        // Decorator: {decorator.ClassSymbol.Name}");
+                sb.AppendLineLf($"{decoratorRegistrationIndent}// Decorator: {decorator.ClassSymbol.Name}");
 
                 if (isGeneric && isInterfaceGeneric)
                 {
@@ -1621,26 +1640,26 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
                     var openGenericServiceType = GetOpenGenericTypeName(asType);
                     var openGenericDecoratorType = GetOpenGenericTypeName(decorator.ClassSymbol);
 
-                    sb.AppendLineLf($"        services.{lifetimeMethod}(typeof({openGenericServiceType}), (provider, inner) =>");
-                    sb.AppendLineLf("        {");
-                    sb.AppendLineLf($"            var decoratorInstance = ActivatorUtilities.CreateInstance(provider, typeof({openGenericDecoratorType}), inner);");
-                    sb.AppendLineLf($"            return decoratorInstance;");
-                    sb.AppendLineLf("        });");
+                    sb.AppendLineLf($"{decoratorRegistrationIndent}services.{lifetimeMethod}(typeof({openGenericServiceType}), (provider, inner) =>");
+                    sb.AppendLineLf($"{decoratorRegistrationIndent}{{");
+                    sb.AppendLineLf($"{decoratorRegistrationIndent}    var decoratorInstance = ActivatorUtilities.CreateInstance(provider, typeof({openGenericDecoratorType}), inner);");
+                    sb.AppendLineLf($"{decoratorRegistrationIndent}    return decoratorInstance;");
+                    sb.AppendLineLf($"{decoratorRegistrationIndent}}});");
                 }
                 else
                 {
                     // Regular decorator
-                    sb.AppendLineLf($"        services.{lifetimeMethod}<{serviceType}>((provider, inner) =>");
-                    sb.AppendLineLf("        {");
-                    sb.AppendLineLf($"            return ActivatorUtilities.CreateInstance<{decoratorType}>(provider, inner);");
-                    sb.AppendLineLf("        });");
+                    sb.AppendLineLf($"{decoratorRegistrationIndent}services.{lifetimeMethod}<{serviceType}>((provider, inner) =>");
+                    sb.AppendLineLf($"{decoratorRegistrationIndent}{{");
+                    sb.AppendLineLf($"{decoratorRegistrationIndent}    return ActivatorUtilities.CreateInstance<{decoratorType}>(provider, inner);");
+                    sb.AppendLineLf($"{decoratorRegistrationIndent}}});");
                 }
             }
 
             // Close conditional registration check if needed
-            if (hasCondition)
+            if (hasDecoratorCondition)
             {
-                sb.AppendLineLf("        }");
+                sb.AppendLineLf($"{baseIndent}}}");
             }
 
             // Close runtime filtering check if enabled
