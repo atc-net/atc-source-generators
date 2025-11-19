@@ -79,7 +79,7 @@ This roadmap is based on comprehensive analysis of:
 | ✅ | [Error on Missing Configuration Keys](#4-error-on-missing-configuration-keys) | 🔴 High |
 | ✅ | [Configuration Change Callbacks](#5-configuration-change-callbacks) | 🟡 Medium |
 | ✅ | [Bind Configuration Subsections to Properties](#6-bind-configuration-subsections-to-properties) | 🟡 Medium |
-| ❌ | [ConfigureAll Support](#7-configureall-support) | 🟢 Low-Medium |
+| ✅ | [ConfigureAll Support](#7-configureall-support) | 🟢 Low-Medium |
 | ❌ | [Options Snapshots for Specific Sections](#8-options-snapshots-for-specific-sections) | 🟢 Low-Medium |
 | ❌ | [Compile-Time Section Name Validation](#9-compile-time-section-name-validation) | 🟡 Medium |
 | ❌ | [Auto-Generate Options Classes from appsettings.json](#10-auto-generate-options-classes-from-appsettingsjson) | 🟢 Low |
@@ -599,28 +599,66 @@ public class DatabaseRetryPolicy
 ### 7. ConfigureAll Support
 
 **Priority**: 🟢 **Low-Medium**
-**Status**: ❌ Not Implemented
+**Status**: ✅ **Implemented**
 
-**Description**: Support configuring all named instances of an options type at once (e.g., setting defaults).
+**Description**: Support configuring all named instances of an options type at once, allowing you to set common defaults that apply to all named configurations before individual settings override them.
 
 **Example**:
 
 ```csharp
-// Configure defaults for ALL named DatabaseOptions instances
-services.ConfigureAll<DatabaseOptions>(options =>
+[OptionsBinding("Email:Primary", Name = "Primary", ConfigureAll = nameof(SetDefaults))]
+[OptionsBinding("Email:Secondary", Name = "Secondary")]
+[OptionsBinding("Email:Fallback", Name = "Fallback")]
+public partial class EmailOptions
 {
-    options.MaxRetries = 3;  // Default for all instances
-    options.CommandTimeout = TimeSpan.FromSeconds(30);
-});
+    public string SmtpServer { get; set; } = string.Empty;
+    public int Port { get; set; } = 587;
+    public int MaxRetries { get; set; }
+    public int TimeoutSeconds { get; set; } = 30;
 
-// Named instances override specific values
-services.Configure<DatabaseOptions>("Primary", config.GetSection("Databases:Primary"));
+    internal static void SetDefaults(EmailOptions options)
+    {
+        // Set common defaults for ALL email configurations
+        options.MaxRetries = 3;
+        options.TimeoutSeconds = 30;
+        options.Port = 587;
+    }
+}
 ```
 
-**Implementation Notes**:
+**Generated Code**:
 
-- Generate `ConfigureAll<T>()` call when multiple named instances exist
-- Useful for setting defaults across all instances
+```csharp
+// Configure defaults for ALL named instances FIRST
+services.ConfigureAll<EmailOptions>(options => EmailOptions.SetDefaults(options));
+
+// Then configure individual instances (can override defaults)
+services.Configure<EmailOptions>("Primary", config.GetSection("Email:Primary"));
+services.Configure<EmailOptions>("Secondary", config.GetSection("Email:Secondary"));
+services.Configure<EmailOptions>("Fallback", config.GetSection("Email:Fallback"));
+```
+
+**Implementation Details**:
+
+- ✅ **Requires multiple named instances** - Cannot be used with single unnamed instance (compile-time error)
+- ✅ **Method signature validation** - Must be `static void MethodName(TOptions options)`
+- ✅ **Execution order** - ConfigureAll runs BEFORE individual Configure calls
+- ✅ **Flexible placement** - Can be specified on any one of the `[OptionsBinding]` attributes
+- ✅ **Override support** - Individual configurations can override defaults set by ConfigureAll
+- ✅ **Compile-time safety** - Diagnostics ATCOPT011-013 validate usage and method signature
+
+**Use Cases**:
+
+- **Baseline settings**: Set common retry, timeout, or connection defaults across all database connections
+- **Feature flags**: Enable/disable common features for all tenant configurations
+- **Security defaults**: Apply consistent security settings across all API client configurations
+- **Notification channels**: Set common rate limits and retry policies for all notification providers
+
+**Testing**:
+
+- ✅ 14 comprehensive unit tests covering all scenarios
+- ✅ Sample project: EmailOptions demonstrates default retry/timeout settings
+- ✅ PetStore.Api sample: NotificationOptions demonstrates common defaults for Email/SMS/Push channels
 
 ---
 

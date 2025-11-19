@@ -24,6 +24,12 @@ ATCOPT004 | OptionsBinding | Error | OnChange requires Monitor lifetime
 ATCOPT005 | OptionsBinding | Error | OnChange not supported with named options
 ATCOPT006 | OptionsBinding | Error | OnChange callback method not found
 ATCOPT007 | OptionsBinding | Error | OnChange callback has invalid signature
+ATCOPT008 | OptionsBinding | Error | PostConfigure callback not supported with named options
+ATCOPT009 | OptionsBinding | Error | PostConfigure callback method not found
+ATCOPT010 | OptionsBinding | Error | PostConfigure callback method has invalid signature
+ATCOPT011 | OptionsBinding | Error | ConfigureAll requires multiple named options
+ATCOPT012 | OptionsBinding | Error | ConfigureAll callback method not found
+ATCOPT013 | OptionsBinding | Error | ConfigureAll callback method has invalid signature
 ATCMAP001 | ObjectMapping | Error | Mapping class must be partial
 ATCMAP002 | ObjectMapping | Error | Target type must be a class or struct
 ATCMAP003 | ObjectMapping | Error | MapProperty target property not found

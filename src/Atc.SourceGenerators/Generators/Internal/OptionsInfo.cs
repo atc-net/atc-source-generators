@@ -12,4 +12,5 @@ internal sealed record OptionsInfo(
     string? Name,
     bool ErrorOnMissingKeys,
     string? OnChange,
-    string? PostConfigure);
+    string? PostConfigure,
+    string? ConfigureAll);

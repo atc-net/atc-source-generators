@@ -116,6 +116,21 @@ internal static class RuleIdentifierConstants
         /// ATCOPT010: PostConfigure callback method has invalid signature.
         /// </summary>
         internal const string PostConfigureCallbackInvalidSignature = "ATCOPT010";
+
+        /// <summary>
+        /// ATCOPT011: ConfigureAll requires multiple named options.
+        /// </summary>
+        internal const string ConfigureAllRequiresMultipleNamedOptions = "ATCOPT011";
+
+        /// <summary>
+        /// ATCOPT012: ConfigureAll callback method not found.
+        /// </summary>
+        internal const string ConfigureAllCallbackNotFound = "ATCOPT012";
+
+        /// <summary>
+        /// ATCOPT013: ConfigureAll callback method has invalid signature.
+        /// </summary>
+        internal const string ConfigureAllCallbackInvalidSignature = "ATCOPT013";
     }
 
     /// <summary>

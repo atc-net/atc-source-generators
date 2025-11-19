@@ -107,4 +107,21 @@ public sealed class OptionsBindingAttribute : Attribute
     /// Cannot be used with named options.
     /// </remarks>
     public string? PostConfigure { get; set; }
+
+    /// <summary>
+    /// Gets or sets the name of a static method to configure ALL named instances with default values.
+    /// The method must have the signature: <c>static void MethodName(TOptions options)</c>
+    /// where TOptions is the options class type.
+    /// This is useful for setting default values that apply to all named instances before individual configurations override them.
+    /// The configuration action runs using the <c>.ConfigureAll()</c> pattern before individual <c>Configure()</c> calls.
+    /// Default is null (no configure-all).
+    /// Only applicable when the class has multiple named instances (Name property specified on multiple attributes).
+    /// </summary>
+    /// <remarks>
+    /// ConfigureAll is executed BEFORE individual named instance configurations, allowing you to set defaults.
+    /// For example, set MaxRetries=3 for all database connections, then override for specific instances.
+    /// Specify ConfigureAll on any one of the [OptionsBinding] attributes when using named options.
+    /// Cannot be used with single unnamed instances (use PostConfigure instead).
+    /// </remarks>
+    public string? ConfigureAll { get; set; }
 }

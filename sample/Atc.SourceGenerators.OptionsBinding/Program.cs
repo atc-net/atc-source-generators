@@ -56,9 +56,10 @@ Console.WriteLine($"   ✓ EnableConsole: {logging.EnableConsole}");
 Console.WriteLine($"   ✓ EnableFile: {logging.EnableFile}");
 Console.WriteLine($"   ✓ FilePath: {logging.FilePath ?? "(not set)"}");
 
-Console.WriteLine("\n4. Testing EmailOptions (Named Options - Multiple Instances):");
+Console.WriteLine("\n4. Testing EmailOptions (Named Options + ConfigureAll):");
 Console.WriteLine("   - Named instances: \"Primary\", \"Secondary\", \"Fallback\"");
 Console.WriteLine("   - Demonstrates multiple configurations of the same options type");
+Console.WriteLine("   - Demonstrates ConfigureAll setting defaults for ALL named instances");
 
 var emailSnapshot = serviceProvider.GetRequiredService<IOptionsSnapshot<Atc.SourceGenerators.OptionsBinding.Options.EmailOptions>>();
 
@@ -69,12 +70,14 @@ Console.WriteLine($"   ✓ Port: {primaryEmail.Port}");
 Console.WriteLine($"   ✓ FromAddress: {primaryEmail.FromAddress}");
 Console.WriteLine($"   ✓ UseSsl: {primaryEmail.UseSsl}");
 Console.WriteLine($"   ✓ TimeoutSeconds: {primaryEmail.TimeoutSeconds}");
+Console.WriteLine($"   ✓ MaxRetries: {primaryEmail.MaxRetries} (set by ConfigureAll)");
 
 Console.WriteLine("\n   Secondary Email Server:");
 var secondaryEmail = emailSnapshot.Get("Secondary");
 Console.WriteLine($"   ✓ SmtpServer: {secondaryEmail.SmtpServer}");
 Console.WriteLine($"   ✓ Port: {secondaryEmail.Port}");
 Console.WriteLine($"   ✓ FromAddress: {secondaryEmail.FromAddress}");
+Console.WriteLine($"   ✓ MaxRetries: {secondaryEmail.MaxRetries} (set by ConfigureAll)");
 
 Console.WriteLine("\n   Fallback Email Server:");
 var fallbackEmail = emailSnapshot.Get("Fallback");
@@ -82,6 +85,9 @@ Console.WriteLine($"   ✓ SmtpServer: {fallbackEmail.SmtpServer}");
 Console.WriteLine($"   ✓ Port: {fallbackEmail.Port}");
 Console.WriteLine($"   ✓ FromAddress: {fallbackEmail.FromAddress}");
 Console.WriteLine($"   ✓ UseSsl: {fallbackEmail.UseSsl}");
+Console.WriteLine($"   ✓ MaxRetries: {fallbackEmail.MaxRetries} (set by ConfigureAll)");
+
+Console.WriteLine("\n   → ConfigureAll set MaxRetries=3 for all instances (not in appsettings.json)!");
 
 Console.WriteLine("\n5. Testing CloudStorageOptions (Nested Subsection Binding):");
 Console.WriteLine("   - Section: \"CloudStorage\"");

@@ -697,9 +697,9 @@ The generator enforces these rules at compile time:
 
 ## 📛 Named Options Support
 
-**Named Options** allow multiple configurations of the same options type with different names - perfect for fallback scenarios, multi-tenant applications, or multi-region deployments.
+**Named Options** allow multiple configurations of the same options type with different names - perfect for fallback scenarios, multi-tenant applications, or multi-region deployments. You can also use **ConfigureAll** to set common defaults for all named instances.
 
-### 🎯 Example: Email Server Fallback
+### 🎯 Example: Email Server Fallback with ConfigureAll
 
 **Options Class:**
 
@@ -708,7 +708,7 @@ using Atc.SourceGenerators.Annotations;
 
 namespace Atc.SourceGenerators.OptionsBinding.Options;
 
-[OptionsBinding("Email:Primary", Name = "Primary")]
+[OptionsBinding("Email:Primary", Name = "Primary", ConfigureAll = nameof(SetDefaults))]
 [OptionsBinding("Email:Secondary", Name = "Secondary")]
 [OptionsBinding("Email:Fallback", Name = "Fallback")]
 public partial class EmailOptions
@@ -718,6 +718,16 @@ public partial class EmailOptions
     public bool UseSsl { get; set; } = true;
     public string FromAddress { get; set; } = string.Empty;
     public int TimeoutSeconds { get; set; } = 30;
+    public int MaxRetries { get; set; }
+
+    internal static void SetDefaults(EmailOptions options)
+    {
+        // Set common defaults for ALL email configurations
+        options.UseSsl = true;
+        options.TimeoutSeconds = 30;
+        options.MaxRetries = 3;
+        options.Port = 587;
+    }
 }
 ```
 
@@ -763,6 +773,9 @@ public static class ServiceCollectionExtensions
         this IServiceCollection services,
         IConfiguration configuration)
     {
+        // Configure defaults for ALL named instances of EmailOptions
+        services.ConfigureAll<EmailOptions>(options => EmailOptions.SetDefaults(options));
+
         // Configure EmailOptions (Named: "Primary")
         services.Configure<EmailOptions>("Primary", configuration.GetSection("Email:Primary"));
 

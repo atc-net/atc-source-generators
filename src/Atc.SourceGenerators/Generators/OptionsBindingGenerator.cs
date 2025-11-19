@@ -94,6 +94,30 @@ public class OptionsBindingGenerator : IIncrementalGenerator
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 
+    private static readonly DiagnosticDescriptor ConfigureAllRequiresMultipleNamedOptionsDescriptor = new(
+        RuleIdentifierConstants.OptionsBinding.ConfigureAllRequiresMultipleNamedOptions,
+        "ConfigureAll requires multiple named options",
+        "ConfigureAll callback '{0}' can only be used when the class has multiple named instances (Name property specified)",
+        RuleCategoryConstants.OptionsBinding,
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    private static readonly DiagnosticDescriptor ConfigureAllCallbackNotFoundDescriptor = new(
+        RuleIdentifierConstants.OptionsBinding.ConfigureAllCallbackNotFound,
+        "ConfigureAll callback method not found",
+        "ConfigureAll callback method '{0}' not found in class '{1}'",
+        RuleCategoryConstants.OptionsBinding,
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    private static readonly DiagnosticDescriptor ConfigureAllCallbackInvalidSignatureDescriptor = new(
+        RuleIdentifierConstants.OptionsBinding.ConfigureAllCallbackInvalidSignature,
+        "ConfigureAll callback method has invalid signature",
+        "ConfigureAll callback method '{0}' must have signature: static void {0}({1} options)",
+        RuleCategoryConstants.OptionsBinding,
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
     /// <inheritdoc />
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
@@ -234,6 +258,65 @@ public class OptionsBindingGenerator : IIncrementalGenerator
             }
         }
 
+        // Validate ConfigureAll if specified
+        var configureAllOption = result.FirstOrDefault(o => !string.IsNullOrWhiteSpace(o.ConfigureAll));
+        if (configureAllOption is not null)
+        {
+            // ConfigureAll requires multiple named instances
+            var namedInstancesCount = result.Count(o => !string.IsNullOrWhiteSpace(o.Name));
+            if (namedInstancesCount < 2)
+            {
+                context.ReportDiagnostic(
+                    Diagnostic.Create(
+                        ConfigureAllRequiresMultipleNamedOptionsDescriptor,
+                        classSymbol.Locations.First(),
+                        configureAllOption.ConfigureAll));
+
+                // Remove ConfigureAll from all instances to prevent code generation issues
+                result = result
+                    .Select(o => o with { ConfigureAll = null })
+                    .ToList();
+            }
+            else
+            {
+                // Validate callback method exists and has correct signature
+                var callbackMethod = classSymbol
+                    .GetMembers(configureAllOption.ConfigureAll!)
+                    .OfType<IMethodSymbol>()
+                    .FirstOrDefault();
+
+                if (callbackMethod is null)
+                {
+                    context.ReportDiagnostic(
+                        Diagnostic.Create(
+                            ConfigureAllCallbackNotFoundDescriptor,
+                            classSymbol.Locations.First(),
+                            configureAllOption.ConfigureAll,
+                            classSymbol.Name));
+
+                    result = result
+                        .Select(o => o with { ConfigureAll = null })
+                        .ToList();
+                }
+                else if (!callbackMethod.IsStatic ||
+                         !callbackMethod.ReturnsVoid ||
+                         callbackMethod.Parameters.Length != 1 ||
+                         !SymbolEqualityComparer.Default.Equals(callbackMethod.Parameters[0].Type, classSymbol))
+                {
+                    context.ReportDiagnostic(
+                        Diagnostic.Create(
+                            ConfigureAllCallbackInvalidSignatureDescriptor,
+                            classSymbol.Locations.First(),
+                            configureAllOption.ConfigureAll,
+                            classSymbol.Name));
+
+                    result = result
+                        .Select(o => o with { ConfigureAll = null })
+                        .ToList();
+                }
+            }
+        }
+
         return result;
     }
 
@@ -299,6 +382,7 @@ public class OptionsBindingGenerator : IIncrementalGenerator
         var errorOnMissingKeys = false;
         string? onChange = null;
         string? postConfigure = null;
+        string? configureAll = null;
 
         foreach (var namedArg in attribute.NamedArguments)
         {
@@ -327,6 +411,9 @@ public class OptionsBindingGenerator : IIncrementalGenerator
                     break;
                 case "PostConfigure":
                     postConfigure = namedArg.Value.Value as string;
+                    break;
+                case "ConfigureAll":
+                    configureAll = namedArg.Value.Value as string;
                     break;
             }
         }
@@ -490,7 +577,8 @@ public class OptionsBindingGenerator : IIncrementalGenerator
             name,
             errorOnMissingKeys,
             onChange,
-            postConfigure);
+            postConfigure,
+            configureAll);
     }
 
     private static string InferSectionNameFromClassName(string className)
@@ -649,6 +737,29 @@ public static class OptionsBindingExtensions
         IConfiguration configuration)
     {
 """);
+
+        // Generate ConfigureAll if any option has it (for named instances)
+        var namedOptions = options
+            .Where(o => !string.IsNullOrWhiteSpace(o.Name))
+            .ToList();
+        if (namedOptions.Count > 0)
+        {
+            var configureAllOption = namedOptions.FirstOrDefault(o => !string.IsNullOrWhiteSpace(o.ConfigureAll));
+            if (configureAllOption is not null)
+            {
+                var optionsType = $"global::{configureAllOption.Namespace}.{configureAllOption.ClassName}";
+
+                sb.AppendLineLf($"        // Configure defaults for ALL named instances of {configureAllOption.ClassName}");
+                sb.Append("        services.ConfigureAll<");
+                sb.Append(optionsType);
+                sb.Append(">(options => ");
+                sb.Append(optionsType);
+                sb.Append('.');
+                sb.Append(configureAllOption.ConfigureAll);
+                sb.AppendLineLf("(options));");
+                sb.AppendLineLf();
+            }
+        }
 
         foreach (var option in options)
         {
@@ -1158,6 +1269,23 @@ public static class OptionsBindingExtensions
                    /// Cannot be used with named options.
                    /// </remarks>
                    public string? PostConfigure { get; set; }
+
+                   /// <summary>
+                   /// Gets or sets the name of a static method to configure ALL named instances with default values.
+                   /// The method must have the signature: <c>static void MethodName(TOptions options)</c>
+                   /// where TOptions is the options class type.
+                   /// This is useful for setting default values that apply to all named instances before individual configurations override them.
+                   /// The configuration action runs using the <c>.ConfigureAll()</c> pattern before individual <c>Configure()</c> calls.
+                   /// Default is null (no configure-all).
+                   /// Only applicable when the class has multiple named instances (Name property specified on multiple attributes).
+                   /// </summary>
+                   /// <remarks>
+                   /// ConfigureAll is executed BEFORE individual named instance configurations, allowing you to set defaults.
+                   /// For example, set MaxRetries=3 for all database connections, then override for specific instances.
+                   /// Specify ConfigureAll on any one of the [OptionsBinding] attributes when using named options.
+                   /// Cannot be used with single unnamed instances (use PostConfigure instead).
+                   /// </remarks>
+                   public string? ConfigureAll { get; set; }
                }
            }
            """;
