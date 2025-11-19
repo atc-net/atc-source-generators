@@ -12,6 +12,7 @@ This sample demonstrates the **OptionsBindingGenerator** in a multi-project cons
 - **Validation at startup** with Data Annotations
 - **Custom validation** using IValidateOptions<T> for complex business rules
 - **Configuration change callbacks** - Automatic OnChange notifications with Monitor lifetime
+- **Nested subsection binding** - Automatic binding of complex properties to configuration subsections
 
 ## 📁 Sample Projects
 
@@ -833,6 +834,310 @@ public class EmailService
 - **Multi-Tenant**: Tenant-specific configurations
 - **Environment Tiers**: Production, Staging, Development endpoints
 
+## 📂 Nested Subsection Binding (Feature #6)
+
+The **OptionsBindingGenerator** automatically handles nested configuration subsections through Microsoft's `.Bind()` method. Complex properties are automatically bound to their corresponding configuration subsections without any additional configuration.
+
+### 🎯 How It Works
+
+When you have properties that are complex types (not primitives like string, int, etc.), the configuration binder automatically:
+1. Detects the property is a complex type
+2. Looks for a subsection with the same name
+3. Recursively binds that subsection to the property
+
+This works for:
+- **Nested objects** - Properties with custom class types
+- **Collections** - List<T>, IEnumerable<T>, arrays
+- **Dictionaries** - Dictionary<string, string>, Dictionary<string, T>
+- **Multiple levels** - Deeply nested structures (3+ levels)
+
+### 📋 Example 1: Simple Nested Objects (Email Service)
+
+**EmailServiceOptions.cs:**
+
+```csharp
+using Atc.SourceGenerators.Annotations;
+using System.ComponentModel.DataAnnotations;
+
+namespace Atc.SourceGenerators.OptionsBinding.Options;
+
+[OptionsBinding("EmailService")]
+public partial class EmailServiceOptions
+{
+    [Required]
+    [EmailAddress]
+    public string From { get; set; } = string.Empty;
+
+    // Automatically binds to "EmailService:Smtp" subsection
+    public SmtpSettings Smtp { get; set; } = new();
+
+    // Automatically binds to "EmailService:Templates" subsection
+    public EmailTemplates Templates { get; set; } = new();
+}
+
+public class SmtpSettings
+{
+    [Required]
+    public string Host { get; set; } = string.Empty;
+
+    [Range(1, 65535)]
+    public int Port { get; set; } = 587;
+
+    public bool UseSsl { get; set; } = true;
+}
+
+public class EmailTemplates
+{
+    public string Welcome { get; set; } = "welcome.html";
+    public string ResetPassword { get; set; } = "reset.html";
+    public string VerifyEmail { get; set; } = "verify.html";
+}
+```
+
+**appsettings.json:**
+
+```json
+{
+  "EmailService": {
+    "From": "noreply@example.com",
+    "Smtp": {
+      "Host": "smtp.example.com",
+      "Port": 587,
+      "UseSsl": true
+    },
+    "Templates": {
+      "Welcome": "welcome-template.html",
+      "ResetPassword": "reset-template.html",
+      "VerifyEmail": "verify-template.html"
+    }
+  }
+}
+```
+
+### 📋 Example 2: Deeply Nested Objects (Cloud Storage - 3 Levels)
+
+**CloudStorageOptions.cs** (from `Atc.SourceGenerators.OptionsBinding` sample):
+
+```csharp
+using Atc.SourceGenerators.Annotations;
+using System.ComponentModel.DataAnnotations;
+
+namespace Atc.SourceGenerators.OptionsBinding.Options;
+
+[OptionsBinding("CloudStorage", ValidateDataAnnotations = true, ValidateOnStart = true)]
+public partial class CloudStorageOptions
+{
+    [Required]
+    public string Provider { get; set; } = string.Empty;
+
+    // Binds to "CloudStorage:Azure" subsection
+    public AzureStorageSettings Azure { get; set; } = new();
+
+    // Binds to "CloudStorage:Aws" subsection
+    public AwsS3Settings Aws { get; set; } = new();
+
+    // Binds to "CloudStorage:RetryPolicy" subsection
+    public RetryPolicy RetryPolicy { get; set; } = new();
+}
+
+public class AzureStorageSettings
+{
+    [Required]
+    public string ConnectionString { get; set; } = string.Empty;
+
+    public string ContainerName { get; set; } = string.Empty;
+
+    // Binds to "CloudStorage:Azure:Blob" subsection - 3 levels deep!
+    public BlobSettings Blob { get; set; } = new();
+}
+
+public class BlobSettings
+{
+    public int MaxBlockSize { get; set; } = 4194304; // 4 MB
+    public int ParallelOperations { get; set; } = 8;
+}
+
+public class AwsS3Settings
+{
+    [Required]
+    public string AccessKey { get; set; } = string.Empty;
+
+    [Required]
+    public string SecretKey { get; set; } = string.Empty;
+
+    public string Region { get; set; } = "us-east-1";
+    public string BucketName { get; set; } = string.Empty;
+}
+
+public class RetryPolicy
+{
+    [Range(0, 10)]
+    public int MaxRetries { get; set; } = 3;
+
+    [Range(100, 60000)]
+    public int DelayMilliseconds { get; set; } = 1000;
+
+    public bool UseExponentialBackoff { get; set; } = true;
+}
+```
+
+**appsettings.json:**
+
+```json
+{
+  "CloudStorage": {
+    "Provider": "Azure",
+    "Azure": {
+      "ConnectionString": "DefaultEndpointsProtocol=https;AccountName=myaccount;AccountKey=mykey;",
+      "ContainerName": "my-container",
+      "Blob": {
+        "MaxBlockSize": 4194304,
+        "ParallelOperations": 8
+      }
+    },
+    "Aws": {
+      "AccessKey": "AKIAIOSFODNN7EXAMPLE",
+      "SecretKey": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+      "Region": "us-west-2",
+      "BucketName": "my-bucket"
+    },
+    "RetryPolicy": {
+      "MaxRetries": 3,
+      "DelayMilliseconds": 1000,
+      "UseExponentialBackoff": true
+    }
+  }
+}
+```
+
+### 🎯 Real-World Example: Storage Options (PetStore Sample)
+
+**StorageOptions.cs** (from `PetStore.Domain` sample):
+
+```csharp
+using Atc.SourceGenerators.Annotations;
+using System.ComponentModel.DataAnnotations;
+
+namespace PetStore.Domain.Options;
+
+[OptionsBinding("Storage", ValidateDataAnnotations = true)]
+public partial class StorageOptions
+{
+    // Automatically binds to "Storage:Database" subsection
+    public DatabaseSettings Database { get; set; } = new();
+
+    // Automatically binds to "Storage:FileStorage" subsection
+    public FileStorageSettings FileStorage { get; set; } = new();
+}
+
+public class DatabaseSettings
+{
+    [Required]
+    public string ConnectionString { get; set; } = string.Empty;
+
+    [Range(1, 1000)]
+    public int MaxConnections { get; set; } = 100;
+
+    public int CommandTimeout { get; set; } = 30;
+
+    // Binds to "Storage:Database:Retry" - 3 levels deep!
+    public DatabaseRetryPolicy Retry { get; set; } = new();
+}
+
+public class DatabaseRetryPolicy
+{
+    [Range(0, 10)]
+    public int MaxAttempts { get; set; } = 3;
+
+    [Range(100, 10000)]
+    public int DelayMilliseconds { get; set; } = 500;
+}
+
+public class FileStorageSettings
+{
+    [Required]
+    public string BasePath { get; set; } = string.Empty;
+
+    [Range(1, 100)]
+    public int MaxFileSizeMB { get; set; } = 10;
+
+    public IList<string> AllowedExtensions { get; set; } = new List<string> { ".jpg", ".png", ".pdf" };
+}
+```
+
+**appsettings.json (PetStore.Api):**
+
+```json
+{
+  "Storage": {
+    "Database": {
+      "ConnectionString": "Server=localhost;Database=PetStoreDb;Integrated Security=true;",
+      "MaxConnections": 100,
+      "CommandTimeout": 30,
+      "Retry": {
+        "MaxAttempts": 3,
+        "DelayMilliseconds": 500
+      }
+    },
+    "FileStorage": {
+      "BasePath": "C:\\PetStore\\Files",
+      "MaxFileSizeMB": 10,
+      "AllowedExtensions": [ ".jpg", ".png", ".pdf", ".docx" ]
+    }
+  }
+}
+```
+
+### ✨ Key Benefits
+
+- **Zero Configuration** - Just declare properties with complex types and `.Bind()` handles the rest
+- **Automatic Path Construction** - "Parent:Child:GrandChild" paths are built automatically
+- **Works with Validation** - DataAnnotations validation applies to all nested levels
+- **Unlimited Depth** - Supports deeply nested structures (3, 4, 5+ levels)
+- **Collections Supported** - List<T>, arrays, dictionaries all work automatically
+- **Type-Safe All the Way Down** - Compile-time safety for nested properties
+- **No Breaking Changes** - This feature works out-of-the-box with existing code
+
+### 🎯 Usage in Services
+
+```csharp
+using Microsoft.Extensions.Options;
+
+public class CloudStorageService
+{
+    private readonly CloudStorageOptions _options;
+
+    public CloudStorageService(IOptions<CloudStorageOptions> options)
+    {
+        _options = options.Value;
+
+        // Access nested properties directly
+        Console.WriteLine($"Provider: {_options.Provider}");
+        Console.WriteLine($"Azure Container: {_options.Azure.ContainerName}");
+        Console.WriteLine($"Azure Blob MaxBlockSize: {_options.Azure.Blob.MaxBlockSize}");
+        Console.WriteLine($"Retry MaxAttempts: {_options.RetryPolicy.MaxRetries}");
+    }
+}
+```
+
+### Generated Code
+
+The generator creates the standard binding code - Microsoft's `.Bind()` method handles all nested subsection binding automatically:
+
+```csharp
+// <auto-generated />
+services.AddOptions<CloudStorageOptions>()
+    .Bind(configuration.GetSection("CloudStorage"))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+
+// .Bind() automatically:
+// - Binds CloudStorage:Azure to Azure property
+// - Binds CloudStorage:Azure:Blob to Azure.Blob property
+// - Binds CloudStorage:Aws to Aws property
+// - Binds CloudStorage:RetryPolicy to RetryPolicy property
+```
+
 ## ✨ Key Takeaways
 
 1. **Zero Boilerplate**: No manual `AddOptions().Bind()` code to write
@@ -845,6 +1150,7 @@ public class EmailService
 8. **Error on Missing Keys**: Fail-fast validation when configuration sections are missing
 9. **Named Options**: Multiple configurations of the same type for fallback/multi-tenant scenarios
 10. **Configuration Change Callbacks**: Auto-generated IHostedService for OnChange notifications with Monitor lifetime
+11. **Nested Subsection Binding**: Automatic binding of complex properties to configuration subsections (unlimited depth)
 
 ## 🔗 Related Documentation
 

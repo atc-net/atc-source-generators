@@ -747,6 +747,7 @@ Console.WriteLine($"Other interval: {otherOptions.Value.RepeatIntervalInSeconds}
 - **🔔 Configuration change callbacks** - Automatically respond to configuration changes at runtime with `OnChange` callbacks (requires Monitor lifetime)
 - **📛 Named options** - Multiple configurations of the same options type with different names (e.g., Primary/Secondary email servers)
 - **🎯 Explicit section paths** - Support for nested sections like `"App:Database"` or `"Services:Email"`
+- **📂 Nested subsection binding** - Automatically bind complex properties to configuration subsections (e.g., `StorageOptions.Database.Retry` → `"Storage:Database:Retry"`)
 - **📦 Multiple options classes** - Register multiple configuration sections in a single assembly with one method call
 - **🏗️ Multi-project support** - Smart naming generates assembly-specific extension methods (e.g., `AddOptionsFromDomain()`, `AddOptionsFromDataAccess()`)
 - **🔗 Transitive registration** - Automatically discover and register options from referenced assemblies (4 overloads: default, auto-detect all, selective by name, selective multiple)
@@ -1465,11 +1466,186 @@ AnotherApp.Domain   → AddOptionsFromAnotherAppDomain(configuration)
 - ⚡ **Zero Configuration**: Works automatically based on compilation context
 - 🔄 **Context-Aware**: Method names adapt to the assemblies in your solution
 
-### 📂 Nested Configuration
+### 📂 Nested Configuration (Feature #6: Bind Configuration Subsections to Properties)
+
+The generator automatically handles nested configuration subsections through Microsoft's `.Bind()` method. Complex properties are automatically bound to their corresponding configuration subsections.
+
+#### 🎯 How It Works
+
+When you have properties that are complex types (not primitives like string, int, etc.), the configuration binder automatically:
+1. Detects the property is a complex type
+2. Looks for a subsection with the same name
+3. Recursively binds that subsection to the property
+
+This works for:
+- **Nested objects** - Properties with custom class types
+- **Collections** - List<T>, IEnumerable<T>, arrays
+- **Dictionaries** - Dictionary<string, string>, Dictionary<string, T>
+- **Multiple levels** - Deeply nested structures (e.g., CloudStorage → Azure → Blob)
+
+#### 📋 Example 1: Simple Nested Objects
+
+```csharp
+[OptionsBinding("Email")]
+public partial class EmailOptions
+{
+    public string From { get; set; } = string.Empty;
+
+    // Automatically binds to "Email:Smtp" subsection
+    public SmtpSettings Smtp { get; set; } = new();
+}
+
+public class SmtpSettings
+{
+    public string Host { get; set; } = string.Empty;
+    public int Port { get; set; }
+    public bool UseSsl { get; set; }
+}
+```
+
+```json
+{
+  "Email": {
+    "From": "noreply@example.com",
+    "Smtp": {
+      "Host": "smtp.example.com",
+      "Port": 587,
+      "UseSsl": true
+    }
+  }
+}
+```
+
+#### 📋 Example 2: Deeply Nested Objects (3 Levels)
+
+```csharp
+[OptionsBinding("Storage", ValidateDataAnnotations = true)]
+public partial class StorageOptions
+{
+    // Automatically binds to "Storage:Database" subsection
+    public DatabaseSettings Database { get; set; } = new();
+}
+
+public class DatabaseSettings
+{
+    [Required]
+    public string ConnectionString { get; set; } = string.Empty;
+
+    [Range(1, 1000)]
+    public int MaxConnections { get; set; } = 100;
+
+    // Automatically binds to "Storage:Database:Retry" subsection (3 levels deep!)
+    public DatabaseRetryPolicy Retry { get; set; } = new();
+}
+
+public class DatabaseRetryPolicy
+{
+    [Range(0, 10)]
+    public int MaxAttempts { get; set; } = 3;
+
+    [Range(100, 10000)]
+    public int DelayMilliseconds { get; set; } = 500;
+}
+```
+
+```json
+{
+  "Storage": {
+    "Database": {
+      "ConnectionString": "Server=localhost;Database=PetStoreDb;",
+      "MaxConnections": 100,
+      "Retry": {
+        "MaxAttempts": 3,
+        "DelayMilliseconds": 500
+      }
+    }
+  }
+}
+```
+
+#### 📋 Example 3: Real-World Scenario (Cloud Storage)
+
+```csharp
+[OptionsBinding("CloudStorage", ValidateDataAnnotations = true, ValidateOnStart = true)]
+public partial class CloudStorageOptions
+{
+    [Required]
+    public string Provider { get; set; } = string.Empty;
+
+    // Binds to "CloudStorage:Azure"
+    public AzureStorageSettings Azure { get; set; } = new();
+
+    // Binds to "CloudStorage:Aws"
+    public AwsS3Settings Aws { get; set; } = new();
+
+    // Binds to "CloudStorage:RetryPolicy"
+    public RetryPolicy RetryPolicy { get; set; } = new();
+}
+
+public class AzureStorageSettings
+{
+    [Required]
+    public string ConnectionString { get; set; } = string.Empty;
+
+    public string ContainerName { get; set; } = string.Empty;
+
+    // Binds to "CloudStorage:Azure:Blob" (deeply nested!)
+    public BlobSettings Blob { get; set; } = new();
+}
+
+public class BlobSettings
+{
+    public int MaxBlockSize { get; set; } = 4194304; // 4 MB
+    public int ParallelOperations { get; set; } = 8;
+}
+```
+
+```json
+{
+  "CloudStorage": {
+    "Provider": "Azure",
+    "Azure": {
+      "ConnectionString": "DefaultEndpointsProtocol=https;AccountName=myaccount;",
+      "ContainerName": "my-container",
+      "Blob": {
+        "MaxBlockSize": 4194304,
+        "ParallelOperations": 8
+      }
+    },
+    "Aws": {
+      "AccessKey": "AKIAIOSFODNN7EXAMPLE",
+      "SecretKey": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+      "Region": "us-west-2",
+      "BucketName": "my-bucket"
+    },
+    "RetryPolicy": {
+      "MaxRetries": 3,
+      "DelayMilliseconds": 1000,
+      "UseExponentialBackoff": true
+    }
+  }
+}
+```
+
+#### 🎯 Key Points
+
+- **Zero extra configuration** - Just declare properties with complex types
+- **Automatic path construction** - "Parent:Child:GrandChild" paths are built automatically
+- **Works with validation** - DataAnnotations validation applies to all nested levels
+- **Unlimited depth** - Support for deeply nested structures
+- **Collections supported** - List<T>, arrays, dictionaries all work automatically
+
+#### 📍 Explicit Nested Paths
+
+You can also explicitly specify the full nested path in the attribute:
 
 ```csharp
 [OptionsBinding("App:Services:Email:Smtp")]
-public partial class SmtpOptions { }
+public partial class SmtpOptions
+{
+    public string Host { get; set; } = string.Empty;
+    public int Port { get; set; } = 587;
+}
 ```
 
 ```json
