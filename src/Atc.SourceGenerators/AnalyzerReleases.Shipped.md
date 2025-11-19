@@ -7,8 +7,8 @@
 
 Rule ID | Category | Severity | Notes
 --------|----------|----------|-------
-ATCDIR001 | DependencyInjection | Error | Service 'As' type must be an interface
-ATCDIR002 | DependencyInjection | Error | Class does not implement specified interface
+ATCDIR001 | DependencyInjection | Error | Service 'As' type must be an interface or abstract class
+ATCDIR002 | DependencyInjection | Error | Class does not implement specified interface or inherit from abstract class
 ATCDIR003 | DependencyInjection | Warning | Duplicate service registration with different lifetime
 ATCDIR004 | DependencyInjection | Error | Hosted services must use Singleton lifetime
 ATCDIR005 | DependencyInjection | Error | Factory method not found
@@ -30,6 +30,9 @@ ATCOPT010 | OptionsBinding | Error | PostConfigure callback method has invalid s
 ATCOPT011 | OptionsBinding | Error | ConfigureAll requires multiple named options
 ATCOPT012 | OptionsBinding | Error | ConfigureAll callback method not found
 ATCOPT013 | OptionsBinding | Error | ConfigureAll callback method has invalid signature
+ATCOPT014 | OptionsBinding | Error | ChildSections cannot be used with Name property
+ATCOPT015 | OptionsBinding | Error | ChildSections requires at least 2 items
+ATCOPT016 | OptionsBinding | Error | ChildSections items cannot be null or empty
 ATCMAP001 | ObjectMapping | Error | Mapping class must be partial
 ATCMAP002 | ObjectMapping | Error | Target type must be a class or struct
 ATCMAP003 | ObjectMapping | Error | MapProperty target property not found

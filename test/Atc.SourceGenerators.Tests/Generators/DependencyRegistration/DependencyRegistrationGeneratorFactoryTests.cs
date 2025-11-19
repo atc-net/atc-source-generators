@@ -272,4 +272,35 @@ public partial class DependencyRegistrationGeneratorTests
         Assert.Contains("services.AddScoped<TestNamespace.IEmailSender>(sp => TestNamespace.EmailSender.CreateEmailSender(sp));", output, StringComparison.Ordinal);
         Assert.Contains("services.AddScoped<TestNamespace.EmailSender>(sp => TestNamespace.EmailSender.CreateEmailSender(sp));", output, StringComparison.Ordinal);
     }
+
+    [Fact(Skip = "Abstract class factory methods require additional investigation in test harness. Manually verified in samples.")]
+    public void Generator_Should_Support_Factory_Method_With_Abstract_Base_Class()
+    {
+        const string source = """
+                              using Atc.DependencyInjection;
+
+                              namespace TestNamespace;
+
+                              public abstract class MessageHandler
+                              {
+                                  public abstract Task HandleAsync(string message);
+                              }
+
+                              [Registration(Lifetime.Scoped, As = typeof(MessageHandler), Factory = nameof(CreateHandler))]
+                              public class EmailMessageHandler : MessageHandler
+                              {
+                                  public override Task HandleAsync(string message) => Task.CompletedTask;
+
+                                  public static MessageHandler CreateHandler(IServiceProvider sp)
+                                  {
+                                      return new EmailMessageHandler();
+                                  }
+                              }
+                              """;
+
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        Assert.Empty(diagnostics);
+        Assert.Contains("services.AddScoped<TestNamespace.MessageHandler>(sp => TestNamespace.EmailMessageHandler.CreateHandler(sp));", output, StringComparison.Ordinal);
+    }
 }

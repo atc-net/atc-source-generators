@@ -39,7 +39,7 @@ public partial class DependencyRegistrationGeneratorTests
             .ToImmutableArray();
 
         var output = string.Join(
-            "\n",
+            Constants.LineFeed,
             outputCompilation
                 .SyntaxTrees
                 .Skip(1)
@@ -81,7 +81,7 @@ public partial class DependencyRegistrationGeneratorTests
 
         // Get referenced assembly output
         var referencedOutput = string.Join(
-            "\n",
+            Constants.LineFeed,
             referencedOutputCompilation
                 .SyntaxTrees
                 .Skip(1)
@@ -117,7 +117,7 @@ public partial class DependencyRegistrationGeneratorTests
             .ToImmutableArray();
 
         var currentOutput = string.Join(
-            "\n",
+            Constants.LineFeed,
             currentOutputCompilation
                 .SyntaxTrees
                 .Skip(1)
@@ -168,7 +168,7 @@ public partial class DependencyRegistrationGeneratorTests
                                 d.Id.StartsWith("ATCDIR", StringComparison.Ordinal)));
 
             var output = string.Join(
-                "\n",
+                Constants.LineFeed,
                 outputCompilation
                     .SyntaxTrees
                     .Skip(1)

@@ -41,7 +41,7 @@ public partial class ObjectMappingGeneratorTests
             .ToImmutableArray();
 
         var output = string.Join(
-            "\n",
+            Constants.LineFeed,
             outputCompilation
                 .SyntaxTrees
                 .Skip(1)

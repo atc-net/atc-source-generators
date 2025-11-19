@@ -323,7 +323,7 @@ public partial class DependencyRegistrationGeneratorTests
         Assert.Empty(diagnostics);
 
         // Check the auto-detect overload has the parameters
-        var lines = output.Split('\n');
+        var lines = output.Split(Constants.LineFeed);
         var autoDetectOverloadIndex = Array.FindIndex(lines, l => l.Contains("bool includeReferencedAssemblies,", StringComparison.Ordinal));
         Assert.True(autoDetectOverloadIndex > 0, "Should find auto-detect overload");
 

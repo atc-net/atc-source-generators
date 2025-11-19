@@ -127,7 +127,7 @@ public partial class ObjectMappingGeneratorTests
         Assert.Contains("Order.EnrichOrder(source, target);", output, StringComparison.Ordinal);
 
         // Verify hook order in update method
-        var outputLines = output.Split('\n');
+        var outputLines = output.Split(Constants.LineFeed);
         var beforeMapIndex = Array.FindIndex(outputLines, line => line.Contains(".ValidateOrder(source);", StringComparison.Ordinal));
         var assignmentIndex = Array.FindIndex(outputLines, line => line.Contains("target.Id = source.Id;", StringComparison.Ordinal));
         var afterMapIndex = Array.FindIndex(outputLines, line => line.Contains(".EnrichOrder(source, target);", StringComparison.Ordinal));

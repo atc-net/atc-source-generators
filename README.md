@@ -248,8 +248,8 @@ Get errors at compile time, not runtime:
 
 | ID | Description |
 |----|-------------|
-| ATCDIR001 | `As` parameter must be an interface type |
-| ATCDIR002 | Class must implement the specified interface |
+| ATCDIR001 | `As` parameter must be an interface or abstract class type |
+| ATCDIR002 | Class must implement the specified interface or inherit from abstract class |
 | ATCDIR003 | Duplicate registration with different lifetimes |
 | ATCDIR004 | Hosted services must use Singleton lifetime |
 | ATCDIR005 | Factory method not found |
