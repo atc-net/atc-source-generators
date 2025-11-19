@@ -59,13 +59,15 @@ This roadmap is based on comprehensive analysis of:
 - **Error on missing keys** - `ErrorOnMissingKeys` fail-fast validation when configuration sections are missing
 - **Configuration change callbacks** - `OnChange` callbacks for Monitor lifetime (auto-generates IHostedService)
 - **Post-configuration support** - `PostConfigure` callbacks for normalizing/transforming values after binding (e.g., path normalization, URL lowercase)
+- **ConfigureAll support** - Set common defaults for all named options instances before individual binding
+- **Child sections** - Simplified syntax for multiple named instances from subsections (e.g., `Email` → Primary/Secondary/Fallback)
 - **Nested subsection binding** - Automatic binding of complex properties to configuration subsections (e.g., `Storage:Database:Retry`)
 - **Lifetime selection** - Singleton (`IOptions`), Scoped (`IOptionsSnapshot`), Monitor (`IOptionsMonitor`)
 - **Multi-project support** - Assembly-specific extension methods with smart naming
 - **Transitive registration** - 4 overloads for automatic/selective assembly registration
 - **Partial class requirement** - Enforced at compile time
 - **Native AOT compatible** - Zero reflection, compile-time generation
-- **Compile-time diagnostics** - Validate partial class, section names, OnChange/PostConfigure callbacks (ATCOPT001-010)
+- **Compile-time diagnostics** - Validate partial class, section names, OnChange/PostConfigure/ConfigureAll callbacks, ChildSections usage (ATCOPT001-016)
 
 ---
 
@@ -80,7 +82,7 @@ This roadmap is based on comprehensive analysis of:
 | ✅ | [Configuration Change Callbacks](#5-configuration-change-callbacks) | 🟡 Medium |
 | ✅ | [Bind Configuration Subsections to Properties](#6-bind-configuration-subsections-to-properties) | 🟡 Medium |
 | ✅ | [ConfigureAll Support](#7-configureall-support) | 🟢 Low-Medium |
-| ❌ | [Options Snapshots for Specific Sections](#8-options-snapshots-for-specific-sections) | 🟢 Low-Medium |
+| ✅ | [Child Sections (Simplified Named Options)](#8-child-sections-simplified-named-options) | 🟢 Low-Medium |
 | ❌ | [Compile-Time Section Name Validation](#9-compile-time-section-name-validation) | 🟡 Medium |
 | ❌ | [Auto-Generate Options Classes from appsettings.json](#10-auto-generate-options-classes-from-appsettingsjson) | 🟢 Low |
 | ❌ | [Environment-Specific Validation](#11-environment-specific-validation) | 🟢 Low |
@@ -666,12 +668,177 @@ services.Configure<EmailOptions>("Fallback", config.GetSection("Email:Fallback")
 
 These features would improve usability but are not critical.
 
-### 8. Options Snapshots for Specific Sections
+### 8. Child Sections (Simplified Named Options)
 
 **Priority**: 🟢 **Low-Medium**
-**Status**: ❌ Not Implemented
+**Status**: ✅ **Implemented**
+**Inspiration**: Community feedback on reducing boilerplate for multiple named instances
 
-**Description**: Support binding multiple sections dynamically at runtime using `IOptionsSnapshot`.
+**Description**: Provide a simplified syntax for creating multiple named options instances from configuration subsections. Instead of writing multiple `[OptionsBinding]` attributes for each named instance, developers can use a single `ChildSections` property.
+
+**User Story**:
+> "As a developer, I want to configure multiple related named options (Primary/Secondary/Fallback servers, Email/SMS/Push channels) without repeating multiple attribute declarations."
+
+**Example**:
+
+**Before (Multiple Attributes):**
+
+```csharp
+[OptionsBinding("Email:Primary", Name = "Primary", ConfigureAll = nameof(SetDefaults))]
+[OptionsBinding("Email:Secondary", Name = "Secondary")]
+[OptionsBinding("Email:Fallback", Name = "Fallback")]
+public partial class EmailOptions
+{
+    public string SmtpServer { get; set; } = string.Empty;
+    public int Port { get; set; } = 587;
+    public bool UseSsl { get; set; } = true;
+
+    internal static void SetDefaults(EmailOptions options)
+    {
+        options.Port = 587;
+        options.UseSsl = true;
+        options.MaxRetries = 3;
+    }
+}
+```
+
+**After (With ChildSections):**
+
+```csharp
+[OptionsBinding("Email", ChildSections = new[] { "Primary", "Secondary", "Fallback" }, ConfigureAll = nameof(SetDefaults))]
+public partial class EmailOptions
+{
+    public string SmtpServer { get; set; } = string.Empty;
+    public int Port { get; set; } = 587;
+    public bool UseSsl { get; set; } = true;
+
+    internal static void SetDefaults(EmailOptions options)
+    {
+        options.Port = 587;
+        options.UseSsl = true;
+        options.MaxRetries = 3;
+    }
+}
+```
+
+**Generated Code (Identical for Both):**
+
+```csharp
+// Configure defaults for ALL instances FIRST
+services.ConfigureAll<EmailOptions>(options => EmailOptions.SetDefaults(options));
+
+// Configure individual named instances
+services.Configure<EmailOptions>("Primary", configuration.GetSection("Email:Primary"));
+services.Configure<EmailOptions>("Secondary", configuration.GetSection("Email:Secondary"));
+services.Configure<EmailOptions>("Fallback", configuration.GetSection("Email:Fallback"));
+```
+
+**Real-World Example (PetStore Sample):**
+
+```csharp
+/// <summary>
+/// Notification channel options with support for multiple named configurations.
+/// Demonstrates ChildSections + ConfigureAll for common defaults.
+/// </summary>
+[OptionsBinding("Notifications", ChildSections = new[] { "Email", "SMS", "Push" }, ConfigureAll = nameof(SetCommonDefaults))]
+public partial class NotificationOptions
+{
+    public bool Enabled { get; set; }
+    public string Provider { get; set; } = string.Empty;
+    public string ApiKey { get; set; } = string.Empty;
+    public string SenderId { get; set; } = string.Empty;
+    public int TimeoutSeconds { get; set; } = 30;
+    public int MaxRetries { get; set; } = 3;
+    public int RateLimitPerMinute { get; set; }
+
+    internal static void SetCommonDefaults(NotificationOptions options)
+    {
+        options.TimeoutSeconds = 30;
+        options.MaxRetries = 3;
+        options.RateLimitPerMinute = 60;
+        options.Enabled = true;
+    }
+}
+```
+
+**Configuration (appsettings.json):**
+
+```json
+{
+  "Notifications": {
+    "Email": {
+      "Enabled": true,
+      "Provider": "SendGrid",
+      "ApiKey": "your-api-key",
+      "SenderId": "noreply@example.com",
+      "TimeoutSeconds": 30,
+      "MaxRetries": 3
+    },
+    "SMS": {
+      "Enabled": false,
+      "Provider": "Twilio",
+      "ApiKey": "your-api-key",
+      "SenderId": "+1234567890",
+      "TimeoutSeconds": 15,
+      "MaxRetries": 2
+    },
+    "Push": {
+      "Enabled": true,
+      "Provider": "Firebase",
+      "ApiKey": "your-server-key",
+      "SenderId": "app-id",
+      "TimeoutSeconds": 20,
+      "MaxRetries": 3
+    }
+  }
+}
+```
+
+**Implementation Details**:
+
+- ✅ Added `ChildSections` string array property to `[OptionsBinding]` attribute
+- ✅ Generator expands ChildSections into multiple OptionsInfo instances at extraction time
+- ✅ Each child section becomes a named instance: `Parent:Child` section path with `Child` as the name
+- ✅ **Works with all named options features**: ConfigureAll, validation, ErrorOnMissingKeys, custom validators
+- ✅ **Validation support**: Named options with ChildSections can use fluent API for validation
+- ✅ **Mutual exclusivity**: Cannot be combined with `Name` property (compile-time error ATCOPT014)
+- ✅ **Minimum 2 items**: Requires at least 2 child sections (compile-time error ATCOPT015)
+- ✅ **No null/empty items**: All child section names must be non-empty (compile-time error ATCOPT016)
+- ✅ **Nested paths supported**: Works with paths like `"App:Services:Cache"` → `"App:Services:Cache:Redis"`
+
+**Diagnostics**:
+
+- **ATCOPT014**: ChildSections cannot be used with Name property
+- **ATCOPT015**: ChildSections requires at least 2 items (found X item(s))
+- **ATCOPT016**: ChildSections array contains null or empty value at index X
+
+**Testing**:
+
+- ✅ 13 comprehensive unit tests covering all scenarios and error cases
+- ✅ Sample project: EmailOptions demonstrates Primary/Secondary/Fallback with ConfigureAll
+- ✅ PetStore.Api sample: NotificationOptions demonstrates Email/SMS/Push channels
+- ✅ All existing tests pass (275 succeeded, 0 failed, 33 skipped)
+
+**Key Benefits**:
+
+1. **Less Boilerplate**: One attribute instead of 3+ separate declarations
+2. **Clearer Intent**: Explicitly shows configurations are grouped under common parent
+3. **Easier Maintenance**: Add/remove sections by updating the array
+4. **Feature Complete**: Supports all named options capabilities (validation, ConfigureAll, validators)
+5. **Same Power**: Generates identical code to multiple attributes approach
+
+**Use Cases**:
+
+- **Notification Channels**: Email, SMS, Push configurations (as shown in PetStore sample)
+- **Database Fallback**: Primary, Secondary, Tertiary connections
+- **Multi-Region APIs**: USEast, USWest, EUWest, APSouth endpoints
+- **Cache Tiers**: L1, L2, L3 cache configurations
+- **Multi-Tenant**: Tenant1, Tenant2, Tenant3 configurations
+
+**Design Decision**:
+
+- **Expansion at extraction time**: ChildSections array is expanded into multiple OptionsInfo instances during attribute extraction, not at code generation. This simplifies generator logic and ensures all features work consistently.
+- **No OnChange support**: Like regular named options, ChildSections-based instances don't support OnChange callbacks (use `IOptionsMonitor<T>.OnChange()` manually if needed).
 
 ---
 

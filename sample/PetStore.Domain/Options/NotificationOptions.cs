@@ -2,13 +2,17 @@ namespace PetStore.Domain.Options;
 
 /// <summary>
 /// Notification channel options with support for multiple named configurations.
-/// Demonstrates Named Options feature for configuring multiple notification channels
-/// (Email, SMS, Push) with different settings.
-/// Also demonstrates ConfigureAll to set common defaults for all notification channels.
+/// This class demonstrates the ChildSections feature which provides a concise way to create
+/// multiple named instances from child configuration sections.
+/// It also demonstrates the ConfigureAll feature which sets default values for ALL named instances.
 /// </summary>
-[OptionsBinding("Notifications:Email", Name = "Email", ConfigureAll = nameof(SetCommonDefaults))]
-[OptionsBinding("Notifications:SMS", Name = "SMS")]
-[OptionsBinding("Notifications:Push", Name = "Push")]
+/// <remarks>
+/// Using ChildSections = new[] { "Email", "SMS", "Push" } is equivalent to:
+/// [OptionsBinding("Notifications:Email", Name = "Email")]
+/// [OptionsBinding("Notifications:SMS", Name = "SMS")]
+/// [OptionsBinding("Notifications:Push", Name = "Push")]
+/// </remarks>
+[OptionsBinding("Notifications", ChildSections = new[] { "Email", "SMS", "Push" }, ConfigureAll = nameof(SetCommonDefaults))]
 public partial class NotificationOptions
 {
     /// <summary>

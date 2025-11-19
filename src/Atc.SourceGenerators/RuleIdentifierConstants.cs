@@ -131,6 +131,21 @@ internal static class RuleIdentifierConstants
         /// ATCOPT013: ConfigureAll callback method has invalid signature.
         /// </summary>
         internal const string ConfigureAllCallbackInvalidSignature = "ATCOPT013";
+
+        /// <summary>
+        /// ATCOPT014: ChildSections cannot be used with Name property.
+        /// </summary>
+        internal const string ChildSectionsCannotBeUsedWithName = "ATCOPT014";
+
+        /// <summary>
+        /// ATCOPT015: ChildSections requires at least 2 items.
+        /// </summary>
+        internal const string ChildSectionsRequiresAtLeastTwoItems = "ATCOPT015";
+
+        /// <summary>
+        /// ATCOPT016: ChildSections items cannot be null or empty.
+        /// </summary>
+        internal const string ChildSectionsItemsCannotBeNullOrEmpty = "ATCOPT016";
     }
 
     /// <summary>

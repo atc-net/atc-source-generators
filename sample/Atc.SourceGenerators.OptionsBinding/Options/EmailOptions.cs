@@ -2,13 +2,17 @@ namespace Atc.SourceGenerators.OptionsBinding.Options;
 
 /// <summary>
 /// Email server options with support for multiple named configurations.
-/// This class demonstrates the Named Options feature which allows the same options type
-/// to be bound to different configuration sections using different names.
+/// This class demonstrates the ChildSections feature which provides a concise way to create
+/// multiple named instances from child configuration sections.
 /// It also demonstrates the ConfigureAll feature which sets default values for ALL named instances.
 /// </summary>
-[OptionsBinding("Email:Primary", Name = "Primary", ConfigureAll = nameof(SetDefaults))]
-[OptionsBinding("Email:Secondary", Name = "Secondary")]
-[OptionsBinding("Email:Fallback", Name = "Fallback")]
+/// <remarks>
+/// Using ChildSections = new[] { "Primary", "Secondary", "Fallback" } is equivalent to:
+/// [OptionsBinding("Email:Primary", Name = "Primary")]
+/// [OptionsBinding("Email:Secondary", Name = "Secondary")]
+/// [OptionsBinding("Email:Fallback", Name = "Fallback")]
+/// </remarks>
+[OptionsBinding("Email", ChildSections = new[] { "Primary", "Secondary", "Fallback" }, ConfigureAll = nameof(SetDefaults))]
 public partial class EmailOptions
 {
     /// <summary>

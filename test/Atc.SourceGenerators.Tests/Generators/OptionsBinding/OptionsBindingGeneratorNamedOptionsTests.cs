@@ -117,7 +117,7 @@ public partial class OptionsBindingGeneratorTests
     }
 
     [Fact]
-    public void Generator_Should_Not_Include_Validation_Chain_For_Named_Options()
+    public void Generator_Should_Include_Validation_Chain_For_Named_Options()
     {
         // Arrange
         const string source = """
@@ -142,16 +142,15 @@ public partial class OptionsBindingGeneratorTests
         var generatedCode = GetGeneratedExtensionMethod(output);
         Assert.NotNull(generatedCode);
 
-        // Verify named options registration is present
-        Assert.Contains("services.Configure<global::MyApp.Configuration.EmailOptions>(\"Primary\", configuration.GetSection(\"AppSettings:Email\"));", generatedCode, StringComparison.Ordinal);
-
-        // Verify that validation methods are NOT called for named options
-        Assert.DoesNotContain("ValidateDataAnnotations()", generatedCode, StringComparison.Ordinal);
-        Assert.DoesNotContain("ValidateOnStart()", generatedCode, StringComparison.Ordinal);
+        // Verify named options use AddOptions pattern with validation when validation is requested
+        Assert.Contains("services.AddOptions<global::MyApp.Configuration.EmailOptions>(\"Primary\")", generatedCode, StringComparison.Ordinal);
+        Assert.Contains(".Bind(configuration.GetSection(\"AppSettings:Email\"))", generatedCode, StringComparison.Ordinal);
+        Assert.Contains(".ValidateDataAnnotations()", generatedCode, StringComparison.Ordinal);
+        Assert.Contains(".ValidateOnStart()", generatedCode, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void Generator_Should_Not_Register_Validator_For_Named_Options()
+    public void Generator_Should_Register_Validator_For_Named_Options()
     {
         // Arrange
         const string source = """
@@ -185,11 +184,11 @@ public partial class OptionsBindingGeneratorTests
         var generatedCode = GetGeneratedExtensionMethod(output);
         Assert.NotNull(generatedCode);
 
-        // Verify named options registration is present
+        // Verify named options use simple Configure pattern (no validation properties)
         Assert.Contains("services.Configure<global::MyApp.Configuration.EmailOptions>(\"Primary\", configuration.GetSection(\"AppSettings:Email\"));", generatedCode, StringComparison.Ordinal);
 
-        // Verify that validator registration is NOT present for named options
-        Assert.DoesNotContain("AddSingleton<global::Microsoft.Extensions.Options.IValidateOptions", generatedCode, StringComparison.Ordinal);
+        // Verify that validator registration IS present (works for both named and unnamed options)
+        Assert.Contains("services.AddSingleton<global::Microsoft.Extensions.Options.IValidateOptions<global::MyApp.Configuration.EmailOptions>, global::MyApp.Configuration.EmailOptionsValidator>();", generatedCode, StringComparison.Ordinal);
     }
 
     [Fact]

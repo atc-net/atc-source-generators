@@ -12,6 +12,7 @@ This sample demonstrates the **OptionsBindingGenerator** in a multi-project cons
 - **Validation at startup** with Data Annotations
 - **Custom validation** using IValidateOptions<T> for complex business rules
 - **Configuration change callbacks** - Automatic OnChange notifications with Monitor lifetime
+- **Child sections** - Simplified syntax for multiple named configurations (Email → Primary/Secondary/Fallback)
 - **Nested subsection binding** - Automatic binding of complex properties to configuration subsections
 
 ## 📁 Sample Projects
@@ -847,6 +848,275 @@ public class EmailService
 - **Multi-Tenant**: Tenant-specific configurations
 - **Environment Tiers**: Production, Staging, Development endpoints
 
+## 🎯 Child Sections (Simplified Named Options)
+
+**Child Sections** provide a simplified syntax for creating multiple named options instances from configuration subsections. This feature dramatically reduces boilerplate when you have multiple related configurations under a common parent section.
+
+### Before vs After
+
+**Before (Multiple Attributes):**
+
+```csharp
+[OptionsBinding("Email:Primary", Name = "Primary", ConfigureAll = nameof(SetDefaults))]
+[OptionsBinding("Email:Secondary", Name = "Secondary")]
+[OptionsBinding("Email:Fallback", Name = "Fallback")]
+public partial class EmailOptions
+{
+    public string SmtpServer { get; set; } = string.Empty;
+    public int Port { get; set; } = 587;
+}
+```
+
+**After (With ChildSections):**
+
+```csharp
+[OptionsBinding("Email", ChildSections = new[] { "Primary", "Secondary", "Fallback" }, ConfigureAll = nameof(SetDefaults))]
+public partial class EmailOptions
+{
+    public string SmtpServer { get; set; } = string.Empty;
+    public int Port { get; set; } = 587;
+}
+```
+
+**Both generate identical code** - one attribute instead of three!
+
+### 📋 Real-World Example: Notification Channels (PetStore Sample)
+
+**NotificationOptions.cs** (from `PetStore.Domain` sample):
+
+```csharp
+using Atc.SourceGenerators.Annotations;
+
+namespace PetStore.Domain.Options;
+
+/// <summary>
+/// Notification channel options with support for multiple named configurations.
+/// This class demonstrates the ChildSections feature which provides a concise way to create
+/// multiple named instances from child configuration sections.
+/// It also demonstrates the ConfigureAll feature which sets default values for ALL named instances.
+/// </summary>
+/// <remarks>
+/// Using ChildSections = new[] { "Email", "SMS", "Push" } is equivalent to:
+/// [OptionsBinding("Notifications:Email", Name = "Email")]
+/// [OptionsBinding("Notifications:SMS", Name = "SMS")]
+/// [OptionsBinding("Notifications:Push", Name = "Push")]
+/// </remarks>
+[OptionsBinding("Notifications", ChildSections = new[] { "Email", "SMS", "Push" }, ConfigureAll = nameof(SetCommonDefaults))]
+public partial class NotificationOptions
+{
+    /// <summary>
+    /// Gets or sets a value indicating whether this notification channel is enabled.
+    /// </summary>
+    public bool Enabled { get; set; }
+
+    /// <summary>
+    /// Gets or sets the provider name for this notification channel.
+    /// </summary>
+    public string Provider { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the API key or credential for the provider.
+    /// </summary>
+    public string ApiKey { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the sender identifier (email address, phone number, or app ID).
+    /// </summary>
+    public string SenderId { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the timeout in seconds for notification delivery.
+    /// </summary>
+    public int TimeoutSeconds { get; set; } = 30;
+
+    /// <summary>
+    /// Gets or sets the maximum retry attempts.
+    /// </summary>
+    public int MaxRetries { get; set; } = 3;
+
+    /// <summary>
+    /// Gets or sets the rate limit (max notifications per minute).
+    /// </summary>
+    public int RateLimitPerMinute { get; set; }
+
+    /// <summary>
+    /// Sets common default values for ALL notification channels.
+    /// This method runs BEFORE individual configuration binding, ensuring all channels
+    /// have consistent baseline settings that can be overridden per channel.
+    /// </summary>
+    internal static void SetCommonDefaults(NotificationOptions options)
+    {
+        // Set common defaults for all notification channels
+        options.TimeoutSeconds = 30;
+        options.MaxRetries = 3;
+        options.RateLimitPerMinute = 60;
+        options.Enabled = true;
+    }
+}
+```
+
+**appsettings.json (PetStore.Api):**
+
+```json
+{
+  "Notifications": {
+    "Email": {
+      "Enabled": true,
+      "Provider": "SendGrid",
+      "ApiKey": "your-sendgrid-api-key",
+      "SenderId": "noreply@petstoredemo.com",
+      "TimeoutSeconds": 30,
+      "MaxRetries": 3
+    },
+    "SMS": {
+      "Enabled": false,
+      "Provider": "Twilio",
+      "ApiKey": "your-twilio-api-key",
+      "SenderId": "+1234567890",
+      "TimeoutSeconds": 15,
+      "MaxRetries": 2
+    },
+    "Push": {
+      "Enabled": true,
+      "Provider": "Firebase",
+      "ApiKey": "your-firebase-server-key",
+      "SenderId": "petstore-app",
+      "TimeoutSeconds": 20,
+      "MaxRetries": 3
+    }
+  }
+}
+```
+
+### Generated Code
+
+```csharp
+// <auto-generated />
+namespace Atc.SourceGenerators.Annotations;
+
+public static class ServiceCollectionExtensions
+{
+    public static IServiceCollection AddOptionsFromDomain(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        // Configure defaults for ALL notification channels FIRST
+        services.ConfigureAll<global::PetStore.Domain.Options.NotificationOptions>(
+            options => global::PetStore.Domain.Options.NotificationOptions.SetCommonDefaults(options));
+
+        // Configure NotificationOptions (Named: "Email") - Inject using IOptionsSnapshot<T>.Get("Email")
+        services.Configure<global::PetStore.Domain.Options.NotificationOptions>(
+            "Email", configuration.GetSection("Notifications:Email"));
+
+        // Configure NotificationOptions (Named: "SMS") - Inject using IOptionsSnapshot<T>.Get("SMS")
+        services.Configure<global::PetStore.Domain.Options.NotificationOptions>(
+            "SMS", configuration.GetSection("Notifications:SMS"));
+
+        // Configure NotificationOptions (Named: "Push") - Inject using IOptionsSnapshot<T>.Get("Push")
+        services.Configure<global::PetStore.Domain.Options.NotificationOptions>(
+            "Push", configuration.GetSection("Notifications:Push"));
+
+        return services;
+    }
+}
+```
+
+### Usage in Services
+
+```csharp
+public class NotificationService
+{
+    private readonly IOptionsSnapshot<NotificationOptions> _notificationOptions;
+    private readonly ILogger<NotificationService> _logger;
+
+    public NotificationService(
+        IOptionsSnapshot<NotificationOptions> notificationOptions,
+        ILogger<NotificationService> logger)
+    {
+        _notificationOptions = notificationOptions;
+        _logger = logger;
+    }
+
+    public async Task SendAsync(string channel, string message)
+    {
+        // Get the specific channel configuration
+        var options = _notificationOptions.Get(channel);
+
+        if (!options.Enabled)
+        {
+            _logger.LogInformation("Notification channel {Channel} is disabled", channel);
+            return;
+        }
+
+        _logger.LogInformation(
+            "Sending notification via {Provider} (timeout: {Timeout}s, retries: {MaxRetries})",
+            options.Provider,
+            options.TimeoutSeconds,
+            options.MaxRetries);
+
+        // Send notification using the configured provider
+        await SendViaProvider(options, message);
+    }
+
+    public async Task SendWithFallbackAsync(string message)
+    {
+        // Try Email first
+        if (await TrySendAsync("Email", message))
+            return;
+
+        // Fallback to SMS
+        if (await TrySendAsync("SMS", message))
+            return;
+
+        // Last resort: Push notification
+        await TrySendAsync("Push", message);
+    }
+
+    private async Task<bool> TrySendAsync(string channel, string message)
+    {
+        try
+        {
+            await SendAsync(channel, message);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to send via {Channel}", channel);
+            return false;
+        }
+    }
+
+    private async Task SendViaProvider(NotificationOptions options, string message)
+    {
+        // Implement provider-specific sending logic
+        await Task.CompletedTask;
+    }
+}
+```
+
+### ✨ Key Benefits
+
+1. **Less Boilerplate**: One attribute line instead of many
+2. **Clearer Intent**: Explicitly shows related configurations are grouped under a parent
+3. **Easier Maintenance**: Add/remove channels by updating the array
+4. **Works with All Features**: ConfigureAll, validation, ErrorOnMissingKeys all supported
+5. **Same Power**: Generates identical code to multiple attributes approach
+
+### 🎯 Common Use Cases
+
+- **Notification Channels**: Email, SMS, Push configurations
+- **Database Fallback**: Primary, Secondary, Tertiary database connections
+- **Multi-Region APIs**: USEast, USWest, EUWest, APSouth endpoints
+- **Cache Tiers**: L1, L2, L3 cache configurations
+- **Environment Tiers**: Dev, Staging, Prod configurations
+
+### ⚠️ Validation Rules
+
+- **Requires at least 2 child sections** (use regular attributes for single instances)
+- **Cannot be combined with `Name` property** (mutually exclusive)
+- **Child section names cannot be null or empty**
+- **Works seamlessly with ConfigureAll** to set baseline defaults for all instances
+
 ## 📂 Nested Subsection Binding (Feature #6)
 
 The **OptionsBindingGenerator** automatically handles nested configuration subsections through Microsoft's `.Bind()` method. Complex properties are automatically bound to their corresponding configuration subsections without any additional configuration.
@@ -1162,8 +1432,9 @@ services.AddOptions<CloudStorageOptions>()
 7. **Startup Validation**: Catch configuration errors before runtime
 8. **Error on Missing Keys**: Fail-fast validation when configuration sections are missing
 9. **Named Options**: Multiple configurations of the same type for fallback/multi-tenant scenarios
-10. **Configuration Change Callbacks**: Auto-generated IHostedService for OnChange notifications with Monitor lifetime
-11. **Nested Subsection Binding**: Automatic binding of complex properties to configuration subsections (unlimited depth)
+10. **Child Sections**: Simplified syntax for creating multiple named instances from configuration subsections
+11. **Configuration Change Callbacks**: Auto-generated IHostedService for OnChange notifications with Monitor lifetime
+12. **Nested Subsection Binding**: Automatic binding of complex properties to configuration subsections (unlimited depth)
 
 ## 🔗 Related Documentation
 
