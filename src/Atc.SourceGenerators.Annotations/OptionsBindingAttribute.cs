@@ -92,4 +92,19 @@ public sealed class OptionsBindingAttribute : Attribute
     /// The callback is invoked whenever the configuration file changes and is reloaded.
     /// </remarks>
     public string? OnChange { get; set; }
+
+    /// <summary>
+    /// Gets or sets the name of a static method to call after configuration binding and validation.
+    /// The method must have the signature: <c>static void MethodName(TOptions options)</c>
+    /// where TOptions is the options class type.
+    /// This is useful for applying defaults, normalizing values, or computing derived properties.
+    /// The post-configuration action runs after binding and validation, using the <c>.PostConfigure()</c> pattern.
+    /// Default is null (no post-configuration).
+    /// </summary>
+    /// <remarks>
+    /// Post-configuration is executed after the options are bound from configuration and after validation.
+    /// This allows for final transformations like ensuring paths end with separators, normalizing URLs, or setting computed properties.
+    /// Cannot be used with named options.
+    /// </remarks>
+    public string? PostConfigure { get; set; }
 }
