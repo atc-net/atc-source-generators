@@ -81,6 +81,26 @@ internal static class RuleIdentifierConstants
         /// ATCOPT003: Const section name cannot be null or empty.
         /// </summary>
         internal const string ConstSectionNameCannotBeEmpty = "ATCOPT003";
+
+        /// <summary>
+        /// ATCOPT004: OnChange callback requires Monitor lifetime.
+        /// </summary>
+        internal const string OnChangeRequiresMonitorLifetime = "ATCOPT004";
+
+        /// <summary>
+        /// ATCOPT005: OnChange callback not supported with named options.
+        /// </summary>
+        internal const string OnChangeNotSupportedWithNamedOptions = "ATCOPT005";
+
+        /// <summary>
+        /// ATCOPT006: OnChange callback method not found.
+        /// </summary>
+        internal const string OnChangeCallbackNotFound = "ATCOPT006";
+
+        /// <summary>
+        /// ATCOPT007: OnChange callback method has invalid signature.
+        /// </summary>
+        internal const string OnChangeCallbackInvalidSignature = "ATCOPT007";
     }
 
     /// <summary>

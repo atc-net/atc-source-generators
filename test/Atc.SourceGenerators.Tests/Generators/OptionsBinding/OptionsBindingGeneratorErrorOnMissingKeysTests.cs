@@ -262,7 +262,7 @@ public partial class OptionsBindingGeneratorTests
         Assert.NotNull(generatedCode);
 
         // Named options use Configure<T>(name, section) pattern which doesn't support validation chain
-        Assert.Contains("services.Configure<EmailOptions>(\"Primary\",", generatedCode, StringComparison.Ordinal);
+        Assert.Contains("services.Configure<global::MyApp.Configuration.EmailOptions>(\"Primary\",", generatedCode, StringComparison.Ordinal);
 
         // ErrorOnMissingKeys should be ignored for named options (no validation chain)
         Assert.DoesNotContain(".Validate(options =>", generatedCode, StringComparison.Ordinal);

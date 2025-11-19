@@ -319,6 +319,7 @@ services.AddOptionsFromApp(configuration);
 - **🧠 Automatic Section Name Inference**: Smart resolution from explicit names, const fields (`SectionName`, `NameTitle`, `Name`), or auto-inferred from class names
 - **🔒 Built-in Validation**: Integrated DataAnnotations validation (`ValidateDataAnnotations`) and startup validation (`ValidateOnStart`)
 - **🎯 Custom Validation**: Support for `IValidateOptions<T>` for complex business rules beyond DataAnnotations
+- **🔔 Configuration Change Callbacks**: Auto-generated IHostedService for OnChange notifications with Monitor lifetime - perfect for feature flags and runtime config updates
 - **📛 Named Options**: Multiple configurations of the same options type with different names (e.g., Primary/Secondary email servers)
 - **🎯 Explicit Section Paths**: Support for nested sections like `"App:Database"` or `"Services:Email"`
 - **📦 Multiple Options Classes**: Register multiple configuration sections in a single assembly with one method call
@@ -385,6 +386,21 @@ public partial class FeatureOptions
     public bool EnableNewFeature { get; set; }
 }
 
+// Configuration change callbacks - auto-generated IHostedService
+[OptionsBinding("Features", Lifetime = OptionsLifetime.Monitor, OnChange = nameof(OnFeaturesChanged))]
+public partial class FeaturesOptions
+{
+    public bool EnableNewUI { get; set; }
+    public bool EnableBetaFeatures { get; set; }
+
+    // Called automatically when configuration changes (requires reloadOnChange: true)
+    internal static void OnFeaturesChanged(FeaturesOptions options, string? name)
+    {
+        Console.WriteLine($"[OnChange] EnableNewUI: {options.EnableNewUI}");
+        Console.WriteLine($"[OnChange] EnableBetaFeatures: {options.EnableBetaFeatures}");
+    }
+}
+
 // Usage in your services:
 public class MyService
 {
@@ -401,6 +417,10 @@ public class MyService
 | ATCOPT001 | Options class must be declared as partial |
 | ATCOPT002 | Section name cannot be null or empty |
 | ATCOPT003 | Invalid options binding configuration |
+| ATCOPT004 | OnChange requires Monitor lifetime |
+| ATCOPT005 | OnChange not supported with named options |
+| ATCOPT006 | OnChange callback method not found |
+| ATCOPT007 | OnChange callback has invalid signature |
 
 ---
 

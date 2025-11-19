@@ -10,4 +10,5 @@ internal sealed record OptionsInfo(
     int Lifetime,
     string? ValidatorType,
     string? Name,
-    bool ErrorOnMissingKeys);
+    bool ErrorOnMissingKeys,
+    string? OnChange);

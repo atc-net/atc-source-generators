@@ -57,12 +57,13 @@ This roadmap is based on comprehensive analysis of:
 - **Custom validation** - `IValidateOptions<T>` for complex business rules beyond DataAnnotations
 - **Named options** - Multiple configurations of the same options type with different names
 - **Error on missing keys** - `ErrorOnMissingKeys` fail-fast validation when configuration sections are missing
+- **Configuration change callbacks** - `OnChange` callbacks for Monitor lifetime (auto-generates IHostedService)
 - **Lifetime selection** - Singleton (`IOptions`), Scoped (`IOptionsSnapshot`), Monitor (`IOptionsMonitor`)
 - **Multi-project support** - Assembly-specific extension methods with smart naming
 - **Transitive registration** - 4 overloads for automatic/selective assembly registration
 - **Partial class requirement** - Enforced at compile time
 - **Native AOT compatible** - Zero reflection, compile-time generation
-- **Compile-time diagnostics** - Validate partial class, section names
+- **Compile-time diagnostics** - Validate partial class, section names, OnChange callbacks (ATCOPT001-007)
 
 ---
 
@@ -74,7 +75,7 @@ This roadmap is based on comprehensive analysis of:
 | ✅ | [Named Options Support](#2-named-options-support) | 🔴 High |
 | ❌ | [Post-Configuration Support](#3-post-configuration-support) | 🟡 Medium-High |
 | ✅ | [Error on Missing Configuration Keys](#4-error-on-missing-configuration-keys) | 🔴 High |
-| ❌ | [Configuration Change Callbacks](#5-configuration-change-callbacks) | 🟡 Medium |
+| ✅ | [Configuration Change Callbacks](#5-configuration-change-callbacks) | 🟡 Medium |
 | ❌ | [Bind Configuration Subsections to Properties](#6-bind-configuration-subsections-to-properties) | 🟡 Medium |
 | ❌ | [ConfigureAll Support](#7-configureall-support) | 🟢 Low-Medium |
 | ❌ | [Options Snapshots for Specific Sections](#8-options-snapshots-for-specific-sections) | 🟢 Low-Medium |
@@ -237,6 +238,7 @@ public class DataService
 - ⚠️ Named options do NOT support validation chain (ValidateDataAnnotations, ValidateOnStart, Validator)
 
 **Testing**:
+
 - ✅ 8 comprehensive unit tests covering all scenarios
 - ✅ Sample project with EmailOptions demonstrating Primary/Secondary/Fallback servers
 - ✅ PetStore.Api sample with NotificationOptions (Email/SMS/Push channels)
@@ -350,11 +352,13 @@ services.AddOptions<DatabaseOptions>()
 - ⚠️ Named options do NOT support ErrorOnMissingKeys (named options use simpler Configure pattern)
 
 **Testing**:
+
 - ✅ 11 comprehensive unit tests covering all scenarios
 - ✅ Sample project updated: DatabaseOptions demonstrates ErrorOnMissingKeys
 - ✅ PetStore.Api sample: PetStoreOptions uses ErrorOnMissingKeys for critical configuration
 
 **Best Practices**:
+
 - Always combine with `ValidateOnStart = true` to catch missing configuration at startup
 - Use for production-critical configuration (databases, external services, API keys)
 - Avoid for optional configuration with reasonable defaults
@@ -364,7 +368,7 @@ services.AddOptions<DatabaseOptions>()
 ### 5. Configuration Change Callbacks
 
 **Priority**: 🟡 **Medium**
-**Status**: ❌ Not Implemented
+**Status**: ✅ **Implemented**
 **Inspiration**: `IOptionsMonitor<T>.OnChange()` pattern
 
 **Description**: Support registering callbacks that execute when configuration changes are detected.
@@ -383,7 +387,7 @@ public partial class FeaturesOptions
     public int MaxUploadSizeMB { get; set; } = 10;
 
     // Change callback - signature: static void OnChange(TOptions options, string? name)
-    private static void OnFeaturesChanged(FeaturesOptions options, string? name)
+    internal static void OnFeaturesChanged(FeaturesOptions options, string? name)
     {
         Console.WriteLine($"Features configuration changed: EnableNewUI={options.EnableNewUI}");
         // Clear caches, notify components, etc.
@@ -391,16 +395,62 @@ public partial class FeaturesOptions
 }
 
 // Generated code:
-var monitor = services.BuildServiceProvider().GetRequiredService<IOptionsMonitor<FeaturesOptions>>();
-monitor.OnChange((options, name) => FeaturesOptions.OnFeaturesChanged(options, name));
+services.AddOptions<FeaturesOptions>()
+    .Bind(configuration.GetSection("Features"));
+
+services.AddHostedService<FeaturesOptionsChangeListener>();
+
+// Generated hosted service
+internal sealed class FeaturesOptionsChangeListener : IHostedService
+{
+    private readonly IOptionsMonitor<FeaturesOptions> _monitor;
+    private IDisposable? _changeToken;
+
+    public FeaturesOptionsChangeListener(IOptionsMonitor<FeaturesOptions> monitor)
+    {
+        _monitor = monitor ?? throw new ArgumentNullException(nameof(monitor));
+    }
+
+    public Task StartAsync(CancellationToken cancellationToken)
+    {
+        _changeToken = _monitor.OnChange((options, name) =>
+            FeaturesOptions.OnFeaturesChanged(options, name));
+        return Task.CompletedTask;
+    }
+
+    public Task StopAsync(CancellationToken cancellationToken)
+    {
+        _changeToken?.Dispose();
+        return Task.CompletedTask;
+    }
+}
 ```
 
-**Implementation Notes**:
+**Implementation Details**:
 
-- Only applicable when `Lifetime = OptionsLifetime.Monitor`
-- Callback signature: `static void OnChange(TOptions options, string? name)`
-- Useful for feature flags, dynamic configuration
-- **Limitation**: Only works with file-based configuration providers (appsettings.json)
+- ✅ Added `OnChange` property to `[OptionsBinding]` attribute
+- ✅ Generator creates `IHostedService` that registers the callback via `IOptionsMonitor<T>.OnChange()`
+- ✅ Hosted service is automatically registered when application starts
+- ✅ Callback signature: `static void MethodName(TOptions options, string? name)`
+- ✅ Callback method can be `internal` or `public` (not `private`)
+- ✅ Properly disposes change token in `StopAsync` to prevent memory leaks
+- ✅ Only applicable when `Lifetime = OptionsLifetime.Monitor`
+- ⚠️ Cannot be used with named options
+- ✅ Comprehensive compile-time validation with 4 diagnostic codes (ATCOPT004-007)
+- **Limitation**: Only works with file-based configuration providers (appsettings.json with reloadOnChange: true)
+
+**Diagnostics**:
+
+- **ATCOPT004**: OnChange callback requires Monitor lifetime
+- **ATCOPT005**: OnChange callback not supported with named options
+- **ATCOPT006**: OnChange callback method not found
+- **ATCOPT007**: OnChange callback method has invalid signature
+
+**Testing**:
+
+- ✅ 20 comprehensive unit tests covering all scenarios and error cases
+- ✅ Sample project updated: LoggingOptions demonstrates OnChange callbacks
+- ✅ PetStore.Api sample: FeaturesOptions uses OnChange for feature flag changes
 
 ---
 

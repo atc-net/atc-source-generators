@@ -20,6 +20,10 @@ ATCDIR010 | DependencyInjection | Error | Instance registration requires Singlet
 ATCOPT001 | OptionsBinding | Error | Options class must be partial
 ATCOPT002 | OptionsBinding | Error | Section name cannot be null or empty
 ATCOPT003 | OptionsBinding | Error | Const section name cannot be null or empty
+ATCOPT004 | OptionsBinding | Error | OnChange requires Monitor lifetime
+ATCOPT005 | OptionsBinding | Error | OnChange not supported with named options
+ATCOPT006 | OptionsBinding | Error | OnChange callback method not found
+ATCOPT007 | OptionsBinding | Error | OnChange callback has invalid signature
 ATCMAP001 | ObjectMapping | Error | Mapping class must be partial
 ATCMAP002 | ObjectMapping | Error | Target type must be a class or struct
 ATCMAP003 | ObjectMapping | Error | MapProperty target property not found
