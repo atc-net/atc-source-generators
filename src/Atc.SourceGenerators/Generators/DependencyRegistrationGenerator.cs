@@ -261,7 +261,7 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
             if (explicitAsType is not null)
             {
                 // Explicit As parameter takes precedence
-                asTypes = ImmutableArray.Create(explicitAsType);
+                asTypes = [explicitAsType];
             }
             else
             {
@@ -335,7 +335,7 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
             result.Add(new ReferencedAssemblyInfo(assemblyName, sanitizedName, shortName));
         }
 
-        return result.ToImmutableArray();
+        return [..result];
     }
 
     private static FilterRules ParseFilterRules(IAssemblySymbol assemblySymbol)
@@ -406,9 +406,9 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
         }
 
         return new FilterRules(
-            excludedNamespaces.ToImmutableArray(),
-            excludedPatterns.ToImmutableArray(),
-            excludedInterfaces.ToImmutableArray());
+            [..excludedNamespaces],
+            [..excludedPatterns],
+            [..excludedInterfaces]);
     }
 
     private static bool HasRegistrationAttributeInNamespace(
@@ -533,15 +533,15 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
             }
 
             // Check if the class implements the interface
-            var implementsInterface = false;
+            bool implementsInterface;
 
             // For generic types, we need to compare the original definitions
-            if (asType is INamedTypeSymbol asNamedType && asNamedType.IsGenericType)
+            if (asType is INamedTypeSymbol { IsGenericType: true } asNamedType)
             {
                 var asTypeOriginal = asNamedType.OriginalDefinition;
                 implementsInterface = service.ClassSymbol.AllInterfaces.Any(i =>
                 {
-                    if (i is INamedTypeSymbol iNamedType && iNamedType.IsGenericType)
+                    if (i is INamedTypeSymbol { IsGenericType: true } iNamedType)
                     {
                         return SymbolEqualityComparer.Default.Equals(iNamedType.OriginalDefinition, asTypeOriginal);
                     }
@@ -591,12 +591,11 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
             // Determine the expected return type (first AsType if specified, otherwise the class itself)
             var expectedReturnType = service.AsTypes.Length > 0
                 ? service.AsTypes[0]
-                : (ITypeSymbol)service.ClassSymbol;
+                : service.ClassSymbol;
 
             // Validate factory method signature
             var hasValidSignature =
-                factoryMethod.IsStatic &&
-                factoryMethod.Parameters.Length == 1 &&
+                factoryMethod is { IsStatic: true, Parameters.Length: 1 } &&
                 factoryMethod.Parameters[0].Type.ToDisplayString() == "System.IServiceProvider" &&
                 SymbolEqualityComparer.Default.Equals(factoryMethod.ReturnType, expectedReturnType);
 
@@ -641,14 +640,13 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
 
             // Find the instance member (field, property, or method)
             var members = service.ClassSymbol.GetMembers(service.InstanceMemberName!);
-            ISymbol? instanceMember = null;
 
             // Try to find as field or property first
             var fieldSymbols = members.OfType<IFieldSymbol>();
-            var fieldMember = fieldSymbols.FirstOrDefault() as ISymbol;
+            ISymbol? fieldMember = fieldSymbols.FirstOrDefault();
             var propertySymbols = members.OfType<IPropertySymbol>();
             var propertyMember = propertySymbols.FirstOrDefault();
-            instanceMember = fieldMember ?? propertyMember;
+            var instanceMember = fieldMember ?? propertyMember;
 
             // If not found, try as parameterless method
             if (instanceMember is null)
@@ -1491,26 +1489,16 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
                             var openGenericServiceType = GetOpenGenericTypeName(asType);
                             var openGenericImplementationType = GetOpenGenericTypeName(service.ClassSymbol);
 
-                            if (hasKey)
-                            {
-                                sb.AppendLineLf($"        services.{lifetimeMethod}(typeof({openGenericServiceType}), {keyString}, typeof({openGenericImplementationType}));");
-                            }
-                            else
-                            {
-                                sb.AppendLineLf($"        services.{lifetimeMethod}(typeof({openGenericServiceType}), typeof({openGenericImplementationType}));");
-                            }
+                            sb.AppendLineLf(hasKey
+                                ? $"        services.{lifetimeMethod}(typeof({openGenericServiceType}), {keyString}, typeof({openGenericImplementationType}));"
+                                : $"        services.{lifetimeMethod}(typeof({openGenericServiceType}), typeof({openGenericImplementationType}));");
                         }
                         else
                         {
                             // Regular non-generic registration
-                            if (hasKey)
-                            {
-                                sb.AppendLineLf($"        services.{lifetimeMethod}<{serviceType}, {implementationType}>({keyString});");
-                            }
-                            else
-                            {
-                                sb.AppendLineLf($"        services.{lifetimeMethod}<{serviceType}, {implementationType}>();");
-                            }
+                            sb.AppendLineLf(hasKey
+                                ? $"        services.{lifetimeMethod}<{serviceType}, {implementationType}>({keyString});"
+                                : $"        services.{lifetimeMethod}<{serviceType}, {implementationType}>();");
                         }
                     }
 
@@ -1521,25 +1509,15 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
                         {
                             var openGenericImplementationType = GetOpenGenericTypeName(service.ClassSymbol);
 
-                            if (hasKey)
-                            {
-                                sb.AppendLineLf($"        services.{lifetimeMethod}(typeof({openGenericImplementationType}), {keyString});");
-                            }
-                            else
-                            {
-                                sb.AppendLineLf($"        services.{lifetimeMethod}(typeof({openGenericImplementationType}));");
-                            }
+                            sb.AppendLineLf(hasKey
+                                ? $"        services.{lifetimeMethod}(typeof({openGenericImplementationType}), {keyString});"
+                                : $"        services.{lifetimeMethod}(typeof({openGenericImplementationType}));");
                         }
                         else
                         {
-                            if (hasKey)
-                            {
-                                sb.AppendLineLf($"        services.{lifetimeMethod}<{implementationType}>({keyString});");
-                            }
-                            else
-                            {
-                                sb.AppendLineLf($"        services.{lifetimeMethod}<{implementationType}>();");
-                            }
+                            sb.AppendLineLf(hasKey
+                                ? $"        services.{lifetimeMethod}<{implementationType}>({keyString});"
+                                : $"        services.{lifetimeMethod}<{implementationType}>();");
                         }
                     }
                 }
@@ -1550,25 +1528,15 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
                     {
                         var openGenericImplementationType = GetOpenGenericTypeName(service.ClassSymbol);
 
-                        if (hasKey)
-                        {
-                            sb.AppendLineLf($"        services.{lifetimeMethod}(typeof({openGenericImplementationType}), {keyString});");
-                        }
-                        else
-                        {
-                            sb.AppendLineLf($"        services.{lifetimeMethod}(typeof({openGenericImplementationType}));");
-                        }
+                        sb.AppendLineLf(hasKey
+                            ? $"        services.{lifetimeMethod}(typeof({openGenericImplementationType}), {keyString});"
+                            : $"        services.{lifetimeMethod}(typeof({openGenericImplementationType}));");
                     }
                     else
                     {
-                        if (hasKey)
-                        {
-                            sb.AppendLineLf($"        services.{lifetimeMethod}<{implementationType}>({keyString});");
-                        }
-                        else
-                        {
-                            sb.AppendLineLf($"        services.{lifetimeMethod}<{implementationType}>();");
-                        }
+                        sb.AppendLineLf(hasKey
+                            ? $"        services.{lifetimeMethod}<{implementationType}>({keyString});"
+                            : $"        services.{lifetimeMethod}<{implementationType}>();");
                     }
                 }
             }
@@ -1591,7 +1559,6 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
         {
             var isGeneric = decorator.ClassSymbol.IsGenericType;
             var decoratorType = decorator.ClassSymbol.ToDisplayString();
-            var hasKey = decorator.Key is not null;
 
             // Decorators require an explicit As type
             if (decorator.AsTypes.Length == 0)

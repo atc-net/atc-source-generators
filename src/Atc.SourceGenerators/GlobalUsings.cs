@@ -1,5 +1,6 @@
 global using System.Collections.Immutable;
 global using System.Diagnostics.CodeAnalysis;
+global using System.Globalization;
 global using System.Text;
 global using Atc.SourceGenerators.Generators.Internal;
 global using Atc.SourceGenerators.Helpers;

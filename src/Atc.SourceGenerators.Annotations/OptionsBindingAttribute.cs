@@ -78,4 +78,18 @@ public sealed class OptionsBindingAttribute : Attribute
     /// Default is false.
     /// </summary>
     public bool ErrorOnMissingKeys { get; set; }
+
+    /// <summary>
+    /// Gets or sets the name of a static method to call when configuration changes are detected.
+    /// Only applicable when <c>Lifetime = OptionsLifetime.Monitor</c>.
+    /// The method must have the signature: <c>static void MethodName(TOptions options, string? name)</c>
+    /// where TOptions is the options class type.
+    /// The callback will be automatically registered via an IHostedService when the application starts.
+    /// Default is null (no change callback).
+    /// </summary>
+    /// <remarks>
+    /// Configuration change detection only works with file-based configuration providers (e.g., appsettings.json with reloadOnChange: true).
+    /// The callback is invoked whenever the configuration file changes and is reloaded.
+    /// </remarks>
+    public string? OnChange { get; set; }
 }

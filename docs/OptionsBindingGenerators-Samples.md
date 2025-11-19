@@ -11,6 +11,7 @@ This sample demonstrates the **OptionsBindingGenerator** in a multi-project cons
 - **Options lifetime management** (IOptions, IOptionsSnapshot, IOptionsMonitor)
 - **Validation at startup** with Data Annotations
 - **Custom validation** using IValidateOptions<T> for complex business rules
+- **Configuration change callbacks** - Automatic OnChange notifications with Monitor lifetime
 
 ## 📁 Sample Projects
 
@@ -213,11 +214,30 @@ public partial class ApiOptions
 
 // Auto-inferred section name from class name (lowest priority)
 // Binds to "Logging" section
-[OptionsBinding(ValidateOnStart = true, Lifetime = OptionsLifetime.Monitor)]
+// Demonstrates configuration change callbacks with Monitor lifetime
+[OptionsBinding("Logging", Lifetime = OptionsLifetime.Monitor, OnChange = nameof(OnLoggingChanged))]
 public partial class LoggingOptions
 {
     public string Level { get; set; } = "Information";
-    public bool IncludeScopes { get; set; }
+    public bool EnableConsole { get; set; } = true;
+    public bool EnableFile { get; set; }
+    public string? FilePath { get; set; }
+
+    /// <summary>
+    /// Called automatically when the Logging configuration section changes.
+    /// Requires appsettings.json to have reloadOnChange: true.
+    /// </summary>
+    internal static void OnLoggingChanged(
+        LoggingOptions options,
+        string? name)
+    {
+        Console.WriteLine($"[OnChange Callback] Logging configuration changed:");
+        Console.WriteLine($"  Level: {options.Level}");
+        Console.WriteLine($"  EnableConsole: {options.EnableConsole}");
+        Console.WriteLine($"  EnableFile: {options.EnableFile}");
+        Console.WriteLine($"  FilePath: {options.FilePath ?? \"(not set)\"}");
+        Console.WriteLine();
+    }
 }
 ```
 
@@ -448,6 +468,232 @@ public partial class LoggingOptions { }
 // Inject: IOptionsMonitor<LoggingOptions>
 ```
 
+## 🔔 Configuration Change Callbacks
+
+The **OptionsBindingGenerator** can automatically generate IHostedService classes to register callbacks that fire when configuration changes are detected. This is perfect for reacting to runtime configuration updates without restarting your application.
+
+### Requirements
+
+1. **Monitor Lifetime**: `Lifetime = OptionsLifetime.Monitor` (required)
+2. **OnChange Parameter**: Specify the callback method name via `OnChange = nameof(YourCallback)`
+3. **Callback Signature**: Static method with signature `void MethodName(TOptions options, string? name)`
+4. **Configuration Reload**: Ensure `appsettings.json` is loaded with `reloadOnChange: true`
+
+### Example 1: Logging Configuration Changes
+
+**LoggingOptions.cs** (from `Atc.SourceGenerators.OptionsBinding` sample):
+
+```csharp
+using Atc.SourceGenerators.Annotations;
+
+namespace Atc.SourceGenerators.OptionsBinding.Options;
+
+/// <summary>
+/// Logging configuration options.
+/// Explicitly binds to "Logging" section in appsettings.json.
+/// Demonstrates configuration change callbacks with Monitor lifetime.
+/// </summary>
+[OptionsBinding("Logging", Lifetime = OptionsLifetime.Monitor, OnChange = nameof(OnLoggingChanged))]
+public partial class LoggingOptions
+{
+    public string Level { get; set; } = "Information";
+
+    public bool EnableConsole { get; set; } = true;
+
+    public bool EnableFile { get; set; }
+
+    public string? FilePath { get; set; }
+
+    /// <summary>
+    /// Called automatically when the Logging configuration section changes.
+    /// Requires appsettings.json to have reloadOnChange: true.
+    /// </summary>
+    internal static void OnLoggingChanged(
+        LoggingOptions options,
+        string? name)
+    {
+        Console.WriteLine($"[OnChange Callback] Logging configuration changed:");
+        Console.WriteLine($"  Level: {options.Level}");
+        Console.WriteLine($"  EnableConsole: {options.EnableConsole}");
+        Console.WriteLine($"  EnableFile: {options.EnableFile}");
+        Console.WriteLine($"  FilePath: {options.FilePath ?? \"(not set)\"}");
+        Console.WriteLine();
+    }
+}
+```
+
+### Example 2: Feature Flag Changes
+
+**FeaturesOptions.cs** (from `PetStore.Domain` sample):
+
+```csharp
+using Atc.SourceGenerators.Annotations;
+
+namespace PetStore.Domain.Options;
+
+/// <summary>
+/// Feature toggle configuration options.
+/// Demonstrates configuration change callbacks with Monitor lifetime.
+/// Changes to feature flags in appsettings.json are detected automatically.
+/// </summary>
+[OptionsBinding("Features", Lifetime = OptionsLifetime.Monitor, OnChange = nameof(OnFeaturesChanged))]
+public partial class FeaturesOptions
+{
+    /// <summary>
+    /// Gets or sets a value indicating whether the new UI is enabled.
+    /// </summary>
+    public bool EnableNewUI { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether advanced search is enabled.
+    /// </summary>
+    public bool EnableAdvancedSearch { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets a value indicating whether pet recommendations are enabled.
+    /// </summary>
+    public bool EnableRecommendations { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets a value indicating whether beta features are enabled.
+    /// </summary>
+    public bool EnableBetaFeatures { get; set; }
+
+    /// <summary>
+    /// Called automatically when the Features configuration section changes.
+    /// Requires appsettings.json to have reloadOnChange: true.
+    /// </summary>
+    internal static void OnFeaturesChanged(
+        FeaturesOptions options,
+        string? name)
+    {
+        Console.WriteLine("[OnChange Callback] Feature flags changed:");
+        Console.WriteLine($"  EnableNewUI: {options.EnableNewUI}");
+        Console.WriteLine($"  EnableAdvancedSearch: {options.EnableAdvancedSearch}");
+        Console.WriteLine($"  EnableRecommendations: {options.EnableRecommendations}");
+        Console.WriteLine($"  EnableBetaFeatures: {options.EnableBetaFeatures}");
+        Console.WriteLine();
+    }
+}
+```
+
+### Generated Code
+
+The generator automatically creates an internal `IHostedService` class to register the callback:
+
+```csharp
+// <auto-generated />
+namespace PetStore.Domain.Options;
+
+[global::System.CodeDom.Compiler.GeneratedCode("Atc.SourceGenerators.OptionsBindingGenerator", "1.0.0")]
+[global::System.ComponentModel.EditorBrowsable(global::System.ComponentModel.EditorBrowsableState.Never)]
+[global::System.Runtime.CompilerServices.CompilerGenerated]
+[global::System.Diagnostics.DebuggerNonUserCode]
+[global::System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
+internal sealed class FeaturesOptionsMonitorService : Microsoft.Extensions.Hosting.IHostedService, global::System.IDisposable
+{
+    private readonly Microsoft.Extensions.Options.IOptionsMonitor<FeaturesOptions> _monitor;
+    private global::System.IDisposable? _changeToken;
+
+    public FeaturesOptionsMonitorService(Microsoft.Extensions.Options.IOptionsMonitor<FeaturesOptions> monitor)
+    {
+        _monitor = monitor;
+    }
+
+    public global::System.Threading.Tasks.Task StartAsync(global::System.Threading.CancellationToken cancellationToken)
+    {
+        _changeToken = _monitor.OnChange(FeaturesOptions.OnFeaturesChanged);
+        return global::System.Threading.Tasks.Task.CompletedTask;
+    }
+
+    public global::System.Threading.Tasks.Task StopAsync(global::System.Threading.CancellationToken cancellationToken)
+    {
+        return global::System.Threading.Tasks.Task.CompletedTask;
+    }
+
+    public void Dispose()
+    {
+        _changeToken?.Dispose();
+    }
+}
+```
+
+The registration extension method also includes:
+
+```csharp
+// Register the IHostedService
+services.AddHostedService<FeaturesOptionsMonitorService>();
+
+// Register IOptionsMonitor
+services.AddSingleton<IOptionsChangeTokenSource<FeaturesOptions>>(
+    new ConfigurationChangeTokenSource<FeaturesOptions>(
+        configuration.GetSection("Features")));
+services.Configure<FeaturesOptions>(configuration.GetSection("Features"));
+```
+
+### Configuration Setup
+
+To enable configuration reload, ensure your `ConfigurationBuilder` uses `reloadOnChange: true`:
+
+```csharp
+var configuration = new ConfigurationBuilder()
+    .SetBasePath(Directory.GetCurrentDirectory())
+    .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)  // ← Enable reload
+    .Build();
+```
+
+**appsettings.json:**
+
+```json
+{
+  "Features": {
+    "EnableNewUI": false,
+    "EnableAdvancedSearch": true,
+    "EnableRecommendations": true,
+    "EnableBetaFeatures": false
+  },
+  "Logging": {
+    "Level": "Information",
+    "EnableConsole": true,
+    "EnableFile": false,
+    "FilePath": null
+  }
+}
+```
+
+### How It Works
+
+1. **Build Time**: Generator detects `OnChange` parameter and validates callback signature
+2. **Application Startup**: IHostedService is registered and started
+3. **Runtime**: When `appsettings.json` changes on disk, the file watcher triggers a reload
+4. **Callback Execution**: Your callback method is automatically invoked with the new values
+
+### Use Cases
+
+- **Feature Flags**: Toggle features on/off without restarting
+- **Logging Levels**: Adjust log verbosity in production
+- **Rate Limits**: Update throttling thresholds dynamically
+- **API Endpoints**: Switch between failover endpoints
+- **Cache Sizes**: Adjust memory limits based on load
+
+### Validation Diagnostics
+
+The generator enforces these rules at compile time:
+
+| Diagnostic | Severity | Description |
+|------------|----------|-------------|
+| **ATCOPT004** | Error | OnChange requires `Lifetime = OptionsLifetime.Monitor` |
+| **ATCOPT005** | Error | OnChange is not supported with named options |
+| **ATCOPT006** | Error | Callback method not found in options class |
+| **ATCOPT007** | Error | Callback must be static void with signature `(TOptions, string?)` |
+
+### Important Notes
+
+- **Thread Safety**: Callbacks may fire on background threads - ensure thread-safe access to shared state
+- **Performance**: Keep callbacks lightweight - they block configuration updates
+- **Disposal**: The generated IHostedService properly disposes change tokens on shutdown
+- **Named Options**: OnChange callbacks are NOT supported with named options (use `IOptionsMonitor<T>.OnChange()` manually instead)
+
 ## 📛 Named Options Support
 
 **Named Options** allow multiple configurations of the same options type with different names - perfect for fallback scenarios, multi-tenant applications, or multi-region deployments.
@@ -598,6 +844,7 @@ public class EmailService
 7. **Startup Validation**: Catch configuration errors before runtime
 8. **Error on Missing Keys**: Fail-fast validation when configuration sections are missing
 9. **Named Options**: Multiple configurations of the same type for fallback/multi-tenant scenarios
+10. **Configuration Change Callbacks**: Auto-generated IHostedService for OnChange notifications with Monitor lifetime
 
 ## 🔗 Related Documentation
 

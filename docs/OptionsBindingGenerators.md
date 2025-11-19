@@ -744,6 +744,7 @@ Console.WriteLine($"Other interval: {otherOptions.Value.RepeatIntervalInSeconds}
 - **🔒 Built-in validation** - Integrated DataAnnotations validation (`ValidateDataAnnotations`) and startup validation (`ValidateOnStart`)
 - **🎯 Custom validation** - Support for `IValidateOptions<T>` for complex business rules beyond DataAnnotations
 - **🚨 Error on missing keys** - Fail-fast validation when configuration sections are missing (`ErrorOnMissingKeys`) to catch deployment issues at startup
+- **🔔 Configuration change callbacks** - Automatically respond to configuration changes at runtime with `OnChange` callbacks (requires Monitor lifetime)
 - **📛 Named options** - Multiple configurations of the same options type with different names (e.g., Primary/Secondary email servers)
 - **🎯 Explicit section paths** - Support for nested sections like `"App:Database"` or `"Services:Email"`
 - **📦 Multiple options classes** - Register multiple configuration sections in a single assembly with one method call
@@ -1164,6 +1165,161 @@ public class FeatureManager
 - The `Lifetime` property is a **recommendation** for which interface to inject
 - Default is `Singleton` (IOptions<T>) if not specified
 - The generated code includes comments indicating the recommended interface
+
+---
+
+### 🔔 Configuration Change Callbacks
+
+Automatically respond to configuration changes at runtime using the `OnChange` property. This feature enables hot-reload of configuration without restarting your application.
+
+**Requirements:**
+- Must use `Lifetime = OptionsLifetime.Monitor`
+- Requires appsettings.json with `reloadOnChange: true`
+- Cannot be used with named options
+- Callback method must have signature: `static void MethodName(TOptions options, string? name)`
+
+**Basic Example:**
+
+```csharp
+[OptionsBinding("Features", Lifetime = OptionsLifetime.Monitor, OnChange = nameof(OnFeaturesChanged))]
+public partial class FeaturesOptions
+{
+    public bool EnableNewUI { get; set; }
+    public bool EnableBetaFeatures { get; set; }
+
+    internal static void OnFeaturesChanged(FeaturesOptions options, string? name)
+    {
+        Console.WriteLine("[OnChange] Feature flags changed:");
+        Console.WriteLine($"  EnableNewUI: {options.EnableNewUI}");
+        Console.WriteLine($"  EnableBetaFeatures: {options.EnableBetaFeatures}");
+    }
+}
+```
+
+**Generated Code:**
+
+The generator automatically creates an `IHostedService` that registers the callback:
+
+```csharp
+// Registration in extension method
+services.AddOptions<FeaturesOptions>()
+    .Bind(configuration.GetSection("Features"));
+
+services.AddHostedService<FeaturesOptionsChangeListener>();
+
+// Generated hosted service
+internal sealed class FeaturesOptionsChangeListener : IHostedService
+{
+    private readonly IOptionsMonitor<FeaturesOptions> _monitor;
+    private IDisposable? _changeToken;
+
+    public FeaturesOptionsChangeListener(IOptionsMonitor<FeaturesOptions> monitor)
+    {
+        _monitor = monitor ?? throw new ArgumentNullException(nameof(monitor));
+    }
+
+    public Task StartAsync(CancellationToken cancellationToken)
+    {
+        _changeToken = _monitor.OnChange((options, name) =>
+            FeaturesOptions.OnFeaturesChanged(options, name));
+
+        return Task.CompletedTask;
+    }
+
+    public Task StopAsync(CancellationToken cancellationToken)
+    {
+        _changeToken?.Dispose();
+        return Task.CompletedTask;
+    }
+}
+```
+
+**Usage Scenarios:**
+
+```csharp
+// ✅ Feature toggles that change without restart
+[OptionsBinding("Features", Lifetime = OptionsLifetime.Monitor, OnChange = nameof(OnFeaturesChanged))]
+public partial class FeaturesOptions
+{
+    public bool EnableNewUI { get; set; }
+
+    internal static void OnFeaturesChanged(FeaturesOptions options, string? name)
+    {
+        // Update feature flag cache, notify observers, etc.
+    }
+}
+
+// ✅ Logging configuration changes
+[OptionsBinding("Logging", Lifetime = OptionsLifetime.Monitor, OnChange = nameof(OnLoggingChanged))]
+public partial class LoggingOptions
+{
+    public string Level { get; set; } = "Information";
+
+    internal static void OnLoggingChanged(LoggingOptions options, string? name)
+    {
+        // Reconfigure logging providers with new level
+    }
+}
+
+// ✅ Combined with validation
+[OptionsBinding("Database",
+    Lifetime = OptionsLifetime.Monitor,
+    ValidateDataAnnotations = true,
+    ValidateOnStart = true,
+    OnChange = nameof(OnDatabaseChanged))]
+public partial class DatabaseOptions
+{
+    [Required] public string ConnectionString { get; set; } = string.Empty;
+
+    internal static void OnDatabaseChanged(DatabaseOptions options, string? name)
+    {
+        // Refresh connection pools, update database context, etc.
+    }
+}
+```
+
+**Validation Errors:**
+
+The generator performs compile-time validation of OnChange callbacks:
+
+- **ATCOPT004**: OnChange callback requires Monitor lifetime
+  ```csharp
+  // ❌ Error: Must use Lifetime = OptionsLifetime.Monitor
+  [OptionsBinding("Settings", OnChange = nameof(OnChanged))]
+  public partial class Settings { }
+  ```
+
+- **ATCOPT005**: OnChange callback not supported with named options
+  ```csharp
+  // ❌ Error: Named options don't support OnChange
+  [OptionsBinding("Email", Name = "Primary", Lifetime = OptionsLifetime.Monitor, OnChange = nameof(OnChanged))]
+  public partial class EmailOptions { }
+  ```
+
+- **ATCOPT006**: OnChange callback method not found
+  ```csharp
+  // ❌ Error: Method 'OnSettingsChanged' does not exist
+  [OptionsBinding("Settings", Lifetime = OptionsLifetime.Monitor, OnChange = "OnSettingsChanged")]
+  public partial class Settings { }
+  ```
+
+- **ATCOPT007**: OnChange callback method has invalid signature
+  ```csharp
+  // ❌ Error: Must be static void with (TOptions, string?) parameters
+  [OptionsBinding("Settings", Lifetime = OptionsLifetime.Monitor, OnChange = nameof(OnChanged))]
+  public partial class Settings
+  {
+      private void OnChanged(Settings options) { }  // Wrong: not static, missing 2nd parameter
+  }
+  ```
+
+**Important Notes:**
+
+- Change detection only works with file-based configuration providers (e.g., appsettings.json with `reloadOnChange: true`)
+- The callback is invoked whenever the configuration file changes and is reloaded
+- The hosted service is automatically registered when the application starts
+- Callback method can be `internal` or `public` (not `private`)
+- The `name` parameter is useful when dealing with named options in other scenarios (always null for unnamed options)
 
 ---
 

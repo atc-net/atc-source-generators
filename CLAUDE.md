@@ -298,6 +298,7 @@ services.AddDependencyRegistrationsFromDomain(
   4. `public const string Name`
   5. Auto-inferred from class name
 - Supports validation: `ValidateDataAnnotations`, `ValidateOnStart`, `ErrorOnMissingKeys` (fail-fast for missing sections), Custom validators (`IValidateOptions<T>`)
+- **Configuration change callbacks**: Auto-generated IHostedService for OnChange notifications with Monitor lifetime - perfect for feature flags and runtime configuration updates
 - **Named options support**: Multiple configurations of the same options type with different names (e.g., Primary/Secondary email servers)
 - Supports lifetime selection: Singleton (IOptions), Scoped (IOptionsSnapshot), Monitor (IOptionsMonitor)
 - Requires classes to be declared `partial`
@@ -361,6 +362,47 @@ services.Configure<EmailOptions>("Fallback", configuration.GetSection("Email:Fal
 var emailSnapshot = serviceProvider.GetRequiredService<IOptionsSnapshot<EmailOptions>>();
 var primaryEmail = emailSnapshot.Get("Primary");
 var secondaryEmail = emailSnapshot.Get("Secondary");
+
+// Input with OnChange callback (requires Monitor lifetime):
+[OptionsBinding("Features", Lifetime = OptionsLifetime.Monitor, OnChange = nameof(OnFeaturesChanged))]
+public partial class FeaturesOptions
+{
+    public bool EnableNewUI { get; set; }
+    public bool EnableBetaFeatures { get; set; }
+
+    internal static void OnFeaturesChanged(FeaturesOptions options, string? name)
+    {
+        Console.WriteLine($"[OnChange] EnableNewUI: {options.EnableNewUI}");
+        Console.WriteLine($"[OnChange] EnableBetaFeatures: {options.EnableBetaFeatures}");
+    }
+}
+
+// Output with OnChange callback (auto-generated IHostedService):
+// Generates internal IHostedService class:
+internal sealed class FeaturesOptionsMonitorService : IHostedService, IDisposable
+{
+    private readonly IOptionsMonitor<FeaturesOptions> _monitor;
+    private IDisposable? _changeToken;
+
+    public FeaturesOptionsMonitorService(IOptionsMonitor<FeaturesOptions> monitor) => _monitor = monitor;
+
+    public Task StartAsync(CancellationToken cancellationToken)
+    {
+        _changeToken = _monitor.OnChange(FeaturesOptions.OnFeaturesChanged);
+        return Task.CompletedTask;
+    }
+
+    public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+    public void Dispose() => _changeToken?.Dispose();
+}
+
+// Generates registration code:
+services.AddHostedService<FeaturesOptionsMonitorService>();
+services.AddSingleton<IOptionsChangeTokenSource<FeaturesOptions>>(
+    new ConfigurationChangeTokenSource<FeaturesOptions>(
+        configuration.GetSection("Features")));
+services.Configure<FeaturesOptions>(configuration.GetSection("Features"));
 ```
 
 **Smart Naming:**
@@ -391,6 +433,10 @@ services.AddOptionsFromDomain(configuration, "DataAccess", "Infrastructure");
 - `ATCOPT001` - Options class must be partial (Error)
 - `ATCOPT002` - Section name cannot be null or empty (Error)
 - `ATCOPT003` - Const section name cannot be null or empty (Error)
+- `ATCOPT004` - OnChange requires Monitor lifetime (Error)
+- `ATCOPT005` - OnChange not supported with named options (Error)
+- `ATCOPT006` - OnChange callback method not found (Error)
+- `ATCOPT007` - OnChange callback has invalid signature (Error)
 
 ### MappingGenerator
 

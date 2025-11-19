@@ -1,6 +1,7 @@
 // ReSharper disable ConvertIfStatementToReturnStatement
 // ReSharper disable ForeachCanBePartlyConvertedToQueryUsingAnotherGetEnumerator
 // ReSharper disable InvertIf
+// ReSharper disable DuplicatedStatements
 namespace Atc.SourceGenerators.Generators;
 
 /// <summary>
@@ -49,7 +50,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         // Generate the attribute definitions as fallback
-        // If Atc.SourceGenerators.Annotations is referenced, CS0436 warning will be suppressed via project settings
+        // If Atc.SourceGenerators.Annotations are referenced, CS0436 warning will be suppressed via project settings
         context.RegisterPostInitializationOutput(ctx =>
         {
             ctx.AddSource("MapToAttribute.g.cs", SourceText.From(GenerateAttributeSource(), Encoding.UTF8));
@@ -249,18 +250,18 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                         // Try to convert to int in case it's a different numeric type
                         try
                         {
-                            var value = Convert.ToInt32(namedArg.Value.Value, global::System.Globalization.CultureInfo.InvariantCulture);
+                            var value = Convert.ToInt32(namedArg.Value.Value, CultureInfo.InvariantCulture);
                             propertyNameStrategy = (PropertyNameStrategy)value;
                         }
-                        catch (global::System.FormatException)
+                        catch (FormatException)
                         {
                             // If conversion fails, keep default PascalCase
                         }
-                        catch (global::System.OverflowException)
+                        catch (OverflowException)
                         {
                             // If value is out of range, keep default PascalCase
                         }
-                        catch (global::System.InvalidCastException)
+                        catch (InvalidCastException)
                         {
                             // If value cannot be cast, keep default PascalCase
                         }
@@ -585,7 +586,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
             // Check if Bidirectional is true
             foreach (var namedArg in attr.NamedArguments)
             {
-                if (namedArg.Key == "Bidirectional" && namedArg.Value.Value is bool bidirectional && bidirectional)
+                if (namedArg is { Key: "Bidirectional", Value.Value: true })
                 {
                     return true;
                 }
@@ -772,7 +773,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         }
 
         // Handle generic collections: List<T>, IEnumerable<T>, ICollection<T>, IReadOnlyList<T>, etc.
-        if (namedType.IsGenericType && namedType.TypeArguments.Length == 1)
+        if (namedType is { IsGenericType: true, TypeArguments.Length: 1 })
         {
             var typeName = namedType.ConstructedFrom.ToDisplayString();
 
@@ -1002,7 +1003,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
 
         if (constructors.Count == 0)
         {
-            return (null, new List<string>());
+            return (null, []);
         }
 
         // Get source properties that we can map from
@@ -1039,7 +1040,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
             }
         }
 
-        return (null, new List<string>());
+        return (null, []);
     }
 
     private static string GenerateMappingExtensions(List<MappingInfo> mappings)
@@ -1119,7 +1120,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                     EnableFlattening: mapping.EnableFlattening,
                     Constructor: reverseConstructor,
                     ConstructorParameterNames: reverseConstructorParams,
-                    DerivedTypeMappings: new List<DerivedTypeMapping>(), // No derived type mappings for reverse
+                    DerivedTypeMappings: [], // No derived type mappings for reverse
                     BeforeMap: null, // No hooks for reverse mapping
                     AfterMap: null, // No hooks for reverse mapping
                     Factory: null, // No factory for reverse mapping
@@ -1253,83 +1254,83 @@ public class ObjectMappingGenerator : IIncrementalGenerator
             var useConstructor = mapping.Constructor is not null && mapping.ConstructorParameterNames.Count > 0;
 
             if (useConstructor)
-        {
-            // Separate properties into constructor parameters and initializer properties
-            var constructorParamSet = new HashSet<string>(mapping.ConstructorParameterNames, StringComparer.OrdinalIgnoreCase);
-            var constructorProps = new List<PropertyMapping>();
-            var initializerProps = new List<PropertyMapping>();
-
-            foreach (var prop in mapping.PropertyMappings)
             {
-                if (constructorParamSet.Contains(prop.TargetProperty.Name))
+                // Separate properties into constructor parameters and initializer properties
+                var constructorParamSet = new HashSet<string>(mapping.ConstructorParameterNames, StringComparer.OrdinalIgnoreCase);
+                var constructorProps = new List<PropertyMapping>();
+                var initializerProps = new List<PropertyMapping>();
+
+                foreach (var prop in mapping.PropertyMappings)
                 {
-                    constructorProps.Add(prop);
+                    if (constructorParamSet.Contains(prop.TargetProperty.Name))
+                    {
+                        constructorProps.Add(prop);
+                    }
+                    else
+                    {
+                        initializerProps.Add(prop);
+                    }
+                }
+
+                // Order constructor props by parameter order
+                var orderedConstructorProps = new List<PropertyMapping>();
+                foreach (var paramName in mapping.ConstructorParameterNames)
+                {
+                    var prop = constructorProps.FirstOrDefault(p =>
+                        string.Equals(p.TargetProperty.Name, paramName, StringComparison.OrdinalIgnoreCase));
+                    if (prop is not null)
+                    {
+                        orderedConstructorProps.Add(prop);
+                    }
+                }
+
+                // Generate constructor call
+                if (needsTargetVariable)
+                {
+                    sb.AppendLineLf($"        var target = new {targetTypeName}{typeParamList}(");
                 }
                 else
                 {
-                    initializerProps.Add(prop);
+                    sb.AppendLineLf($"        return new {targetTypeName}{typeParamList}(");
                 }
-            }
 
-            // Order constructor props by parameter order
-            var orderedConstructorProps = new List<PropertyMapping>();
-            foreach (var paramName in mapping.ConstructorParameterNames)
-            {
-                var prop = constructorProps.FirstOrDefault(p =>
-                    string.Equals(p.TargetProperty.Name, paramName, StringComparison.OrdinalIgnoreCase));
-                if (prop is not null)
+                for (var i = 0; i < orderedConstructorProps.Count; i++)
                 {
-                    orderedConstructorProps.Add(prop);
+                    var prop = orderedConstructorProps[i];
+                    var isLast = i == orderedConstructorProps.Count - 1;
+                    var comma = isLast && initializerProps.Count == 0 ? string.Empty : ",";
+
+                    var value = GeneratePropertyMappingValue(prop, "source", mapping.SourceType);
+                    sb.AppendLineLf($"            {value}{comma}");
+                }
+
+                if (initializerProps.Count > 0)
+                {
+                    sb.AppendLineLf("        )");
+                    sb.AppendLineLf("        {");
+                    GeneratePropertyInitializers(sb, initializerProps, mapping.SourceType);
+                    sb.AppendLineLf("        };");
+                }
+                else
+                {
+                    sb.AppendLineLf("        );");
                 }
             }
-
-            // Generate constructor call
-            if (needsTargetVariable)
-            {
-                sb.AppendLineLf($"        var target = new {targetTypeName}{typeParamList}(");
-            }
             else
             {
-                sb.AppendLineLf($"        return new {targetTypeName}{typeParamList}(");
-            }
+                // Use object initializer syntax
+                if (needsTargetVariable)
+                {
+                    sb.AppendLineLf($"        var target = new {targetTypeName}{typeParamList}");
+                }
+                else
+                {
+                    sb.AppendLineLf($"        return new {targetTypeName}{typeParamList}");
+                }
 
-            for (var i = 0; i < orderedConstructorProps.Count; i++)
-            {
-                var prop = orderedConstructorProps[i];
-                var isLast = i == orderedConstructorProps.Count - 1;
-                var comma = isLast && initializerProps.Count == 0 ? string.Empty : ",";
-
-                var value = GeneratePropertyMappingValue(prop, "source", mapping.SourceType);
-                sb.AppendLineLf($"            {value}{comma}");
-            }
-
-            if (initializerProps.Count > 0)
-            {
-                sb.AppendLineLf("        )");
                 sb.AppendLineLf("        {");
-                GeneratePropertyInitializers(sb, initializerProps, mapping.SourceType);
+                GeneratePropertyInitializers(sb, mapping.PropertyMappings, mapping.SourceType);
                 sb.AppendLineLf("        };");
-            }
-            else
-            {
-                sb.AppendLineLf("        );");
-            }
-        }
-        else
-        {
-            // Use object initializer syntax
-            if (needsTargetVariable)
-            {
-                sb.AppendLineLf($"        var target = new {targetTypeName}{typeParamList}");
-            }
-            else
-            {
-                sb.AppendLineLf($"        return new {targetTypeName}{typeParamList}");
-            }
-
-            sb.AppendLineLf("        {");
-            GeneratePropertyInitializers(sb, mapping.PropertyMappings, mapping.SourceType);
-            sb.AppendLineLf("        };");
             }
         }
 

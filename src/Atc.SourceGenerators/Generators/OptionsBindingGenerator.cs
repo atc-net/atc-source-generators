@@ -38,11 +38,43 @@ public class OptionsBindingGenerator : IIncrementalGenerator
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 
+    private static readonly DiagnosticDescriptor OnChangeRequiresMonitorLifetimeDescriptor = new(
+        RuleIdentifierConstants.OptionsBinding.OnChangeRequiresMonitorLifetime,
+        "OnChange callback requires Monitor lifetime",
+        "OnChange callback '{0}' can only be used when Lifetime = OptionsLifetime.Monitor",
+        RuleCategoryConstants.OptionsBinding,
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    private static readonly DiagnosticDescriptor OnChangeNotSupportedWithNamedOptionsDescriptor = new(
+        RuleIdentifierConstants.OptionsBinding.OnChangeNotSupportedWithNamedOptions,
+        "OnChange callback not supported with named options",
+        "OnChange callback '{0}' cannot be used with named options (Name = '{1}')",
+        RuleCategoryConstants.OptionsBinding,
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    private static readonly DiagnosticDescriptor OnChangeCallbackNotFoundDescriptor = new(
+        RuleIdentifierConstants.OptionsBinding.OnChangeCallbackNotFound,
+        "OnChange callback method not found",
+        "OnChange callback method '{0}' not found in class '{1}'",
+        RuleCategoryConstants.OptionsBinding,
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    private static readonly DiagnosticDescriptor OnChangeCallbackInvalidSignatureDescriptor = new(
+        RuleIdentifierConstants.OptionsBinding.OnChangeCallbackInvalidSignature,
+        "OnChange callback method has invalid signature",
+        "OnChange callback method '{0}' must have signature: static void {0}({1} options, string? name)",
+        RuleCategoryConstants.OptionsBinding,
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
     /// <inheritdoc />
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         // Generate the attribute definition as fallback
-        // If Atc.SourceGenerators.Annotations is referenced, CS0436 warning will be suppressed via project settings
+        // If Atc.SourceGenerators.Annotations are referenced, CS0436 warning will be suppressed via project settings
         context.RegisterPostInitializationOutput(ctx =>
         {
             ctx.AddSource("OptionsBindingAttribute.g.cs", SourceText.From(GenerateAttributeSource(), Encoding.UTF8));
@@ -241,6 +273,7 @@ public class OptionsBindingGenerator : IIncrementalGenerator
         INamedTypeSymbol? validatorType = null;
         string? name = null;
         var errorOnMissingKeys = false;
+        string? onChange = null;
 
         foreach (var namedArg in attribute.NamedArguments)
         {
@@ -264,6 +297,88 @@ public class OptionsBindingGenerator : IIncrementalGenerator
                 case "ErrorOnMissingKeys":
                     errorOnMissingKeys = namedArg.Value.Value as bool? ?? false;
                     break;
+                case "OnChange":
+                    onChange = namedArg.Value.Value as string;
+                    break;
+            }
+        }
+
+        // Validate OnChange callback requirements
+        if (!string.IsNullOrWhiteSpace(onChange))
+        {
+            // OnChange only allowed with Monitor lifetime (2 = Monitor)
+            if (lifetime != 2)
+            {
+                context.ReportDiagnostic(
+                    Diagnostic.Create(
+                        OnChangeRequiresMonitorLifetimeDescriptor,
+                        attribute.ApplicationSyntaxReference?.GetSyntax().GetLocation() ?? Location.None,
+                        onChange));
+
+                return null;
+            }
+
+            // OnChange not allowed with named options
+            if (!string.IsNullOrWhiteSpace(name))
+            {
+                context.ReportDiagnostic(
+                    Diagnostic.Create(
+                        OnChangeNotSupportedWithNamedOptionsDescriptor,
+                        attribute.ApplicationSyntaxReference?.GetSyntax().GetLocation() ?? Location.None,
+                        onChange,
+                        name));
+
+                return null;
+            }
+
+            // Validate callback method exists and has correct signature
+            var callbackMethod = classSymbol
+                .GetMembers(onChange!)
+                .OfType<IMethodSymbol>()
+                .FirstOrDefault();
+
+            if (callbackMethod is null)
+            {
+                context.ReportDiagnostic(
+                    Diagnostic.Create(
+                        OnChangeCallbackNotFoundDescriptor,
+                        attribute.ApplicationSyntaxReference?.GetSyntax().GetLocation() ?? Location.None,
+                        onChange,
+                        classSymbol.Name));
+
+                return null;
+            }
+
+            // Validate method signature: static void MethodName(TOptions options, string? name)
+            if (!callbackMethod.IsStatic ||
+                !callbackMethod.ReturnsVoid ||
+                callbackMethod.Parameters.Length != 2)
+            {
+                context.ReportDiagnostic(
+                    Diagnostic.Create(
+                        OnChangeCallbackInvalidSignatureDescriptor,
+                        attribute.ApplicationSyntaxReference?.GetSyntax().GetLocation() ?? Location.None,
+                        onChange,
+                        classSymbol.Name));
+
+                return null;
+            }
+
+            // Validate parameter types
+            var firstParam = callbackMethod.Parameters[0];
+            var secondParam = callbackMethod.Parameters[1];
+
+            if (!SymbolEqualityComparer.Default.Equals(firstParam.Type, classSymbol) ||
+                secondParam.Type.ToDisplayString() != "string?")
+            {
+                context.ReportDiagnostic(
+                    Diagnostic.Create(
+                        OnChangeCallbackInvalidSignatureDescriptor,
+                        attribute.ApplicationSyntaxReference?.GetSyntax().GetLocation() ?? Location.None,
+                        onChange,
+                        classSymbol.Name));
+
+                return null;
             }
         }
 
@@ -280,7 +395,8 @@ public class OptionsBindingGenerator : IIncrementalGenerator
             lifetime,
             validatorTypeName,
             name,
-            errorOnMissingKeys);
+            errorOnMissingKeys,
+            onChange);
     }
 
     private static string InferSectionNameFromClassName(string className)
@@ -388,18 +504,15 @@ public class OptionsBindingGenerator : IIncrementalGenerator
                     compilation.GetAssemblyOrModuleSymbol(r) is IAssemblySymbol asm &&
                     asm.Name == referencedAssembly.Name);
 
-                if (matchingReference is not null)
+                if (matchingReference is not null &&
+                    compilation.GetAssemblyOrModuleSymbol(matchingReference) is IAssemblySymbol referencedSymbol)
                 {
-                    var referencedSymbol = compilation.GetAssemblyOrModuleSymbol(matchingReference) as IAssemblySymbol;
-                    if (referencedSymbol is not null)
-                    {
-                        queue.Enqueue(referencedSymbol);
-                    }
+                    queue.Enqueue(referencedSymbol);
                 }
             }
         }
 
-        return result.ToImmutableArray();
+        return [..result];
     }
 
     private static bool HasOptionsBindingAttributeInNamespace(
@@ -563,8 +676,16 @@ public static class OptionsBindingExtensions
 
         return services;
     }
-}
 """);
+
+        // Generate hosted service classes for OnChange callbacks
+        foreach (var option in options.Where(o => !string.IsNullOrWhiteSpace(o.OnChange)))
+        {
+            GenerateOnChangeHostedService(sb, option);
+        }
+
+        sb.AppendLine("}");
+        sb.AppendLine();
 
         return sb.ToString();
     }
@@ -650,9 +771,75 @@ public static class OptionsBindingExtensions
                 sb.Append(option.ValidatorType);
                 sb.AppendLineLf(">();");
             }
+
+            // Register OnChange callback listener if specified (only for unnamed options with Monitor lifetime)
+            if (!string.IsNullOrWhiteSpace(option.OnChange))
+            {
+                var listenerClassName = $"{option.ClassName}ChangeListener";
+                sb.AppendLineLf();
+                sb.Append("        services.AddHostedService<");
+                sb.Append(listenerClassName);
+                sb.AppendLineLf(">();");
+            }
         }
 
         sb.AppendLineLf();
+    }
+
+    private static void GenerateOnChangeHostedService(
+        StringBuilder sb,
+        OptionsInfo option)
+    {
+        var optionsType = $"global::{option.Namespace}.{option.ClassName}";
+        var listenerClassName = $"{option.ClassName}ChangeListener";
+
+        sb.AppendLineLf();
+        sb.AppendLineLf("/// <summary>");
+        sb.Append("/// Hosted service that registers configuration change callbacks for ");
+        sb.Append(option.ClassName);
+        sb.AppendLineLf(".");
+        sb.AppendLineLf("/// This service is automatically generated and registered when OnChange callback is specified.");
+        sb.AppendLineLf("/// </summary>");
+        sb.AppendLineLf("[global::System.CodeDom.Compiler.GeneratedCode(\"Atc.SourceGenerators.OptionsBinding\", \"1.0.0\")]");
+        sb.AppendLineLf("[global::System.ComponentModel.EditorBrowsable(global::System.ComponentModel.EditorBrowsableState.Never)]");
+        sb.AppendLineLf("[global::System.Diagnostics.DebuggerNonUserCode]");
+        sb.AppendLineLf("[global::System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]");
+        sb.Append("internal sealed class ");
+        sb.Append(listenerClassName);
+        sb.AppendLineLf(" : global::Microsoft.Extensions.Hosting.IHostedService");
+        sb.AppendLineLf("{");
+        sb.Append("    private readonly global::Microsoft.Extensions.Options.IOptionsMonitor<");
+        sb.Append(optionsType);
+        sb.AppendLineLf("> _monitor;");
+        sb.AppendLineLf("    private global::System.IDisposable? _changeToken;");
+        sb.AppendLineLf();
+        sb.Append("    public ");
+        sb.Append(listenerClassName);
+        sb.Append("(global::Microsoft.Extensions.Options.IOptionsMonitor<");
+        sb.Append(optionsType);
+        sb.AppendLineLf("> monitor)");
+        sb.AppendLineLf("    {");
+        sb.AppendLineLf("        _monitor = monitor ?? throw new global::System.ArgumentNullException(nameof(monitor));");
+        sb.AppendLineLf("    }");
+        sb.AppendLineLf();
+        sb.AppendLineLf("    public global::System.Threading.Tasks.Task StartAsync(global::System.Threading.CancellationToken cancellationToken)");
+        sb.AppendLineLf("    {");
+        sb.AppendLineLf("        _changeToken = _monitor.OnChange((options, name) =>");
+        sb.Append("            ");
+        sb.Append(optionsType);
+        sb.Append('.');
+        sb.Append(option.OnChange);
+        sb.AppendLineLf("(options, name));");
+        sb.AppendLineLf();
+        sb.AppendLineLf("        return global::System.Threading.Tasks.Task.CompletedTask;");
+        sb.AppendLineLf("    }");
+        sb.AppendLineLf();
+        sb.AppendLineLf("    public global::System.Threading.Tasks.Task StopAsync(global::System.Threading.CancellationToken cancellationToken)");
+        sb.AppendLineLf("    {");
+        sb.AppendLineLf("        _changeToken?.Dispose();");
+        sb.AppendLineLf("        return global::System.Threading.Tasks.Task.CompletedTask;");
+        sb.AppendLineLf("    }");
+        sb.AppendLineLf("}");
     }
 
     private static string SanitizeForMethodName(string assemblyName)
@@ -838,6 +1025,20 @@ public static class OptionsBindingExtensions
                    /// Default is false.
                    /// </summary>
                    public bool ErrorOnMissingKeys { get; set; }
+
+                   /// <summary>
+                   /// Gets or sets the name of a static method to call when configuration changes are detected.
+                   /// Only applicable when <c>Lifetime = OptionsLifetime.Monitor</c>.
+                   /// The method must have the signature: <c>static void MethodName(TOptions options, string? name)</c>
+                   /// where TOptions is the options class type.
+                   /// The callback will be automatically registered via an IHostedService when the application starts.
+                   /// Default is null (no change callback).
+                   /// </summary>
+                   /// <remarks>
+                   /// Configuration change detection only works with file-based configuration providers (e.g., appsettings.json with reloadOnChange: true).
+                   /// The callback is invoked whenever the configuration file changes and is reloaded.
+                   /// </remarks>
+                   public string? OnChange { get; set; }
                }
            }
            """;
