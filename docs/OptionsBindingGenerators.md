@@ -746,6 +746,7 @@ Console.WriteLine($"Other interval: {otherOptions.Value.RepeatIntervalInSeconds}
 - **🚨 Error on missing keys** - Fail-fast validation when configuration sections are missing (`ErrorOnMissingKeys`) to catch deployment issues at startup
 - **🔔 Configuration change callbacks** - Automatically respond to configuration changes at runtime with `OnChange` callbacks (requires Monitor lifetime)
 - **🔧 Post-configuration support** - Normalize or transform values after binding with `PostConfigure` callbacks (e.g., ensure paths have trailing slashes, lowercase URLs)
+- **🎛️ ConfigureAll support** - Set common default values for all named options instances before individual binding with `ConfigureAll` callbacks (e.g., baseline retry/timeout settings)
 - **📛 Named options** - Multiple configurations of the same options type with different names (e.g., Primary/Secondary email servers)
 - **🎯 Explicit section paths** - Support for nested sections like `"App:Database"` or `"Services:Email"`
 - **📂 Nested subsection binding** - Automatically bind complex properties to configuration subsections (e.g., `StorageOptions.Database.Retry` → `"Storage:Database:Retry"`)
@@ -1478,6 +1479,141 @@ The generator performs compile-time validation of PostConfigure callbacks:
 
 ---
 
+### 🎛️ ConfigureAll Support
+
+Set default values for **all named options instances** before individual configuration binding. This feature is perfect for establishing common baseline settings across multiple named configurations that can then be selectively overridden.
+
+**Requirements:**
+- Requires multiple named instances (at least 2)
+- Callback method must have signature: `static void MethodName(TOptions options)`
+- Runs **before** individual `Configure()` calls
+
+**Basic Example:**
+
+```csharp
+[OptionsBinding("Email:Primary", Name = "Primary", ConfigureAll = nameof(SetDefaults))]
+[OptionsBinding("Email:Secondary", Name = "Secondary")]
+[OptionsBinding("Email:Fallback", Name = "Fallback")]
+public partial class EmailOptions
+{
+    public string SmtpServer { get; set; } = string.Empty;
+    public int Port { get; set; } = 587;
+    public bool UseSsl { get; set; } = true;
+    public int TimeoutSeconds { get; set; } = 30;
+    public int MaxRetries { get; set; }
+
+    internal static void SetDefaults(EmailOptions options)
+    {
+        // Set common defaults for ALL email configurations
+        options.UseSsl = true;
+        options.TimeoutSeconds = 30;
+        options.MaxRetries = 3;
+        options.Port = 587;
+    }
+}
+```
+
+**Generated Code:**
+
+The generator automatically calls `.ConfigureAll()` **before** individual configurations:
+
+```csharp
+// Configure defaults for ALL named instances FIRST
+services.ConfigureAll<EmailOptions>(options => EmailOptions.SetDefaults(options));
+
+// Then configure individual instances (can override defaults)
+services.Configure<EmailOptions>("Primary", configuration.GetSection("Email:Primary"));
+services.Configure<EmailOptions>("Secondary", configuration.GetSection("Email:Secondary"));
+services.Configure<EmailOptions>("Fallback", configuration.GetSection("Email:Fallback"));
+```
+
+**Usage Scenarios:**
+
+```csharp
+// Notification channels - common defaults for all channels
+[OptionsBinding("Notifications:Email", Name = "Email", ConfigureAll = nameof(SetCommonDefaults))]
+[OptionsBinding("Notifications:SMS", Name = "SMS")]
+[OptionsBinding("Notifications:Push", Name = "Push")]
+public partial class NotificationOptions
+{
+    public bool Enabled { get; set; }
+    public int TimeoutSeconds { get; set; } = 30;
+    public int MaxRetries { get; set; } = 3;
+    public int RateLimitPerMinute { get; set; }
+
+    internal static void SetCommonDefaults(NotificationOptions options)
+    {
+        // All notification channels start with these defaults
+        options.TimeoutSeconds = 30;
+        options.MaxRetries = 3;
+        options.RateLimitPerMinute = 60;
+        options.Enabled = true;
+    }
+}
+
+// Database connections - common retry and timeout defaults
+[OptionsBinding("Database:Primary", Name = "Primary", ConfigureAll = nameof(SetConnectionDefaults))]
+[OptionsBinding("Database:ReadReplica", Name = "ReadReplica")]
+[OptionsBinding("Database:Analytics", Name = "Analytics")]
+public partial class DatabaseConnectionOptions
+{
+    public string ConnectionString { get; set; } = string.Empty;
+    public int MaxRetries { get; set; }
+    public int CommandTimeoutSeconds { get; set; }
+    public bool EnableRetry { get; set; }
+
+    internal static void SetConnectionDefaults(DatabaseConnectionOptions options)
+    {
+        // All database connections start with these baseline settings
+        options.MaxRetries = 3;
+        options.CommandTimeoutSeconds = 30;
+        options.EnableRetry = true;
+    }
+}
+```
+
+**Validation Errors:**
+
+The generator performs compile-time validation of ConfigureAll callbacks:
+
+- **ATCOPT011**: ConfigureAll requires multiple named options
+  ```csharp
+  // Error: ConfigureAll needs at least 2 named instances
+  [OptionsBinding("Settings", Name = "Default", ConfigureAll = nameof(SetDefaults))]
+  public partial class Settings { }
+  ```
+
+- **ATCOPT012**: ConfigureAll callback method not found
+  ```csharp
+  // Error: Method 'SetDefaults' does not exist
+  [OptionsBinding("Email", Name = "Primary", ConfigureAll = "SetDefaults")]
+  [OptionsBinding("Email", Name = "Secondary")]
+  public partial class EmailOptions { }
+  ```
+
+- **ATCOPT013**: ConfigureAll callback method has invalid signature
+  ```csharp
+  // Error: Must be static void with (TOptions) parameter
+  [OptionsBinding("Email", Name = "Primary", ConfigureAll = nameof(Configure))]
+  [OptionsBinding("Email", Name = "Secondary")]
+  public partial class EmailOptions
+  {
+      private void Configure() { }  // Wrong: not static, missing parameter
+  }
+  ```
+
+**Important Notes:**
+
+- ConfigureAll runs **before** individual named instance configurations
+- Individual configurations can override defaults set by ConfigureAll
+- Callback method can be `internal` or `public` (not `private`)
+- **Requires multiple named instances** - cannot be used with single unnamed instance
+- Perfect for establishing baseline settings across multiple configurations
+- Order of execution: ConfigureAll → Configure("Name1") → Configure("Name2") → ...
+- Can be specified on any one of the `[OptionsBinding]` attributes (only processed once)
+
+---
+
 ## 🔧 How It Works
 
 ### 1️⃣ Attribute Detection
@@ -2049,6 +2185,12 @@ See [Configuration Change Callbacks](#-configuration-change-callbacks) section f
 ### ❌ ATCOPT008-010: PostConfigure Callback Diagnostics
 
 See [Post-Configuration Support](#-post-configuration-support) section for details.
+
+---
+
+### ❌ ATCOPT011-013: ConfigureAll Callback Diagnostics
+
+See [ConfigureAll Support](#️-configureall-support) section for details.
 
 ---
 

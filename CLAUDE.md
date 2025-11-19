@@ -300,6 +300,7 @@ services.AddDependencyRegistrationsFromDomain(
 - Supports validation: `ValidateDataAnnotations`, `ValidateOnStart`, `ErrorOnMissingKeys` (fail-fast for missing sections), Custom validators (`IValidateOptions<T>`)
 - **Configuration change callbacks**: Auto-generated IHostedService for OnChange notifications with Monitor lifetime - perfect for feature flags and runtime configuration updates
 - **Post-configuration support**: `PostConfigure` callbacks for normalizing/transforming values after binding (e.g., path normalization, URL lowercase)
+- **ConfigureAll support**: Set common default values for all named options instances before individual binding with `ConfigureAll` callbacks (e.g., baseline retry/timeout settings)
 - **Named options support**: Multiple configurations of the same options type with different names (e.g., Primary/Secondary email servers)
 - **Nested subsection binding**: Automatic binding of complex properties to configuration subsections (e.g., `StorageOptions.Database.Retry` → `"Storage:Database:Retry"`) - supported out-of-the-box by Microsoft's `.Bind()` method
 - Supports lifetime selection: Singleton (IOptions), Scoped (IOptionsSnapshot), Monitor (IOptionsMonitor)
@@ -429,6 +430,31 @@ public partial class StorageOptions
 services.AddOptions<StorageOptions>()
     .Bind(configuration.GetSection("Storage"))
     .PostConfigure(options => StorageOptions.NormalizePaths(options));
+
+// Input with ConfigureAll (set defaults for all named instances):
+[OptionsBinding("Email:Primary", Name = "Primary", ConfigureAll = nameof(SetDefaults))]
+[OptionsBinding("Email:Secondary", Name = "Secondary")]
+[OptionsBinding("Email:Fallback", Name = "Fallback")]
+public partial class EmailOptions
+{
+    public string SmtpServer { get; set; } = string.Empty;
+    public int Port { get; set; } = 587;
+    public int MaxRetries { get; set; }
+    public int TimeoutSeconds { get; set; } = 30;
+
+    internal static void SetDefaults(EmailOptions options)
+    {
+        options.MaxRetries = 3;
+        options.TimeoutSeconds = 30;
+        options.Port = 587;
+    }
+}
+
+// Output with ConfigureAll (runs BEFORE individual configurations):
+services.ConfigureAll<EmailOptions>(options => EmailOptions.SetDefaults(options));
+services.Configure<EmailOptions>("Primary", configuration.GetSection("Email:Primary"));
+services.Configure<EmailOptions>("Secondary", configuration.GetSection("Email:Secondary"));
+services.Configure<EmailOptions>("Fallback", configuration.GetSection("Email:Fallback"));
 ```
 
 **Smart Naming:**
@@ -466,6 +492,9 @@ services.AddOptionsFromDomain(configuration, "DataAccess", "Infrastructure");
 - `ATCOPT008` - PostConfigure not supported with named options (Error)
 - `ATCOPT009` - PostConfigure callback method not found (Error)
 - `ATCOPT010` - PostConfigure callback has invalid signature (Error)
+- `ATCOPT011` - ConfigureAll requires multiple named options (Error)
+- `ATCOPT012` - ConfigureAll callback method not found (Error)
+- `ATCOPT013` - ConfigureAll callback has invalid signature (Error)
 
 ### MappingGenerator
 

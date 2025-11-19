@@ -4,8 +4,9 @@ namespace PetStore.Domain.Options;
 /// Notification channel options with support for multiple named configurations.
 /// Demonstrates Named Options feature for configuring multiple notification channels
 /// (Email, SMS, Push) with different settings.
+/// Also demonstrates ConfigureAll to set common defaults for all notification channels.
 /// </summary>
-[OptionsBinding("Notifications:Email", Name = "Email")]
+[OptionsBinding("Notifications:Email", Name = "Email", ConfigureAll = nameof(SetCommonDefaults))]
 [OptionsBinding("Notifications:SMS", Name = "SMS")]
 [OptionsBinding("Notifications:Push", Name = "Push")]
 public partial class NotificationOptions
@@ -39,4 +40,23 @@ public partial class NotificationOptions
     /// Gets or sets the maximum retry attempts.
     /// </summary>
     public int MaxRetries { get; set; } = 3;
+
+    /// <summary>
+    /// Gets or sets the rate limit (max notifications per minute).
+    /// </summary>
+    public int RateLimitPerMinute { get; set; }
+
+    /// <summary>
+    /// Sets common default values for ALL notification channels.
+    /// This method runs BEFORE individual configuration binding, ensuring all channels
+    /// have consistent baseline settings that can be overridden per channel.
+    /// </summary>
+    internal static void SetCommonDefaults(NotificationOptions options)
+    {
+        // Set common defaults for all notification channels
+        options.TimeoutSeconds = 30;
+        options.MaxRetries = 3;
+        options.RateLimitPerMinute = 60;
+        options.Enabled = true;
+    }
 }
