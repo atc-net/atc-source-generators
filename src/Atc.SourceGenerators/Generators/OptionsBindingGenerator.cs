@@ -118,6 +118,30 @@ public class OptionsBindingGenerator : IIncrementalGenerator
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 
+    private static readonly DiagnosticDescriptor ChildSectionsCannotBeUsedWithNameDescriptor = new(
+        RuleIdentifierConstants.OptionsBinding.ChildSectionsCannotBeUsedWithName,
+        "ChildSections cannot be used with Name property",
+        "ChildSections cannot be used with Name property. Use either ChildSections or Name, not both.",
+        RuleCategoryConstants.OptionsBinding,
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    private static readonly DiagnosticDescriptor ChildSectionsRequiresAtLeastTwoItemsDescriptor = new(
+        RuleIdentifierConstants.OptionsBinding.ChildSectionsRequiresAtLeastTwoItems,
+        "ChildSections requires at least 2 items",
+        "ChildSections requires at least 2 items. Found {0} item(s).",
+        RuleCategoryConstants.OptionsBinding,
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    private static readonly DiagnosticDescriptor ChildSectionsItemsCannotBeNullOrEmptyDescriptor = new(
+        RuleIdentifierConstants.OptionsBinding.ChildSectionsItemsCannotBeNullOrEmpty,
+        "ChildSections items cannot be null or empty",
+        "ChildSections array contains null or empty value at index {0}",
+        RuleCategoryConstants.OptionsBinding,
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
     /// <inheritdoc />
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
@@ -251,10 +275,10 @@ public class OptionsBindingGenerator : IIncrementalGenerator
         // Process each attribute separately
         foreach (var attribute in attributes)
         {
-            var optionsInfo = ExtractOptionsInfoFromAttribute(classSymbol, attribute, context);
-            if (optionsInfo is not null)
+            var optionsInfoList = ExtractOptionsInfoFromAttribute(classSymbol, attribute, context);
+            if (optionsInfoList is not null)
             {
-                result.Add(optionsInfo);
+                result.AddRange(optionsInfoList);
             }
         }
 
@@ -320,7 +344,7 @@ public class OptionsBindingGenerator : IIncrementalGenerator
         return result;
     }
 
-    private static OptionsInfo? ExtractOptionsInfoFromAttribute(
+    private static List<OptionsInfo>? ExtractOptionsInfoFromAttribute(
         INamedTypeSymbol classSymbol,
         AttributeData attribute,
         SourceProductionContext context)
@@ -383,6 +407,7 @@ public class OptionsBindingGenerator : IIncrementalGenerator
         string? onChange = null;
         string? postConfigure = null;
         string? configureAll = null;
+        string?[]? childSections = null;
 
         foreach (var namedArg in attribute.NamedArguments)
         {
@@ -415,6 +440,62 @@ public class OptionsBindingGenerator : IIncrementalGenerator
                 case "ConfigureAll":
                     configureAll = namedArg.Value.Value as string;
                     break;
+                case "ChildSections":
+                    if (namedArg.Value.Kind == TypedConstantKind.Array)
+                    {
+                        var values = namedArg.Value.Values;
+
+                        // Always set childSections, even if empty, so validation can detect and report errors
+                        childSections = values.IsDefaultOrEmpty
+                            ? Array.Empty<string?>()
+                            : values
+                                .Select(v => v.Value as string)
+                                .ToArray();
+                    }
+
+                    break;
+            }
+        }
+
+        // Validate ChildSections requirements
+        if (childSections is not null)
+        {
+            // ChildSections cannot be used with Name
+            if (!string.IsNullOrWhiteSpace(name))
+            {
+                context.ReportDiagnostic(
+                    Diagnostic.Create(
+                        ChildSectionsCannotBeUsedWithNameDescriptor,
+                        attribute.ApplicationSyntaxReference?.GetSyntax().GetLocation() ?? Location.None));
+
+                return null;
+            }
+
+            // ChildSections requires at least 2 items
+            if (childSections.Length < 2)
+            {
+                context.ReportDiagnostic(
+                    Diagnostic.Create(
+                        ChildSectionsRequiresAtLeastTwoItemsDescriptor,
+                        attribute.ApplicationSyntaxReference?.GetSyntax().GetLocation() ?? Location.None,
+                        childSections.Length));
+
+                return null;
+            }
+
+            // ChildSections items cannot be null or empty
+            for (int i = 0; i < childSections.Length; i++)
+            {
+                if (string.IsNullOrWhiteSpace(childSections[i]))
+                {
+                    context.ReportDiagnostic(
+                        Diagnostic.Create(
+                            ChildSectionsItemsCannotBeNullOrEmptyDescriptor,
+                            attribute.ApplicationSyntaxReference?.GetSyntax().GetLocation() ?? Location.None,
+                            i));
+
+                    return null;
+                }
             }
         }
 
@@ -565,20 +646,58 @@ public class OptionsBindingGenerator : IIncrementalGenerator
         // Convert validator type to full name if present
         var validatorTypeName = validatorType?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 
-        return new OptionsInfo(
-            classSymbol.Name,
-            classSymbol.ContainingNamespace.ToDisplayString(),
-            classSymbol.ContainingAssembly.Name,
-            sectionName!, // Guaranteed non-null after validation above
-            validateOnStart,
-            validateDataAnnotations,
-            lifetime,
-            validatorTypeName,
-            name,
-            errorOnMissingKeys,
-            onChange,
-            postConfigure,
-            configureAll);
+        // If ChildSections is specified, expand into multiple OptionsInfo instances
+        if (childSections is not null)
+        {
+            var result = new List<OptionsInfo>();
+            foreach (var childSection in childSections)
+            {
+                // Each child section becomes a named instance
+                // Name = childSection, SectionName = "{ParentSection}:{ChildSection}"
+                // Note: childSection is guaranteed non-null by validation above
+                var childSectionName = string.IsNullOrWhiteSpace(sectionName)
+                    ? childSection!
+                    : $"{sectionName}:{childSection!}";
+
+                result.Add(new OptionsInfo(
+                    classSymbol.Name,
+                    classSymbol.ContainingNamespace.ToDisplayString(),
+                    classSymbol.ContainingAssembly.Name,
+                    childSectionName,
+                    validateOnStart,
+                    validateDataAnnotations,
+                    lifetime,
+                    validatorTypeName,
+                    childSection,  // Name is set to the child section name
+                    errorOnMissingKeys,
+                    onChange,
+                    postConfigure,
+                    configureAll,
+                    childSections));  // Store ChildSections to indicate this is part of a child sections group
+            }
+
+            return result;
+        }
+
+        // Single OptionsInfo instance (no ChildSections)
+        return
+        [
+            new OptionsInfo(
+                classSymbol.Name,
+                classSymbol.ContainingNamespace.ToDisplayString(),
+                classSymbol.ContainingAssembly.Name,
+                sectionName!, // Guaranteed non-null after validation above
+                validateOnStart,
+                validateDataAnnotations,
+                lifetime,
+                validatorTypeName,
+                name,
+                errorOnMissingKeys,
+                onChange,
+                postConfigure,
+                configureAll,
+                null) // No ChildSections
+        ];
     }
 
     private static string InferSectionNameFromClassName(string className)
@@ -912,9 +1031,15 @@ public static class OptionsBindingExtensions
             _ => "IOptions<T>",         // Default
         };
 
-        if (isNamed)
+        // Check if this option needs the fluent API (validation, error checking, etc.)
+        var needsFluentApi = option.ValidateDataAnnotations ||
+                            option.ErrorOnMissingKeys ||
+                            option.ValidateOnStart ||
+                            !string.IsNullOrWhiteSpace(option.PostConfigure);
+
+        if (isNamed && !needsFluentApi)
         {
-            // Named options - use Configure<T>(name, ...) pattern
+            // Named options without validation - use simple Configure<T>(name, ...) pattern
             sb.AppendLineLf($"        // Configure {option.ClassName} (Named: \"{option.Name}\") - Inject using IOptionsSnapshot<T>.Get(\"{option.Name}\")");
             sb.Append("        services.Configure<");
             sb.Append(optionsType);
@@ -926,11 +1051,27 @@ public static class OptionsBindingExtensions
         }
         else
         {
-            // Unnamed options - use AddOptions<T>() pattern
-            sb.AppendLineLf($"        // Configure {option.ClassName} - Inject using {lifetimeComment}");
+            // Use fluent API pattern (supports both named and unnamed options)
+            if (isNamed)
+            {
+                sb.AppendLineLf($"        // Configure {option.ClassName} (Named: \"{option.Name}\") - Inject using IOptionsSnapshot<T>.Get(\"{option.Name}\")");
+            }
+            else
+            {
+                sb.AppendLineLf($"        // Configure {option.ClassName} - Inject using {lifetimeComment}");
+            }
+
             sb.Append("        services.AddOptions<");
             sb.Append(optionsType);
-            sb.AppendLineLf(">()");
+            sb.Append(">(");
+            if (isNamed)
+            {
+                sb.Append('"');
+                sb.Append(option.Name);
+                sb.Append('"');
+            }
+
+            sb.AppendLineLf(")");
             sb.Append("            .Bind(configuration.GetSection(\"");
             sb.Append(sectionName);
             sb.Append("\"))");
@@ -976,17 +1117,6 @@ public static class OptionsBindingExtensions
 
             sb.AppendLineLf(";");
 
-            // Register custom validator if specified (only for unnamed options)
-            if (!string.IsNullOrWhiteSpace(option.ValidatorType))
-            {
-                sb.AppendLineLf();
-                sb.Append("        services.AddSingleton<global::Microsoft.Extensions.Options.IValidateOptions<");
-                sb.Append(optionsType);
-                sb.Append(">, ");
-                sb.Append(option.ValidatorType);
-                sb.AppendLineLf(">();");
-            }
-
             // Register OnChange callback listener if specified (only for unnamed options with Monitor lifetime)
             if (!string.IsNullOrWhiteSpace(option.OnChange))
             {
@@ -996,6 +1126,17 @@ public static class OptionsBindingExtensions
                 sb.Append(listenerClassName);
                 sb.AppendLineLf(">();");
             }
+        }
+
+        // Register custom validator if specified (works for both named and unnamed options)
+        if (!string.IsNullOrWhiteSpace(option.ValidatorType))
+        {
+            sb.AppendLineLf();
+            sb.Append("        services.AddSingleton<global::Microsoft.Extensions.Options.IValidateOptions<");
+            sb.Append(optionsType);
+            sb.Append(">, ");
+            sb.Append(option.ValidatorType);
+            sb.AppendLineLf(">();");
         }
 
         sb.AppendLineLf();
@@ -1286,6 +1427,22 @@ public static class OptionsBindingExtensions
                    /// Cannot be used with single unnamed instances (use PostConfigure instead).
                    /// </remarks>
                    public string? ConfigureAll { get; set; }
+
+                   /// <summary>
+                   /// Gets or sets an array of child section names to bind under the parent section.
+                   /// This provides a concise way to create multiple named options instances from child sections.
+                   /// Each child section name becomes both the instance name and the section path suffix.
+                   /// For example, <c>ChildSections = new[] { "Primary", "Secondary" }</c> with <c>SectionName = "Database"</c>
+                   /// creates named instances accessible via <c>IOptionsSnapshot&lt;T&gt;.Get("Primary")</c>
+                   /// bound to sections "Database:Primary" and "Database:Secondary".
+                   /// Default is null (no child sections).
+                   /// </summary>
+                   /// <remarks>
+                   /// Cannot be used with the Name property - they are mutually exclusive.
+                   /// Requires at least 2 child sections.
+                   /// Useful for multi-tenant scenarios, regional configurations, or environment-specific settings.
+                   /// </remarks>
+                   public string[]? ChildSections { get; set; }
                }
            }
            """;

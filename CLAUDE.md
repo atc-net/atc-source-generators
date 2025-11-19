@@ -302,6 +302,7 @@ services.AddDependencyRegistrationsFromDomain(
 - **Post-configuration support**: `PostConfigure` callbacks for normalizing/transforming values after binding (e.g., path normalization, URL lowercase)
 - **ConfigureAll support**: Set common default values for all named options instances before individual binding with `ConfigureAll` callbacks (e.g., baseline retry/timeout settings)
 - **Named options support**: Multiple configurations of the same options type with different names (e.g., Primary/Secondary email servers)
+- **Child sections**: Simplified syntax for creating multiple named instances from subsections using `ChildSections` property (e.g., `Email` → Primary/Secondary/Fallback)
 - **Nested subsection binding**: Automatic binding of complex properties to configuration subsections (e.g., `StorageOptions.Database.Retry` → `"Storage:Database:Retry"`) - supported out-of-the-box by Microsoft's `.Bind()` method
 - Supports lifetime selection: Singleton (IOptions), Scoped (IOptionsSnapshot), Monitor (IOptionsMonitor)
 - Requires classes to be declared `partial`
@@ -455,6 +456,32 @@ services.ConfigureAll<EmailOptions>(options => EmailOptions.SetDefaults(options)
 services.Configure<EmailOptions>("Primary", configuration.GetSection("Email:Primary"));
 services.Configure<EmailOptions>("Secondary", configuration.GetSection("Email:Secondary"));
 services.Configure<EmailOptions>("Fallback", configuration.GetSection("Email:Fallback"));
+
+// Input with ChildSections (simplified syntax for multiple named instances):
+[OptionsBinding("Email", ChildSections = new[] { "Primary", "Secondary", "Fallback" }, ConfigureAll = nameof(SetDefaults))]
+public partial class EmailOptions
+{
+    public string SmtpServer { get; set; } = string.Empty;
+    public int Port { get; set; } = 587;
+    public int MaxRetries { get; set; }
+
+    internal static void SetDefaults(EmailOptions options)
+    {
+        options.MaxRetries = 3;
+        options.Port = 587;
+    }
+}
+
+// Output with ChildSections (generates identical code to multiple attributes):
+services.ConfigureAll<EmailOptions>(options => EmailOptions.SetDefaults(options));
+services.Configure<EmailOptions>("Primary", configuration.GetSection("Email:Primary"));
+services.Configure<EmailOptions>("Secondary", configuration.GetSection("Email:Secondary"));
+services.Configure<EmailOptions>("Fallback", configuration.GetSection("Email:Fallback"));
+
+// ChildSections is equivalent to writing multiple [OptionsBinding] attributes:
+// [OptionsBinding("Email:Primary", Name = "Primary", ConfigureAll = nameof(SetDefaults))]
+// [OptionsBinding("Email:Secondary", Name = "Secondary")]
+// [OptionsBinding("Email:Fallback", Name = "Fallback")]
 ```
 
 **Smart Naming:**
@@ -495,6 +522,9 @@ services.AddOptionsFromDomain(configuration, "DataAccess", "Infrastructure");
 - `ATCOPT011` - ConfigureAll requires multiple named options (Error)
 - `ATCOPT012` - ConfigureAll callback method not found (Error)
 - `ATCOPT013` - ConfigureAll callback has invalid signature (Error)
+- `ATCOPT014` - ChildSections cannot be used with Name property (Error)
+- `ATCOPT015` - ChildSections requires at least 2 items (Error)
+- `ATCOPT016` - ChildSections array contains null or empty value (Error)
 
 ### MappingGenerator
 

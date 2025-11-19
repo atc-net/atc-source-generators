@@ -238,14 +238,13 @@ public partial class OptionsBindingGeneratorTests
     [Fact]
     public void Generator_Should_Support_ErrorOnMissingKeys_With_NamedOptions()
     {
-        // Arrange - Named options should NOT support ErrorOnMissingKeys
-        // This test verifies that ErrorOnMissingKeys is ignored for named options
+        // Arrange - Named options now support ErrorOnMissingKeys via fluent API
         const string source = """
                               using Atc.SourceGenerators.Annotations;
 
                               namespace MyApp.Configuration;
 
-                              [OptionsBinding("Email:Primary", Name = "Primary", ErrorOnMissingKeys = true)]
+                              [OptionsBinding("Email:Primary", Name = "Primary", ErrorOnMissingKeys = true, ValidateOnStart = true)]
                               public partial class EmailOptions
                               {
                                   public string SmtpServer { get; set; } = string.Empty;
@@ -261,11 +260,16 @@ public partial class OptionsBindingGeneratorTests
         var generatedCode = GetGeneratedExtensionMethod(output);
         Assert.NotNull(generatedCode);
 
-        // Named options use Configure<T>(name, section) pattern which doesn't support validation chain
-        Assert.Contains("services.Configure<global::MyApp.Configuration.EmailOptions>(\"Primary\",", generatedCode, StringComparison.Ordinal);
+        // Named options with validation use AddOptions<T>("name") fluent API pattern
+        Assert.Contains("services.AddOptions<global::MyApp.Configuration.EmailOptions>(\"Primary\")", generatedCode, StringComparison.Ordinal);
+        Assert.Contains(".Bind(configuration.GetSection(\"Email:Primary\"))", generatedCode, StringComparison.Ordinal);
 
-        // ErrorOnMissingKeys should be ignored for named options (no validation chain)
-        Assert.DoesNotContain(".Validate(options =>", generatedCode, StringComparison.Ordinal);
+        // ErrorOnMissingKeys validation should be present
+        Assert.Contains(".Validate(options =>", generatedCode, StringComparison.Ordinal);
+        Assert.Contains("var section = configuration.GetSection(\"Email:Primary\");", generatedCode, StringComparison.Ordinal);
+        Assert.Contains("if (!section.Exists())", generatedCode, StringComparison.Ordinal);
+        Assert.Contains("Configuration section 'Email:Primary' is missing", generatedCode, StringComparison.Ordinal);
+        Assert.Contains(".ValidateOnStart()", generatedCode, StringComparison.Ordinal);
     }
 
     [Fact]

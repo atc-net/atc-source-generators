@@ -748,6 +748,7 @@ Console.WriteLine($"Other interval: {otherOptions.Value.RepeatIntervalInSeconds}
 - **🔧 Post-configuration support** - Normalize or transform values after binding with `PostConfigure` callbacks (e.g., ensure paths have trailing slashes, lowercase URLs)
 - **🎛️ ConfigureAll support** - Set common default values for all named options instances before individual binding with `ConfigureAll` callbacks (e.g., baseline retry/timeout settings)
 - **📛 Named options** - Multiple configurations of the same options type with different names (e.g., Primary/Secondary email servers)
+- **🎯 Child sections** - Simplified syntax for creating multiple named instances from configuration subsections (e.g., Email → Primary/Secondary/Fallback)
 - **🎯 Explicit section paths** - Support for nested sections like `"App:Database"` or `"Services:Email"`
 - **📂 Nested subsection binding** - Automatically bind complex properties to configuration subsections (e.g., `StorageOptions.Database.Retry` → `"Storage:Database:Retry"`)
 - **📦 Multiple options classes** - Register multiple configuration sections in a single assembly with one method call
@@ -2094,6 +2095,302 @@ var backupEmail = emailSnapshot.Get("Backup");
 
 ---
 
+### 🎯 Child Sections (Simplified Named Options)
+
+**Child Sections** provide a concise syntax for creating multiple named options instances from configuration subsections. Instead of writing multiple `[OptionsBinding]` attributes for each named instance, you can use a single `ChildSections` property.
+
+#### ✨ Use Cases
+
+- **🔄 Fallback Servers**: Automatically create Primary/Secondary/Fallback email configurations
+- **📢 Notification Channels**: Email, SMS, Push notification configurations from a single attribute
+- **🌍 Multi-Region**: Different regional configurations (USEast, USWest, EUWest)
+- **🔧 Multi-Tenant**: Tenant-specific configurations (Tenant1, Tenant2, Tenant3)
+
+#### 🎯 Basic Example
+
+**Before (Multiple Attributes):**
+
+```csharp
+[OptionsBinding("Email:Primary", Name = "Primary")]
+[OptionsBinding("Email:Secondary", Name = "Secondary")]
+[OptionsBinding("Email:Fallback", Name = "Fallback")]
+public partial class EmailOptions
+{
+    public string SmtpServer { get; set; } = string.Empty;
+    public int Port { get; set; } = 587;
+}
+```
+
+**After (With ChildSections):**
+
+```csharp
+[OptionsBinding("Email", ChildSections = new[] { "Primary", "Secondary", "Fallback" })]
+public partial class EmailOptions
+{
+    public string SmtpServer { get; set; } = string.Empty;
+    public int Port { get; set; } = 587;
+}
+```
+
+**Both generate identical code:**
+
+```csharp
+services.Configure<EmailOptions>("Primary", configuration.GetSection("Email:Primary"));
+services.Configure<EmailOptions>("Secondary", configuration.GetSection("Email:Secondary"));
+services.Configure<EmailOptions>("Fallback", configuration.GetSection("Email:Fallback"));
+```
+
+#### 📋 Configuration Structure
+
+```json
+{
+  "Email": {
+    "Primary": {
+      "SmtpServer": "smtp.primary.example.com",
+      "Port": 587
+    },
+    "Secondary": {
+      "SmtpServer": "smtp.secondary.example.com",
+      "Port": 587
+    },
+    "Fallback": {
+      "SmtpServer": "smtp.fallback.example.com",
+      "Port": 25
+    }
+  }
+}
+```
+
+#### 🔧 Advanced Features
+
+**With Validation:**
+
+```csharp
+[OptionsBinding("Database",
+    ChildSections = new[] { "Primary", "Secondary" },
+    ValidateDataAnnotations = true,
+    ValidateOnStart = true)]
+public partial class DatabaseOptions
+{
+    [Required]
+    public string ConnectionString { get; set; } = string.Empty;
+
+    [Range(1, 10)]
+    public int MaxRetries { get; set; } = 3;
+}
+```
+
+**Generated Code:**
+
+```csharp
+services.AddOptions<DatabaseOptions>("Primary")
+    .Bind(configuration.GetSection("Database:Primary"))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+
+services.AddOptions<DatabaseOptions>("Secondary")
+    .Bind(configuration.GetSection("Database:Secondary"))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+```
+
+**With ConfigureAll (Common Defaults):**
+
+```csharp
+[OptionsBinding("Notifications",
+    ChildSections = new[] { "Email", "SMS", "Push" },
+    ConfigureAll = nameof(SetCommonDefaults))]
+public partial class NotificationOptions
+{
+    public bool Enabled { get; set; }
+    public int TimeoutSeconds { get; set; } = 30;
+    public int MaxRetries { get; set; } = 3;
+
+    internal static void SetCommonDefaults(NotificationOptions options)
+    {
+        options.TimeoutSeconds = 30;
+        options.MaxRetries = 3;
+        options.Enabled = true;
+    }
+}
+```
+
+**Generated Code:**
+
+```csharp
+// Set defaults for ALL notification channels FIRST
+services.ConfigureAll<NotificationOptions>(options =>
+    NotificationOptions.SetCommonDefaults(options));
+
+// Then configure individual channels
+services.Configure<NotificationOptions>("Email", configuration.GetSection("Notifications:Email"));
+services.Configure<NotificationOptions>("SMS", configuration.GetSection("Notifications:SMS"));
+services.Configure<NotificationOptions>("Push", configuration.GetSection("Notifications:Push"));
+```
+
+#### 📍 Nested Paths
+
+ChildSections works with nested configuration paths:
+
+```csharp
+[OptionsBinding("App:Services:Cache", ChildSections = new[] { "Redis", "Memory" })]
+public partial class CacheOptions
+{
+    public string Provider { get; set; } = string.Empty;
+    public int ExpirationMinutes { get; set; }
+}
+```
+
+**Generated paths:**
+
+- `"App:Services:Cache:Redis"`
+- `"App:Services:Cache:Memory"`
+
+#### 🚨 Validation Rules
+
+The generator performs compile-time validation:
+
+- **ATCOPT014**: ChildSections cannot be used with `Name` property
+  ```csharp
+  // ❌ Error: Cannot use both ChildSections and Name
+  [OptionsBinding("Email", Name = "Primary", ChildSections = new[] { "A", "B" })]
+  public partial class EmailOptions { }
+  ```
+
+- **ATCOPT015**: ChildSections requires at least 2 items
+  ```csharp
+  // ❌ Error: Must have at least 2 child sections
+  [OptionsBinding("Email", ChildSections = new[] { "Primary" })]
+  public partial class EmailOptions { }
+
+  // ❌ Error: Empty array not allowed
+  [OptionsBinding("Email", ChildSections = new string[] { })]
+  public partial class EmailOptions { }
+  ```
+
+- **ATCOPT016**: ChildSections items cannot be null or empty
+  ```csharp
+  // ❌ Error: Array contains empty string
+  [OptionsBinding("Email", ChildSections = new[] { "Primary", "", "Secondary" })]
+  public partial class EmailOptions { }
+  ```
+
+#### 💡 Key Benefits
+
+1. **Less Boilerplate**: One attribute instead of many
+2. **Clearer Intent**: Explicitly shows related configurations are grouped
+3. **Easier Maintenance**: Add/remove sections by updating the array
+4. **Same Features**: Supports all named options features (validation, ConfigureAll, etc.)
+
+#### 📊 ChildSections vs Multiple Attributes
+
+| Feature | Multiple `[OptionsBinding]` | `ChildSections` |
+|---------|----------------------------|----------------|
+| Verbosity | 3+ attributes | 1 attribute |
+| Named instances | ✅ Yes | ✅ Yes |
+| Validation | ✅ Yes | ✅ Yes |
+| ConfigureAll | ✅ Yes | ✅ Yes |
+| Custom validators | ✅ Yes | ✅ Yes |
+| ErrorOnMissingKeys | ✅ Yes | ✅ Yes |
+| Clarity | Explicit | Concise |
+| Use case | Few instances | Many instances |
+
+**Recommendation:**
+- Use `ChildSections` when you have 2+ related configurations under a common parent section
+- Use multiple `[OptionsBinding]` attributes when configurations come from different sections
+
+#### 🎯 Real-World Example
+
+**Notification system with multiple channels:**
+
+```csharp
+/// <summary>
+/// Notification channel options with support for multiple named configurations.
+/// </summary>
+[OptionsBinding("Notifications",
+    ChildSections = new[] { "Email", "SMS", "Push" },
+    ConfigureAll = nameof(SetCommonDefaults),
+    ValidateDataAnnotations = true,
+    ValidateOnStart = true)]
+public partial class NotificationOptions
+{
+    [Required]
+    public string Provider { get; set; } = string.Empty;
+
+    public bool Enabled { get; set; }
+
+    [Range(1, 300)]
+    public int TimeoutSeconds { get; set; } = 30;
+
+    [Range(0, 10)]
+    public int MaxRetries { get; set; } = 3;
+
+    internal static void SetCommonDefaults(NotificationOptions options)
+    {
+        options.TimeoutSeconds = 30;
+        options.MaxRetries = 3;
+        options.RateLimitPerMinute = 60;
+        options.Enabled = true;
+    }
+}
+```
+
+**appsettings.json:**
+
+```json
+{
+  "Notifications": {
+    "Email": {
+      "Provider": "SendGrid",
+      "Enabled": true,
+      "TimeoutSeconds": 30,
+      "MaxRetries": 3
+    },
+    "SMS": {
+      "Provider": "Twilio",
+      "Enabled": false,
+      "TimeoutSeconds": 15,
+      "MaxRetries": 2
+    },
+    "Push": {
+      "Provider": "Firebase",
+      "Enabled": true,
+      "TimeoutSeconds": 20,
+      "MaxRetries": 3
+    }
+  }
+}
+```
+
+**Usage:**
+
+```csharp
+public class NotificationService
+{
+    private readonly IOptionsSnapshot<NotificationOptions> _notificationOptions;
+
+    public NotificationService(IOptionsSnapshot<NotificationOptions> notificationOptions)
+    {
+        _notificationOptions = notificationOptions;
+    }
+
+    public async Task SendAsync(string channel, string message)
+    {
+        var options = _notificationOptions.Get(channel);
+
+        if (!options.Enabled)
+        {
+            return; // Channel disabled
+        }
+
+        // Send using the configured provider
+        await SendViaProvider(options.Provider, message, options.TimeoutSeconds);
+    }
+}
+```
+
+---
+
 ## 🛡️ Diagnostics
 
 The generator provides helpful compile-time diagnostics:
@@ -2191,6 +2488,18 @@ See [Post-Configuration Support](#-post-configuration-support) section for detai
 ### ❌ ATCOPT011-013: ConfigureAll Callback Diagnostics
 
 See [ConfigureAll Support](#️-configureall-support) section for details.
+
+---
+
+### ❌ ATCOPT014-016: ChildSections Diagnostics
+
+See [Child Sections (Simplified Named Options)](#-child-sections-simplified-named-options) section for details.
+
+**Quick reference:**
+
+- **ATCOPT014**: ChildSections cannot be used with Name property
+- **ATCOPT015**: ChildSections requires at least 2 items
+- **ATCOPT016**: ChildSections items cannot be null or empty
 
 ---
 

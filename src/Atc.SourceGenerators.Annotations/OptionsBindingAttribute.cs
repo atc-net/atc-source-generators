@@ -124,4 +124,20 @@ public sealed class OptionsBindingAttribute : Attribute
     /// Cannot be used with single unnamed instances (use PostConfigure instead).
     /// </remarks>
     public string? ConfigureAll { get; set; }
+
+    /// <summary>
+    /// Gets or sets an array of child section names to bind under the parent section.
+    /// This provides a concise way to create multiple named options instances from child sections.
+    /// Each child section name becomes both the instance name and the section path suffix.
+    /// For example, <c>ChildSections = new[] { "Primary", "Secondary" }</c> with <c>SectionName = "Database"</c>
+    /// creates named instances accessible via <c>IOptionsSnapshot&lt;T&gt;.Get("Primary")</c>
+    /// bound to sections "Database:Primary" and "Database:Secondary".
+    /// Default is null (no child sections).
+    /// </summary>
+    /// <remarks>
+    /// Cannot be used with the Name property - they are mutually exclusive.
+    /// Requires at least 2 child sections.
+    /// Useful for multi-tenant scenarios, regional configurations, or environment-specific settings.
+    /// </remarks>
+    public string[]? ChildSections { get; set; }
 }
