@@ -125,7 +125,7 @@ public partial class OptionsBindingGeneratorTests
         Assert.Contains("services.AddSingleton<global::Microsoft.Extensions.Options.IValidateOptions<global::MyApp.Configuration.StorageOptions>, global::MyApp.Configuration.StorageOptionsValidator>();", generatedCode, StringComparison.Ordinal);
 
         // Ensure validator is registered on a separate line after the semicolon
-        var lines = generatedCode.Split('\n');
+        var lines = generatedCode.Split(Constants.LineFeed);
         var validateOnStartIndex = Array.FindIndex(lines, l => l.Contains(".ValidateOnStart();", StringComparison.Ordinal));
         var validatorIndex = Array.FindIndex(lines, l => l.Contains("IValidateOptions", StringComparison.Ordinal));
 

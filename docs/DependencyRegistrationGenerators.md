@@ -71,8 +71,8 @@ services.AddScoped<IUserService, UserService>();
   - [⚙️ RegistrationAttribute Parameters](#️-registrationattribute-parameters)
     - [📝 Examples](#-examples)
   - [🛡️ Diagnostics](#️-diagnostics)
-    - [❌ ATCDIR001: As Type Must Be Interface](#-atcdir001-as-type-must-be-interface)
-    - [❌ ATCDIR002: Class Does Not Implement Interface](#-atcdir002-class-does-not-implement-interface)
+    - [❌ ATCDIR001: As Type Must Be Interface or Abstract Class](#-atcdir001-as-type-must-be-interface-or-abstract-class)
+    - [❌ ATCDIR002: Class Does Not Implement Interface or Inherit Abstract Class](#-atcdir002-class-does-not-implement-interface-or-inherit-abstract-class)
     - [⚠️ ATCDIR003: Duplicate Registration with Different Lifetime](#️-atcdir003-duplicate-registration-with-different-lifetime)
     - [❌ ATCDIR004: Hosted Services Must Use Singleton Lifetime](#-atcdir004-hosted-services-must-use-singleton-lifetime)
   - [🔷 Generic Interface Registration](#-generic-interface-registration)
@@ -1233,25 +1233,39 @@ var app = builder.Build();
 
 The generator provides compile-time diagnostics to catch common errors:
 
-### ❌ ATCDIR001: As Type Must Be Interface
+### ❌ ATCDIR001: As Type Must Be Interface or Abstract Class
 
 **Severity:** Error
 
-**Description:** The type specified in `As` parameter must be an interface.
+**Description:** The type specified in `As` parameter must be an interface or abstract class.
 
 ```csharp
-// ❌ Error: BaseService is a class, not an interface
+// ❌ Error: BaseService is a concrete class
+public class BaseService { }
+
 [Registration(As = typeof(BaseService))]
 public class UserService : BaseService { }
+
+// ✅ OK: Abstract base class
+public abstract class AbstractBaseService { }
+
+[Registration(As = typeof(AbstractBaseService))]
+public class UserService : AbstractBaseService { }
+
+// ✅ OK: Interface
+public interface IUserService { }
+
+[Registration(As = typeof(IUserService))]
+public class UserService : IUserService { }
 ```
 
-**Fix:** Use an interface type or remove the `As` parameter.
+**Fix:** Use an interface, abstract class, or remove the `As` parameter.
 
-### ❌ ATCDIR002: Class Does Not Implement Interface
+### ❌ ATCDIR002: Class Does Not Implement Interface or Inherit Abstract Class
 
 **Severity:** Error
 
-**Description:** Class does not implement the interface specified in `As` parameter.
+**Description:** Class does not implement the interface or inherit from the abstract class specified in `As` parameter.
 
 ```csharp
 public interface IUserService { }
@@ -1259,9 +1273,15 @@ public interface IUserService { }
 // ❌ Error: UserService doesn't implement IUserService
 [Registration(As = typeof(IUserService))]
 public class UserService { }
+
+public abstract class AuthenticationStateProvider { }
+
+// ❌ Error: UserService doesn't inherit from AuthenticationStateProvider
+[Registration(As = typeof(AuthenticationStateProvider))]
+public class UserService { }
 ```
 
-**Fix:** Implement the interface or remove the `As` parameter.
+**Fix:** Implement the interface, inherit from the abstract class, or remove the `As` parameter.
 
 ### ⚠️ ATCDIR003: Duplicate Registration with Different Lifetime
 

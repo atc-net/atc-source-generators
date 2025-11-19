@@ -162,7 +162,7 @@ public partial class DependencyRegistrationGeneratorTests
     }
 
     [Fact]
-    public void Generator_Should_Report_Error_When_As_Type_Is_Not_Interface()
+    public void Generator_Should_Report_Error_When_As_Type_Is_Concrete_Class()
     {
         const string source = """
                               using Atc.DependencyInjection;
@@ -186,7 +186,7 @@ public partial class DependencyRegistrationGeneratorTests
         Assert.Equal(DiagnosticSeverity.Error, diagnostic.Severity);
         var message = diagnostic.GetMessage(null);
         Assert.Contains("BaseService", message, StringComparison.Ordinal);
-        Assert.Contains("must be an interface", message, StringComparison.Ordinal);
+        Assert.Contains("must be an interface or abstract class", message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -215,6 +215,138 @@ public partial class DependencyRegistrationGeneratorTests
         var message = diagnostic.GetMessage(null);
         Assert.Contains("UserService", message, StringComparison.Ordinal);
         Assert.Contains("does not implement interface", message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generator_Should_Accept_Abstract_Base_Class()
+    {
+        const string source = """
+                              using Atc.DependencyInjection;
+
+                              namespace TestNamespace;
+
+                              public abstract class AuthenticationStateProvider
+                              {
+                              }
+
+                              [Registration(Lifetime.Scoped, As = typeof(AuthenticationStateProvider))]
+                              public class ServerAuthenticationStateProvider : AuthenticationStateProvider
+                              {
+                              }
+                              """;
+
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        Assert.Empty(diagnostics);
+        Assert.Contains("services.AddScoped<TestNamespace.AuthenticationStateProvider, TestNamespace.ServerAuthenticationStateProvider>()", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generator_Should_Report_Error_When_Class_Does_Not_Inherit_From_Abstract_Class()
+    {
+        const string source = """
+                              using Atc.DependencyInjection;
+
+                              namespace TestNamespace;
+
+                              public abstract class AuthenticationStateProvider
+                              {
+                              }
+
+                              [Registration(As = typeof(AuthenticationStateProvider))]
+                              public class UserService
+                              {
+                              }
+                              """;
+
+        var (diagnostics, _) = GetGeneratedOutput(source);
+
+        Assert.NotEmpty(diagnostics);
+        var diagnostic = Assert.Single(diagnostics, d => d.Id == "ATCDIR002");
+        Assert.Equal(DiagnosticSeverity.Error, diagnostic.Severity);
+        var message = diagnostic.GetMessage(null);
+        Assert.Contains("UserService", message, StringComparison.Ordinal);
+        Assert.Contains("AuthenticationStateProvider", message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generator_Should_Support_Generic_Abstract_Base_Class()
+    {
+        const string source = """
+                              using Atc.DependencyInjection;
+
+                              namespace TestNamespace;
+
+                              public abstract class EntityBase<TKey>
+                              {
+                              }
+
+                              [Registration(As = typeof(EntityBase<int>))]
+                              public class UserEntity : EntityBase<int>
+                              {
+                              }
+                              """;
+
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        Assert.Empty(diagnostics);
+        Assert.Contains("services.AddSingleton<TestNamespace.EntityBase<int>, TestNamespace.UserEntity>()", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generator_Should_Support_Multiple_Inheritance_Levels()
+    {
+        const string source = """
+                              using Atc.DependencyInjection;
+
+                              namespace TestNamespace;
+
+                              public abstract class AbstractGrandparent
+                              {
+                              }
+
+                              public abstract class AbstractParent : AbstractGrandparent
+                              {
+                              }
+
+                              [Registration(As = typeof(AbstractGrandparent))]
+                              public class ConcreteService : AbstractParent
+                              {
+                              }
+                              """;
+
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        Assert.Empty(diagnostics);
+        Assert.Contains("services.AddSingleton<TestNamespace.AbstractGrandparent, TestNamespace.ConcreteService>()", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generator_Should_Support_Mixed_Abstract_Class_And_Interface()
+    {
+        const string source = """
+                              using Atc.DependencyInjection;
+
+                              namespace TestNamespace;
+
+                              public abstract class BaseService
+                              {
+                              }
+
+                              public interface IUserService
+                              {
+                              }
+
+                              [Registration]
+                              public class UserService : BaseService, IUserService
+                              {
+                              }
+                              """;
+
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        Assert.Empty(diagnostics);
+        Assert.Contains("services.AddSingleton<TestNamespace.IUserService, TestNamespace.UserService>()", output, StringComparison.Ordinal);
     }
 
     [Fact]

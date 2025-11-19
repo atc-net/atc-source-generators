@@ -40,7 +40,7 @@ public partial class EnumMappingGeneratorTests
             .ToImmutableArray();
 
         var output = string.Join(
-            "\n",
+            Constants.LineFeed,
             outputCompilation
                 .SyntaxTrees
                 .Skip(1)

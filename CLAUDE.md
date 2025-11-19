@@ -102,6 +102,7 @@ Both generators follow the **Incremental Generator** pattern (IIncrementalGenera
 
 **Key Features:**
 - Auto-detects all implemented interfaces (excluding System.* and Microsoft.* namespaces)
+- **Abstract base class support** - Register services against abstract base classes (e.g., `AuthenticationStateProvider`, `DelegatingHandler`)
 - **Generic interface registration** - Full support for open generic types like `IRepository<T>` and `IHandler<TRequest, TResponse>`
 - **Keyed service registration** - Multiple implementations of the same interface with different keys (.NET 8+)
 - **Factory method registration** - Custom initialization logic via static factory methods
@@ -122,6 +123,10 @@ Both generators follow the **Incremental Generator** pattern (IIncrementalGenera
 ```csharp
 // Input: [Registration] public class UserService : IUserService { }
 // Output: services.AddSingleton<IUserService, UserService>();
+
+// Abstract Base Class Input: [Registration(Lifetime.Scoped, As = typeof(AuthenticationStateProvider))]
+//                             public class ServerAuthenticationStateProvider : AuthenticationStateProvider { }
+// Abstract Base Class Output: services.AddScoped<AuthenticationStateProvider, ServerAuthenticationStateProvider>();
 
 // Generic Input: [Registration(Lifetime.Scoped)] public class Repository<T> : IRepository<T> where T : class { }
 // Generic Output: services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
@@ -277,8 +282,8 @@ services.AddDependencyRegistrationsFromDomain(
 - Runtime (method parameters): Flexible per application, allows different apps to exclude different services
 
 **Diagnostics:**
-- `ATCDIR001` - Service 'As' type must be an interface (Error)
-- `ATCDIR002` - Class does not implement specified interface (Error)
+- `ATCDIR001` - Service 'As' type must be an interface or abstract class (Error)
+- `ATCDIR002` - Class does not implement specified interface or inherit from abstract class (Error)
 - `ATCDIR003` - Duplicate registration with different lifetimes (Warning)
 - `ATCDIR004` - Hosted services must use Singleton lifetime (Error)
 - `ATCDIR005` - Factory method not found (Error)

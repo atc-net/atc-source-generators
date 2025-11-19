@@ -12,12 +12,12 @@ internal static class RuleIdentifierConstants
     internal static class DependencyInjection
     {
         /// <summary>
-        /// ATCDIR001: Service 'As' type must be an interface.
+        /// ATCDIR001: Service 'As' type must be an interface or abstract class.
         /// </summary>
         internal const string AsTypeMustBeInterface = "ATCDIR001";
 
         /// <summary>
-        /// ATCDIR002: Class does not implement specified interface.
+        /// ATCDIR002: Class does not implement specified interface or inherit from abstract class.
         /// </summary>
         internal const string ClassDoesNotImplementInterface = "ATCDIR002";
 

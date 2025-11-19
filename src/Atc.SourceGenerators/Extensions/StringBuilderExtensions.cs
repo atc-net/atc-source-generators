@@ -22,7 +22,7 @@ internal static class StringBuilderExtensions
             builder.Append(value);
         }
 
-        builder.Append('\n');
+        builder.Append(Constants.LineFeed);
         return builder;
     }
 }

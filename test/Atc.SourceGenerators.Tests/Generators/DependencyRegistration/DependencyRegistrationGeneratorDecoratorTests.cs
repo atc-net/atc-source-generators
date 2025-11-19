@@ -247,4 +247,49 @@ public partial class DependencyRegistrationGeneratorTests
         Assert.True(serviceAIndex < decoratorAIndex, "Base service should be registered before decorator");
         Assert.True(serviceBIndex < decoratorAIndex, "Other base services should be registered before decorators");
     }
+
+    [Fact]
+    public void Generator_Should_Support_Decorator_With_Abstract_Base_Class()
+    {
+        const string source = """
+                              using Atc.DependencyInjection;
+
+                              namespace TestNamespace;
+
+                              public abstract class AuthenticationHandler
+                              {
+                                  public abstract Task AuthenticateAsync();
+                              }
+
+                              [Registration(Lifetime.Scoped, As = typeof(AuthenticationHandler))]
+                              public class BasicAuthenticationHandler : AuthenticationHandler
+                              {
+                                  public override Task AuthenticateAsync() => Task.CompletedTask;
+                              }
+
+                              [Registration(Lifetime.Scoped, As = typeof(AuthenticationHandler), Decorator = true)]
+                              public class LoggingAuthenticationHandler : AuthenticationHandler
+                              {
+                                  private readonly AuthenticationHandler inner;
+
+                                  public LoggingAuthenticationHandler(AuthenticationHandler inner)
+                                  {
+                                      this.inner = inner;
+                                  }
+
+                                  public override Task AuthenticateAsync() => inner.AuthenticateAsync();
+                              }
+                              """;
+
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        Assert.Empty(diagnostics);
+
+        // Verify base service is registered first
+        Assert.Contains("services.AddScoped<TestNamespace.AuthenticationHandler, TestNamespace.BasicAuthenticationHandler>()", output, StringComparison.Ordinal);
+
+        // Verify decorator uses Decorate method with abstract class
+        Assert.Contains("services.Decorate<TestNamespace.AuthenticationHandler>((provider, inner) =>", output, StringComparison.Ordinal);
+        Assert.Contains("return ActivatorUtilities.CreateInstance<TestNamespace.LoggingAuthenticationHandler>(provider, inner);", output, StringComparison.Ordinal);
+    }
 }

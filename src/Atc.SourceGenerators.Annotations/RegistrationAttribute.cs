@@ -22,7 +22,7 @@ public sealed class RegistrationAttribute : Attribute
     public Lifetime Lifetime { get; }
 
     /// <summary>
-    /// Gets or sets the service type to register against (typically an interface).
+    /// Gets or sets the service type to register against (typically an interface or abstract class).
     /// If not specified, the service will be registered as its concrete type.
     /// </summary>
     public global::System.Type? As { get; set; }
