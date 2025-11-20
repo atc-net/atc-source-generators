@@ -408,6 +408,7 @@ public class OptionsBindingGenerator : IIncrementalGenerator
         string? postConfigure = null;
         string? configureAll = null;
         string?[]? childSections = null;
+        var alsoRegisterDirectType = false;
 
         foreach (var namedArg in attribute.NamedArguments)
         {
@@ -453,6 +454,9 @@ public class OptionsBindingGenerator : IIncrementalGenerator
                                 .ToArray();
                     }
 
+                    break;
+                case "AlsoRegisterDirectType":
+                    alsoRegisterDirectType = namedArg.Value.Value as bool? ?? false;
                     break;
             }
         }
@@ -673,7 +677,8 @@ public class OptionsBindingGenerator : IIncrementalGenerator
                     onChange,
                     postConfigure,
                     configureAll,
-                    childSections));  // Store ChildSections to indicate this is part of a child sections group
+                    childSections,  // Store ChildSections to indicate this is part of a child sections group
+                    alsoRegisterDirectType));
             }
 
             return result;
@@ -696,7 +701,8 @@ public class OptionsBindingGenerator : IIncrementalGenerator
                 onChange,
                 postConfigure,
                 configureAll,
-                null) // No ChildSections
+                null, // No ChildSections
+                alsoRegisterDirectType)
         ];
     }
 
@@ -1139,6 +1145,32 @@ public static class OptionsBindingExtensions
             sb.AppendLineLf(">();");
         }
 
+        // Register direct type if AlsoRegisterDirectType is true
+        if (option.AlsoRegisterDirectType && !isNamed)
+        {
+            sb.AppendLineLf();
+            sb.AppendLineLf($"        // Also register {option.ClassName} as direct type (for legacy code or third-party library compatibility)");
+
+            // Choose service lifetime and options interface based on OptionsLifetime
+            var (serviceMethod, optionsInterface, valueAccess) = option.Lifetime switch
+            {
+                0 => ("AddSingleton", "IOptions", "Value"),                          // Singleton
+                1 => ("AddScoped", "IOptionsSnapshot", "Value"),                     // Scoped
+                2 => ("AddSingleton", "IOptionsMonitor", "CurrentValue"),            // Monitor
+                _ => ("AddSingleton", "IOptions", "Value"),                          // Default
+            };
+
+            sb.Append("        services.");
+            sb.Append(serviceMethod);
+            sb.Append("(sp => sp.GetRequiredService<global::Microsoft.Extensions.Options.");
+            sb.Append(optionsInterface);
+            sb.Append('<');
+            sb.Append(optionsType);
+            sb.Append(">>().");
+            sb.Append(valueAccess);
+            sb.AppendLineLf(");");
+        }
+
         sb.AppendLineLf();
     }
 
@@ -1443,6 +1475,13 @@ public static class OptionsBindingExtensions
                    /// Useful for multi-tenant scenarios, regional configurations, or environment-specific settings.
                    /// </remarks>
                    public string[]? ChildSections { get; set; }
+
+                   /// <summary>
+                   /// Gets or sets a value indicating whether to also register the options type
+                   /// as a direct service (not wrapped in IOptions&lt;T&gt;).
+                   /// Default is false.
+                   /// </summary>
+                   public bool AlsoRegisterDirectType { get; set; }
                }
            }
            """;

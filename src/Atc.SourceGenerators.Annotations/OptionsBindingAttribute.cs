@@ -140,4 +140,37 @@ public sealed class OptionsBindingAttribute : Attribute
     /// Useful for multi-tenant scenarios, regional configurations, or environment-specific settings.
     /// </remarks>
     public string[]? ChildSections { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether to also register the options type
+    /// as a direct service (not wrapped in IOptions&lt;T&gt;).
+    /// Default is false.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// When true, the options class will be registered both:
+    /// <list type="bullet">
+    /// <item><description>As IOptions&lt;T&gt;, IOptionsSnapshot&lt;T&gt;, or IOptionsMonitor&lt;T&gt; (standard pattern based on Lifetime)</description></item>
+    /// <item><description>As T directly (for legacy code or third-party libraries)</description></item>
+    /// </list>
+    /// </para>
+    /// <para>
+    /// The direct type registration resolves through the appropriate options interface (.Value or .CurrentValue)
+    /// to ensure validation and configuration binding still apply.
+    /// </para>
+    /// <para>
+    /// <b>Trade-offs:</b>
+    /// <list type="bullet">
+    /// <item><description><b>Loss of change detection:</b> Direct injection gets a snapshot at resolution time and won't receive updates when configuration changes</description></item>
+    /// <item><description><b>Loss of scoping benefits:</b> Especially when using Monitor lifetime, the direct type is registered as Singleton and uses CurrentValue snapshot</description></item>
+    /// <item><description><b>Migration aid:</b> Useful for gradual migration from direct injection to IOptions&lt;T&gt; pattern</description></item>
+    /// <item><description><b>Third-party compatibility:</b> Some libraries expect direct types, not IOptions&lt;T&gt;</description></item>
+    /// </list>
+    /// </para>
+    /// <para>
+    /// <b>Usage guidance:</b> Use sparingly for migration scenarios or third-party library compatibility only.
+    /// The IOptions&lt;T&gt; pattern should be the default choice for new code.
+    /// </para>
+    /// </remarks>
+    public bool AlsoRegisterDirectType { get; set; }
 }
