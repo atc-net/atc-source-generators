@@ -87,6 +87,42 @@ dotnet run --project sample/PetStore.Api
 dotnet clean
 ```
 
+## Build Requirements
+
+### SDK Version
+
+This project uses **Roslyn 5.0.0 (.NET 10)** source generators and requires .NET 10 SDK for building.
+
+**Consumer Projects:**
+- Projects that reference `Atc.SourceGenerators` must be built with .NET 10 SDK (or later)
+- Consumer projects can target ANY .NET version (.NET 9, .NET 8, .NET Framework, etc.)
+- This is a build-time requirement only - runtime target framework is independent
+
+**Why .NET 10 SDK is required:**
+- Roslyn 5.0.0 APIs ship with .NET 10 SDK
+- Source generators execute during compilation, requiring the SDK's Roslyn version
+- Target framework and SDK version are independent concepts in .NET
+
+**Example Scenario:**
+```xml
+<!-- Consumer project can target .NET 9 -->
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Requires .NET 10 SDK to build due to Roslyn 5.0.0 -->
+    <PackageReference Include="Atc.SourceGenerators" Version="1.0.0" />
+  </ItemGroup>
+</Project>
+```
+
+```bash
+# Must use .NET 10 SDK to build
+dotnet build  # Executes source generators using Roslyn 5.0.0
+```
+
 ## Architecture
 
 ### Source Generator Lifecycle
