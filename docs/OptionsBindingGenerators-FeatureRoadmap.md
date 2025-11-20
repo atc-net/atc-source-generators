@@ -87,10 +87,11 @@ This roadmap is based on comprehensive analysis of:
 | ❌ | [Auto-Generate Options Classes from appsettings.json](#10-auto-generate-options-classes-from-appsettingsjson) | 🟢 Low |
 | ❌ | [Environment-Specific Validation](#11-environment-specific-validation) | 🟢 Low |
 | ❌ | [Hot Reload Support with Filtering](#12-hot-reload-support-with-filtering) | 🟢 Low |
-| 🚫 | [Reflection-Based Binding](#13-reflection-based-binding) | - |
-| 🚫 | [JSON Schema Generation](#14-json-schema-generation) | - |
-| 🚫 | [Configuration Encryption/Decryption](#15-configuration-encryptiondecryption) | - |
-| 🚫 | [Dynamic Configuration Sources](#16-dynamic-configuration-sources) | - |
+| ✅ | [Direct Type Registration (AlsoRegisterDirectType)](#13-direct-type-registration-alsoregisterdirecttype) | 🟡 Medium |
+| 🚫 | [Reflection-Based Binding](#14-reflection-based-binding) | - |
+| 🚫 | [JSON Schema Generation](#15-json-schema-generation) | - |
+| 🚫 | [Configuration Encryption/Decryption](#16-configuration-encryptiondecryption) | - |
+| 🚫 | [Dynamic Configuration Sources](#17-dynamic-configuration-sources) | - |
 
 **Legend:**
 
@@ -941,9 +942,393 @@ public partial class FeaturesOptions
 
 ---
 
+### 13. Direct Type Registration (AlsoRegisterDirectType)
+
+**Priority**: 🟡 **Medium**
+**Status**: ✅ **Implemented**
+**Inspiration**: DependencyRegistrationGenerator's `AsSelf` parameter
+
+**Description**: Support registering options classes for both `IOptions<T>` injection (standard pattern) AND direct type injection (without wrapper). This mirrors the `AsSelf` pattern from `[Registration]` attribute in DependencyRegistrationGenerator.
+
+**User Story**:
+> "As a developer migrating legacy code to use OptionsBinding, I want to support both `IOptions<EntraIdOptions>` and direct `EntraIdOptions` injection patterns, allowing gradual migration and compatibility with third-party libraries that expect unwrapped types."
+
+**Problem Statement**:
+
+When using `[OptionsBinding]`, the generator creates:
+
+```csharp
+services.AddOptions<EntraIdOptions>()
+    .Bind(configuration.GetSection("EntraId"))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+```
+
+This **ONLY** registers for `IOptions<EntraIdOptions>` injection. Attempting to inject `EntraIdOptions` directly fails at runtime.
+
+**Real-World Scenarios**:
+
+1. **Third-party libraries** - Some libraries expect direct options types, not IOptions<T>
+2. **Legacy code migration** - Existing code uses direct injection, gradual migration to IOptions<T>
+3. **Simpler syntax** - `options.Property` instead of `options.Value.Property` in simple scenarios
+4. **Configuration classes** - ASP.NET middleware often expects direct types (e.g., `ConfigureSwaggerOptions`)
+
+**Proposed Solution**:
+
+```csharp
+// Enable dual registration with new parameter
+[OptionsBinding("EntraId", AlsoRegisterDirectType = true, ValidateOnStart = true)]
+public partial class EntraIdOptions
+{
+    [Required]
+    public string TenantId { get; set; } = string.Empty;
+
+    [Required]
+    public string ClientId { get; set; } = string.Empty;
+
+    [Required, Url]
+    public string Instance { get; set; } = "https://login.microsoftonline.com/";
+}
+```
+
+**Generated Code**:
+
+```csharp
+// Standard IOptions<T> registration (always generated)
+services.AddOptions<EntraIdOptions>()
+    .Bind(configuration.GetSection("EntraId"))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+
+// ALSO register direct type (when AlsoRegisterDirectType = true)
+// Direct type is derived from IOptions<T> to ensure consistency
+services.AddSingleton(sp =>
+    sp.GetRequiredService<IOptions<EntraIdOptions>>().Value);
+```
+
+**Usage Examples**:
+
+```csharp
+// Both injection patterns now work:
+
+// Pattern 1: Standard IOptions<T> (recommended)
+public class ApiService
+{
+    public ApiService(IOptions<EntraIdOptions> options)
+    {
+        var tenantId = options.Value.TenantId;
+    }
+}
+
+// Pattern 2: Direct type (for legacy code or third-party libraries)
+public class ConfigureSwaggerOptions : IConfigureOptions<SwaggerGenOptions>
+{
+    private readonly EntraIdOptions entraIdOptions;  // Direct injection!
+
+    public ConfigureSwaggerOptions(EntraIdOptions entraIdOptions)
+    {
+        this.entraIdOptions = entraIdOptions;
+    }
+
+    public void Configure(SwaggerGenOptions options)
+    {
+        // Simpler access: entraIdOptions.TenantId vs options.Value.TenantId
+    }
+}
+```
+
+**Implementation Hints**:
+
+**1. Update `OptionsBindingAttribute.cs`:**
+
+```csharp
+[AttributeUsage(AttributeTargets.Class, Inherited = false, AllowMultiple = true)]
+public sealed class OptionsBindingAttribute : Attribute
+{
+    // ... existing properties ...
+
+    /// <summary>
+    /// Gets or sets a value indicating whether to also register the options type
+    /// as a direct service (not wrapped in IOptions&lt;T&gt;).
+    /// Default is false.
+    /// </summary>
+    /// <remarks>
+    /// When true, the options class will be registered both:
+    /// - As IOptions&lt;T&gt; (standard pattern)
+    /// - As T directly (for legacy code or third-party libraries)
+    ///
+    /// The direct type registration resolves through IOptions&lt;T&gt;.Value
+    /// to ensure validation and configuration binding still apply.
+    ///
+    /// <b>Trade-offs:</b>
+    /// - Loses change detection (direct instance is snapshot at resolution time)
+    /// - Loses IOptionsSnapshot/IOptionsMonitor benefits
+    /// - Should be used sparingly for migration scenarios only
+    /// </remarks>
+    public bool AlsoRegisterDirectType { get; set; } = false;
+}
+```
+
+**2. Update `OptionsInfo.cs` (internal record):**
+
+```csharp
+internal sealed record OptionsInfo(
+    string ClassName,
+    string Namespace,
+    string AssemblyName,
+    string SectionName,
+    bool ValidateOnStart,
+    bool ValidateDataAnnotations,
+    int Lifetime,
+    string? ValidatorType,
+    string? Name,
+    bool ErrorOnMissingKeys,
+    string? OnChange,
+    string? PostConfigure,
+    string? ConfigureAll,
+    string?[]? ChildSections,
+    bool AlsoRegisterDirectType  // NEW FIELD
+);
+```
+
+**3. Update `OptionsBindingGenerator.cs` - Parse the attribute:**
+
+```csharp
+// In ExtractOptionsInfoFromAttribute() method
+var alsoRegisterDirectType = false;
+foreach (var namedArg in attr.NamedArguments)
+{
+    if (namedArg.Key == "AlsoRegisterDirectType")
+    {
+        alsoRegisterDirectType = namedArg.Value.Value is true;
+    }
+    // ... existing named argument parsing ...
+}
+
+return new OptionsInfo(
+    // ... existing parameters ...
+    AlsoRegisterDirectType: alsoRegisterDirectType
+);
+```
+
+**4. Update `OptionsBindingGenerator.cs` - Generate registration code:**
+
+```csharp
+// In GenerateOptionsRegistration() method, after standard registration:
+
+if (optionsInfo.AlsoRegisterDirectType)
+{
+    builder.AppendLine();
+    builder.AppendLine("        // Also register direct type for legacy code compatibility");
+
+    // Choose service lifetime based on OptionsLifetime
+    string serviceLifetime = optionsInfo.Lifetime switch
+    {
+        0 => "AddSingleton",  // IOptions<T> -> Singleton
+        1 => "AddScoped",     // IOptionsSnapshot<T> -> Scoped
+        2 => "AddSingleton",  // IOptionsMonitor<T> -> Singleton (CurrentValue is snapshot)
+        _ => "AddSingleton"
+    };
+
+    // Generate registration that derives from IOptions<T>
+    if (optionsInfo.Lifetime == 2) // Monitor
+    {
+        // For Monitor, use CurrentValue for latest snapshot
+        builder.AppendLine($"        services.{serviceLifetime}(sp => ");
+        builder.AppendLine($"            sp.GetRequiredService<global::Microsoft.Extensions.Options.IOptionsMonitor<{fullClassName}>>().CurrentValue);");
+    }
+    else if (optionsInfo.Lifetime == 1) // Scoped/Snapshot
+    {
+        // For Scoped, use IOptionsSnapshot<T>
+        builder.AppendLine($"        services.{serviceLifetime}(sp => ");
+        builder.AppendLine($"            sp.GetRequiredService<global::Microsoft.Extensions.Options.IOptionsSnapshot<{fullClassName}>>().Value);");
+    }
+    else // Singleton
+    {
+        // For Singleton, use IOptions<T>
+        builder.AppendLine($"        services.{serviceLifetime}(sp => ");
+        builder.AppendLine($"            sp.GetRequiredService<global::Microsoft.Extensions.Options.IOptions<{fullClassName}>>().Value);");
+    }
+}
+```
+
+**5. Add Diagnostic (Optional but Recommended):**
+
+```csharp
+// ATCOPT017: Warning when AlsoRegisterDirectType is used with named options
+private static readonly DiagnosticDescriptor DirectTypeWithNamedOptionsWarning = new(
+    id: "ATCOPT017",
+    title: "AlsoRegisterDirectType not recommended with named options",
+    messageFormat: "Options class '{0}' uses AlsoRegisterDirectType with named options. Direct type registration only resolves the default unnamed instance, not named instances.",
+    category: "OptionsBinding",
+    defaultSeverity: DiagnosticSeverity.Warning,
+    isEnabledByDefault: true);
+
+// ATCOPT018: Warning about loss of change detection
+private static readonly DiagnosticDescriptor DirectTypeLosesChangeDetection = new(
+    id: "ATCOPT018",
+    title: "AlsoRegisterDirectType loses change detection",
+    messageFormat: "Options class '{0}' uses AlsoRegisterDirectType with Monitor lifetime. Direct type injection will not receive configuration changes. Consider using IOptionsMonitor<T> instead.",
+    category: "OptionsBinding",
+    defaultSeverity: DiagnosticSeverity.Info,
+    isEnabledByDefault: true);
+```
+
+**Design Decisions**:
+
+1. **Single source of truth**: Direct type is ALWAYS derived from `IOptions<T>.Value` or `IOptionsSnapshot<T>.Value` or `IOptionsMonitor<T>.CurrentValue`
+   - This ensures validation runs for both injection patterns
+   - Configuration binding is consistent
+   - No duplication of registration logic
+
+2. **Lifetime mapping**:
+   - `OptionsLifetime.Singleton` → `AddSingleton(sp => IOptions<T>.Value)`
+   - `OptionsLifetime.Scoped` → `AddScoped(sp => IOptionsSnapshot<T>.Value)`
+   - `OptionsLifetime.Monitor` → `AddSingleton(sp => IOptionsMonitor<T>.CurrentValue)`
+
+3. **Named options incompatibility**:
+   - Direct type registration only works with unnamed (default) options
+   - Named options require `IOptionsSnapshot<T>.Get(name)` for resolution
+   - Should emit warning (ATCOPT017) if both are used
+
+4. **Change detection limitation**:
+   - Direct injection gets a snapshot at resolution time
+   - Does NOT receive updates when configuration changes
+   - Should emit info diagnostic (ATCOPT018) when used with Monitor lifetime
+
+**Trade-Offs and Warnings**:
+
+**✅ Benefits:**
+- **Migration path**: Gradual transition from direct injection to IOptions<T>
+- **Third-party compatibility**: Works with libraries expecting direct types
+- **Simpler syntax**: `options.Property` vs `options.Value.Property`
+- **Validation preserved**: Direct type still goes through options pipeline
+
+**⚠️ Drawbacks:**
+- **Loss of change detection**: Direct instance is snapshot, not live
+- **Loss of scoping benefits**: Especially with Monitor + Singleton
+- **API surface expansion**: More ways to inject = more confusion
+- **Encourages anti-pattern**: May discourage proper IOptions<T> usage
+
+**Documentation Notes**:
+
+When documenting this feature, emphasize:
+
+1. **Use sparingly**: Only for migration scenarios or third-party compatibility
+2. **Prefer IOptions<T>**: The standard pattern should be default choice
+3. **Understand trade-offs**: Loss of change detection and scoping benefits
+4. **Not for production patterns**: Consider refactoring to IOptions<T> long-term
+
+**Unit Test Coverage**:
+
+```csharp
+// Test: AlsoRegisterDirectType generates both registrations
+[Fact]
+public void Generator_Should_Register_Both_IOptions_And_DirectType_When_AlsoRegisterDirectType_True()
+{
+    const string source = """
+        [OptionsBinding("Database", AlsoRegisterDirectType = true)]
+        public partial class DatabaseOptions
+        {
+            public string ConnectionString { get; set; }
+        }
+        """;
+
+    var (diagnostics, output) = GetGeneratedOutput(source);
+
+    Assert.Empty(diagnostics);
+    Assert.Contains("AddOptions<DatabaseOptions>", output);
+    Assert.Contains("services.AddSingleton(sp =>", output);
+    Assert.Contains("IOptions<DatabaseOptions>>().Value", output);
+}
+
+// Test: Different lifetimes generate correct service registrations
+[Theory]
+[InlineData("OptionsLifetime.Singleton", "AddSingleton", "IOptions")]
+[InlineData("OptionsLifetime.Scoped", "AddScoped", "IOptionsSnapshot")]
+[InlineData("OptionsLifetime.Monitor", "AddSingleton", "IOptionsMonitor")]
+public void Generator_Should_Use_Correct_Lifetime_For_DirectType(
+    string lifetime, string expectedMethod, string expectedInterface) { }
+
+// Test: Warning emitted when used with named options
+[Fact]
+public void Generator_Should_Warn_When_AlsoRegisterDirectType_With_Named_Options() { }
+
+// Test: Info diagnostic for Monitor + direct type
+[Fact]
+public void Generator_Should_Emit_Info_When_DirectType_With_Monitor_Lifetime() { }
+
+// Test: Works with all validation features
+[Fact]
+public void Generator_Should_Support_Validation_With_DirectType() { }
+```
+
+**Implementation Status**:
+
+✅ **Core Implementation Complete:**
+- Updated `OptionsBindingAttribute.cs` with `AlsoRegisterDirectType` property
+- Updated `OptionsInfo` record to include `AlsoRegisterDirectType` field
+- Updated `OptionsBindingGenerator.cs` to parse and generate direct type registration
+- Correctly handles all three lifetimes (Singleton, Scoped, Monitor)
+- Direct type resolves through appropriate IOptions interface (.Value or .CurrentValue)
+- Named options correctly excluded from direct type registration
+
+✅ **Testing Complete:**
+- 10 comprehensive unit tests covering all scenarios (OptionsBindingGeneratorAlsoRegisterDirectTypeTests.cs)
+- Tests cover: Singleton/Scoped/Monitor lifetimes, named options exclusion, validation, ErrorOnMissingKeys, PostConfigure, ChildSections
+- All 291 existing tests pass - zero regressions
+- Solution builds successfully
+
+✅ **Sample Projects Updated:**
+- `Atc.SourceGenerators.OptionsBinding`: Added `LegacyIntegrationOptions` demonstrating the feature
+- `PetStore.Api`: Updated `ExternalApiOptions` with AlsoRegisterDirectType for third-party library compatibility
+
+📝 **Documentation Updates** (in progress):
+- Feature roadmap updated to mark as ✅ Implemented
+- Remaining: OptionsBindingGenerators.md, OptionsBindingGenerators-Samples.md, readme.md, CLAUDE.md
+
+**Alternative Names Considered**:
+
+- `RegisterDirectType` - Less clear about "also"
+- `AsSelf` - Reuses DependencyRegistration naming (might cause confusion between generators)
+- `EnableDirectInjection` - More verbose
+- `AlsoRegisterDirectType` - ✅ **CHOSEN** - Clear intent, mirrors `AsSelf` pattern semantically
+
+**Related Features**:
+
+This feature mirrors the `AsSelf` parameter from DependencyRegistrationGenerator:
+
+```csharp
+// DependencyRegistrationGenerator (existing):
+[Registration(As = typeof(IUserService), AsSelf = true)]
+public class UserService : IUserService { }
+
+// Generates:
+services.AddSingleton<IUserService, UserService>();
+services.AddSingleton<UserService>();  // Concrete type
+
+// OptionsBindingGenerator (proposed):
+[OptionsBinding("Database", AlsoRegisterDirectType = true)]
+public partial class DatabaseOptions { }
+
+// Generates:
+services.AddOptions<DatabaseOptions>()...
+services.AddSingleton(sp => IOptions<DatabaseOptions>.Value);  // Direct type
+```
+
+**Compatibility**:
+
+- ✅ .NET 6, 7, 8, 9+
+- ✅ Native AOT compatible
+- ✅ Works with all existing OptionsBinding features
+- ⚠️ Not compatible with named options (warning emitted)
+- ⚠️ Change detection limited for direct injection
+
+---
+
 ## ⛔ Do Not Need (Low Priority / Out of Scope)
 
-### 13. Reflection-Based Binding
+### 14. Reflection-Based Binding
 
 **Reason**: Defeats the purpose of compile-time source generation and breaks AOT compatibility.
 
@@ -951,7 +1336,7 @@ public partial class FeaturesOptions
 
 ---
 
-### 14. JSON Schema Generation
+### 15. JSON Schema Generation
 
 **Reason**: Out of scope for options binding. Use dedicated tools like NJsonSchema.
 
@@ -959,7 +1344,7 @@ public partial class FeaturesOptions
 
 ---
 
-### 15. Configuration Encryption/Decryption
+### 16. Configuration Encryption/Decryption
 
 **Reason**: Security concern handled by configuration providers (Azure Key Vault, AWS Secrets Manager, etc.), not binding layer.
 
@@ -967,7 +1352,7 @@ public partial class FeaturesOptions
 
 ---
 
-### 16. Dynamic Configuration Sources
+### 17. Dynamic Configuration Sources
 
 **Reason**: Configuration providers handle this. Options binding focuses on type-safe access.
 
@@ -1044,6 +1429,7 @@ Based on priority, user demand, and implementation complexity:
 | Section Path Validation | 🟡 Medium | ⭐⭐ | High | 1.3 |
 | Nested Object Binding | 🟡 Medium | ⭐⭐ | Low | 1.3 |
 | Environment Validation | 🟢 Low | ⭐ | Medium | 1.3 |
+| Direct Type Registration | 🟡 Medium | ⭐⭐ | Medium | 1.4 |
 | Hot Reload Filtering | 🟢 Low | ⭐ | Medium | 2.0+ |
 | Auto-Generate from JSON | 🟢 Low | ⭐ | High | 2.0+ |
 
@@ -1117,7 +1503,8 @@ Based on priority, user demand, and implementation complexity:
 
 ---
 
-**Last Updated**: 2025-01-19
-**Version**: 1.1
+**Last Updated**: 2025-01-20
+**Version**: 1.2
 **Research Date**: January 2025 (.NET 8/9 Options Pattern)
 **Maintained By**: Atc.SourceGenerators Team
+**Note**: Feature #13 (Direct Type Registration) added based on real-world usage patterns from KL.IoT.Nexus project
