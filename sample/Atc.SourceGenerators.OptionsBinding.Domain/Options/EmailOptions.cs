@@ -4,7 +4,7 @@ namespace Atc.SourceGenerators.OptionsBinding.Domain.Options;
 /// Email service configuration options.
 /// Demonstrates const SectionName usage (2nd priority).
 /// </summary>
-[OptionsBinding(ValidateDataAnnotations = true)]
+[OptionsBinding(ValidateDataAnnotations = true, ValidateOnStart = true)]
 public partial class EmailOptions
 {
     public const string SectionName = "Email";

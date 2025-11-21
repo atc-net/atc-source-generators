@@ -1,5 +1,7 @@
 // ReSharper disable ConvertIfStatementToReturnStatement
+// ReSharper disable ForeachCanBeConvertedToQueryUsingAnotherGetEnumerator
 // ReSharper disable ForeachCanBePartlyConvertedToQueryUsingAnotherGetEnumerator
+// ReSharper disable StringLiteralTypo
 namespace Atc.SourceGenerators.Generators;
 
 /// <summary>
@@ -228,8 +230,11 @@ public class OptionsBindingGenerator : IIncrementalGenerator
             return;
         }
 
-        // Detect referenced assemblies with [OptionsBinding] attributes
-        var referencedAssemblies = GetReferencedAssembliesWithOptionsBinding(compilation);
+        // Generate OptionsInstanceCache only when there are options classes
+        context.AddSource("OptionsInstanceCache.g.cs", SourceText.From(GenerateOptionsInstanceCacheSource(), Encoding.UTF8));
+
+        // Detect referenced assemblies with [OptionsBinding] attributes and collect their options
+        var referencedAssemblies = GetReferencedAssembliesWithOptionsBinding(compilation, out var referencedAssemblyOptions);
 
         // Group by assembly
         var groupedByAssembly = optionsToGenerate
@@ -238,7 +243,7 @@ public class OptionsBindingGenerator : IIncrementalGenerator
 
         foreach (var assemblyGroup in groupedByAssembly)
         {
-            var source = GenerateExtensionMethod(assemblyGroup.Key, assemblyGroup.ToList(), referencedAssemblies);
+            var source = GenerateExtensionMethod(assemblyGroup.Key, assemblyGroup.ToList(), referencedAssemblies, referencedAssemblyOptions);
             context.AddSource($"OptionsBindingExtensions.{SanitizeForMethodName(assemblyGroup.Key)}.g.cs", SourceText.From(source, Encoding.UTF8));
         }
     }
@@ -761,9 +766,11 @@ public class OptionsBindingGenerator : IIncrementalGenerator
     }
 
     private static ImmutableArray<ReferencedAssemblyInfo> GetReferencedAssembliesWithOptionsBinding(
-        Compilation compilation)
+        Compilation compilation,
+        out Dictionary<string, List<OptionsInfo>> referencedAssemblyOptions)
     {
         var result = new List<ReferencedAssemblyInfo>();
+        referencedAssemblyOptions = new Dictionary<string, List<OptionsInfo>>(StringComparer.Ordinal);
         var prefix = GetAssemblyPrefix(compilation.AssemblyName!);
         var visited = new HashSet<string>(StringComparer.Ordinal) { compilation.AssemblyName! };
         var queue = new Queue<IAssemblySymbol>();
@@ -796,6 +803,13 @@ public class OptionsBindingGenerator : IIncrementalGenerator
                     assemblyName,
                     SanitizeForMethodName(assemblyName),
                     assemblyName.Substring(assemblyName.LastIndexOf('.') + 1)));
+
+                // Collect options from this referenced assembly
+                var options = CollectOptionsFromAssembly(assemblySymbol);
+                if (options.Count > 0)
+                {
+                    referencedAssemblyOptions[assemblyName] = options;
+                }
             }
 
             // Enqueue referenced assemblies for recursive traversal
@@ -813,20 +827,145 @@ public class OptionsBindingGenerator : IIncrementalGenerator
             }
         }
 
-        return [..result];
+        return [.. result];
+    }
+
+    private static List<OptionsInfo> CollectOptionsFromAssembly(
+        IAssemblySymbol assemblySymbol)
+    {
+        var result = new List<OptionsInfo>();
+        var stack = new Stack<INamespaceSymbol>();
+        stack.Push(assemblySymbol.GlobalNamespace);
+
+        while (stack.Count > 0)
+        {
+            var currentNamespace = stack.Pop();
+
+            // Process types in this namespace
+            foreach (var typeMember in currentNamespace.GetTypeMembers())
+            {
+                if (typeMember is not INamedTypeSymbol { TypeKind: TypeKind.Class } namedType)
+                {
+                    continue;
+                }
+
+                // Check if type has OptionsBinding attribute
+                var optionsAttributes = namedType
+                    .GetAttributes()
+                    .Where(a => a.AttributeClass?.ToDisplayString() == FullAttributeName)
+                    .ToList();
+
+                if (optionsAttributes.Count <= 0)
+                {
+                    continue;
+                }
+
+                // Extract basic info for dispatcher (no validation needed)
+                foreach (var attribute in optionsAttributes)
+                {
+                    var optionsInfo = ExtractBasicOptionsInfo(namedType, attribute);
+                    if (optionsInfo is not null)
+                    {
+                        result.Add(optionsInfo);
+                    }
+                }
+            }
+
+            // Process nested namespaces
+            foreach (var nestedNamespace in currentNamespace.GetNamespaceMembers())
+            {
+                stack.Push(nestedNamespace);
+            }
+        }
+
+        return result;
+    }
+
+    private static OptionsInfo? ExtractBasicOptionsInfo(
+        INamedTypeSymbol namedType,
+        AttributeData attribute)
+    {
+        // Extract only the essential information needed for dispatcher
+        var className = namedType.Name;
+        var namespaceName = namedType.ContainingNamespace.ToDisplayString();
+        var assemblyName = namedType.ContainingAssembly.Name;
+
+        // Check if this is a named option (has Name property set)
+        string? nameValue = null;
+        foreach (var namedArg in attribute.NamedArguments)
+        {
+            if (namedArg.Key == "Name")
+            {
+                nameValue = namedArg.Value.Value as string;
+                break;
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(nameValue))
+        {
+            // Skip named options - dispatcher only works with unnamed options
+            return null;
+        }
+
+        // Create minimal OptionsInfo for dispatcher
+        return new OptionsInfo(
+            className,
+            namespaceName,
+            assemblyName,
+            SectionName: string.Empty,  // Not needed for dispatcher
+            ValidateDataAnnotations: false,
+            ValidateOnStart: false,
+            ErrorOnMissingKeys: false,
+            ValidatorType: null,
+            Lifetime: 0,
+            OnChange: null,
+            PostConfigure: null,
+            ConfigureAll: null,
+            Name: null,
+            ChildSections: null);
     }
 
     private static bool HasOptionsBindingAttributeInNamespace(
         IAssemblySymbol assemblySymbol)
-        => assemblySymbol
-            .GlobalNamespace
-            .GetNamespaceMembers()
-            .Any(ns => ns.ToDisplayString() == AttributeNamespace);
+    {
+        // Check if any types in the assembly have the [OptionsBinding] attribute
+        var stack = new Stack<INamespaceSymbol>();
+        stack.Push(assemblySymbol.GlobalNamespace);
+
+        while (stack.Count > 0)
+        {
+            var currentNamespace = stack.Pop();
+
+            // Check types in this namespace
+            foreach (var typeMember in currentNamespace.GetTypeMembers())
+            {
+                if (typeMember is not INamedTypeSymbol { TypeKind: TypeKind.Class } namedType)
+                {
+                    continue;
+                }
+
+                // Check if type has OptionsBinding attribute
+                if (namedType.GetAttributes().Any(a => a.AttributeClass?.ToDisplayString() == FullAttributeName))
+                {
+                    return true;
+                }
+            }
+
+            // Check nested namespaces
+            foreach (var nestedNamespace in currentNamespace.GetNamespaceMembers())
+            {
+                stack.Push(nestedNamespace);
+            }
+        }
+
+        return false;
+    }
 
     private static string GenerateExtensionMethod(
         string assemblyName,
         List<OptionsInfo> options,
-        ImmutableArray<ReferencedAssemblyInfo> referencedAssemblies)
+        ImmutableArray<ReferencedAssemblyInfo> referencedAssemblies,
+        Dictionary<string, List<OptionsInfo>> referencedAssemblyOptions)
     {
         var sb = new StringBuilder();
         var methodSuffix = GetSmartMethodSuffix(assemblyName, referencedAssemblies);
@@ -838,12 +977,12 @@ public class OptionsBindingGenerator : IIncrementalGenerator
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace Atc.DependencyInjection;
+namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
 /// Extension methods for configuring options from the {{assemblyName}} assembly.
 /// </summary>
-public static class OptionsBindingExtensions
+public static class OptionsBindingExtensions{{methodSuffix}}
 {
     /// <summary>
     /// Adds and configures options from the {{assemblyName}} assembly.
@@ -882,7 +1021,7 @@ public static class OptionsBindingExtensions
 
         foreach (var option in options)
         {
-            GenerateOptionsRegistration(sb, option);
+            GenerateOptionsRegistration(sb, option, methodSuffix);
         }
 
         sb.AppendLine("""
@@ -922,7 +1061,7 @@ public static class OptionsBindingExtensions
             foreach (var refAssembly in referencedAssemblies)
             {
                 var refSmartSuffix = GetSmartMethodSuffixFromContext(refAssembly.AssemblyName, allAssemblies);
-                sb.AppendLine($"            AddOptionsFrom{refSmartSuffix}(services, configuration, includeReferencedAssemblies: true);");
+                sb.AppendLine($"            services.AddOptionsFrom{refSmartSuffix}(configuration, includeReferencedAssemblies: true);");
             }
 
             sb.AppendLine("        }");
@@ -963,7 +1102,7 @@ public static class OptionsBindingExtensions
                 var refSmartSuffix = GetSmartMethodSuffixFromContext(refAssembly.AssemblyName, allAssemblies);
                 sb.AppendLine($"            case \"{refAssembly.AssemblyName}\":");
                 sb.AppendLine($"            case \"{refAssembly.ShortName}\":");
-                sb.AppendLine($"                AddOptionsFrom{refSmartSuffix}(services, configuration, includeReferencedAssemblies: true);");
+                sb.AppendLine($"                services.AddOptionsFrom{refSmartSuffix}(configuration, includeReferencedAssemblies: true);");
                 sb.AppendLine("                break;");
             }
 
@@ -1002,6 +1141,56 @@ public static class OptionsBindingExtensions
     }
 """);
 
+        // Generate early access GetOrAdd methods for unnamed options only
+        var unnamedOptions = options
+            .Where(o => string.IsNullOrWhiteSpace(o.Name))
+            .ToList();
+        if (unnamedOptions.Count > 0)
+        {
+            sb.AppendLine();
+            sb.AppendLineLf("    // ========== Early Access Methods (Avoid BuildServiceProvider Anti-Pattern) ==========");
+            sb.AppendLine();
+
+            foreach (var option in unnamedOptions)
+            {
+                GenerateGetMethod(sb, option, methodSuffix);
+                GenerateGetOrAddMethod(sb, option, methodSuffix);
+            }
+
+            // Generate smart dispatcher generic GetOptions<T>() method
+            // ONLY in assemblies that have referenced assemblies with OptionsBinding
+            // This prevents CS0121 ambiguity by ensuring only the consuming assembly has the dispatcher
+            if (referencedAssemblies.Length > 0)
+            {
+                sb.AppendLine();
+                sb.AppendLineLf("    // ========== Generic Convenience Method (Smart Dispatcher) ==========");
+                sb.AppendLineLf("    // This method intelligently dispatches to the correct assembly-specific method");
+                sb.AppendLineLf("    // based on the type parameter, avoiding CS0121 ambiguity errors.");
+                sb.AppendLineLf("    // Includes options from current and referenced assemblies.");
+                sb.AppendLine();
+
+                GenerateGenericGetOptionsMethod(sb, unnamedOptions, methodSuffix, referencedAssemblies, referencedAssemblyOptions);
+            }
+            else
+            {
+                sb.AppendLine();
+                sb.AppendLineLf("    // ========== Generic Method Not Generated ==========");
+                sb.AppendLineLf("    // GetOptions<T>() is not generated in library assemblies without references.");
+                sb.AppendLineLf("    // It will be generated in consuming assemblies that reference this library.");
+                sb.AppendLineLf("    // Use assembly-specific methods:");
+                foreach (var option in unnamedOptions)
+                {
+                    sb.Append("    //   - GetOrAdd");
+                    sb.Append(option.ClassName);
+                    sb.Append("From");
+                    sb.Append(methodSuffix);
+                    sb.AppendLineLf("()");
+                }
+
+                sb.AppendLine();
+            }
+        }
+
         // Generate hosted service classes for OnChange callbacks
         foreach (var option in options.Where(o => !string.IsNullOrWhiteSpace(o.OnChange)))
         {
@@ -1016,7 +1205,8 @@ public static class OptionsBindingExtensions
 
     private static void GenerateOptionsRegistration(
         StringBuilder sb,
-        OptionsInfo option)
+        OptionsInfo option,
+        string methodSuffix)
     {
         var optionsType = $"global::{option.Namespace}.{option.ClassName}";
         var sectionName = option.SectionName;
@@ -1052,14 +1242,9 @@ public static class OptionsBindingExtensions
         else
         {
             // Use fluent API pattern (supports both named and unnamed options)
-            if (isNamed)
-            {
-                sb.AppendLineLf($"        // Configure {option.ClassName} (Named: \"{option.Name}\") - Inject using IOptionsSnapshot<T>.Get(\"{option.Name}\")");
-            }
-            else
-            {
-                sb.AppendLineLf($"        // Configure {option.ClassName} - Inject using {lifetimeComment}");
-            }
+            sb.AppendLineLf(isNamed
+                ? $"        // Configure {option.ClassName} (Named: \"{option.Name}\") - Inject using IOptionsSnapshot<T>.Get(\"{option.Name}\")"
+                : $"        // Configure {option.ClassName} - Inject using {lifetimeComment}");
 
             sb.Append("        services.AddOptions<");
             sb.Append(optionsType);
@@ -1090,9 +1275,9 @@ public static class OptionsBindingExtensions
                 sb.AppendLineLf($"                var section = configuration.GetSection(\"{sectionName}\");");
                 sb.AppendLineLf("                if (!section.Exists())");
                 sb.AppendLineLf("                {");
-                sb.AppendLineLf($"                    throw new global::System.InvalidOperationException(");
+                sb.AppendLineLf("                    throw new global::System.InvalidOperationException(");
                 sb.AppendLineLf($"                        \"Configuration section '{sectionName}' is missing. \" +");
-                sb.AppendLineLf($"                        \"Ensure the section exists in your appsettings.json or other configuration sources.\");");
+                sb.AppendLineLf("                        \"Ensure the section exists in your appsettings.json or other configuration sources.\");");
                 sb.AppendLineLf("                }");
                 sb.AppendLineLf();
                 sb.AppendLineLf("                return true;");
@@ -1109,12 +1294,27 @@ public static class OptionsBindingExtensions
                 sb.Append("(options))");
             }
 
+            // For unnamed options, add to shared cache for early access via GetOptionInstanceOf<T>()
+            if (!isNamed)
+            {
+                sb.AppendLineLf();
+                sb.Append("            .PostConfigure(options =>");
+                sb.AppendLineLf();
+                sb.AppendLineLf("            {");
+                sb.AppendLineLf("                // Add to shared cache for early access");
+                sb.Append("                global::Atc.OptionsBinding.OptionsInstanceCache.Add(options, \"");
+                sb.Append(methodSuffix);
+                sb.AppendLineLf("\");");
+                sb.Append("            })");
+            }
+
             if (option.ValidateOnStart)
             {
                 sb.AppendLineLf();
                 sb.Append("            .ValidateOnStart()");
             }
 
+            // Semicolon on same line as last method call
             sb.AppendLineLf(";");
 
             // Register OnChange callback listener if specified (only for unnamed options with Monitor lifetime)
@@ -1198,6 +1398,343 @@ public static class OptionsBindingExtensions
         sb.AppendLineLf("}");
     }
 
+    private static void GenerateGetMethod(
+        StringBuilder sb,
+        OptionsInfo option,
+        string methodSuffix)
+    {
+        var optionsType = $"global::{option.Namespace}.{option.ClassName}";
+        var sectionName = option.SectionName;
+
+        sb.AppendLine();
+        sb.AppendLine("    /// <summary>");
+        sb.Append("    /// Gets an instance of ");
+        sb.Append(option.ClassName);
+        sb.AppendLineLf(" with configuration binding.");
+        sb.AppendLineLf("    /// If an instance was previously cached by GetOrAdd, returns that instance.");
+        sb.AppendLineLf("    /// Otherwise, creates a new instance without adding it to the cache.");
+        sb.AppendLineLf("    /// This method does not populate the cache (no side effects), but benefits from existing cached values.");
+        sb.AppendLineLf("    /// For caching behavior, use GetOrAdd instead.");
+        sb.AppendLineLf("    /// </summary>");
+        sb.AppendLineLf("    /// <param name=\"services\">The service collection (used for extension method chaining).</param>");
+        sb.AppendLineLf("    /// <param name=\"configuration\">The configuration instance.</param>");
+        sb.Append("    /// <returns>A bound and validated ");
+        sb.Append(option.ClassName);
+        sb.AppendLineLf(" instance.</returns>");
+        sb.Append("    public static ");
+        sb.Append(optionsType);
+        sb.Append(" Get");
+        sb.Append(option.ClassName);
+        sb.Append("From");
+        sb.AppendLineLf(methodSuffix);
+        sb.AppendLineLf("        (this global::Microsoft.Extensions.DependencyInjection.IServiceCollection services,");
+        sb.AppendLineLf("         global::Microsoft.Extensions.Configuration.IConfiguration configuration)");
+        sb.AppendLineLf("    {");
+        sb.AppendLineLf("        // Check cache first (read-only, no side effects)");
+        sb.Append("        var cached = global::Atc.OptionsBinding.OptionsInstanceCache.TryGet<");
+        sb.Append(optionsType);
+        sb.AppendLineLf(">();");
+        sb.AppendLineLf("        if (cached is not null)");
+        sb.AppendLineLf("        {");
+        sb.AppendLineLf("            return cached;");
+        sb.AppendLineLf("        }");
+        sb.AppendLineLf();
+        sb.AppendLineLf("        // Create and bind instance (not cached)");
+        sb.Append("        var options = new ");
+        sb.Append(optionsType);
+        sb.AppendLineLf("();");
+        sb.Append("        var section = configuration.GetSection(\"");
+        sb.Append(sectionName);
+        sb.AppendLineLf("\");");
+        sb.AppendLineLf("        section.Bind(options);");
+        sb.AppendLineLf();
+
+        // Add ErrorOnMissingKeys validation if specified
+        if (option.ErrorOnMissingKeys)
+        {
+            sb.AppendLineLf("        // Validate section exists (ErrorOnMissingKeys)");
+            sb.AppendLineLf("        if (!section.Exists())");
+            sb.AppendLineLf("        {");
+            sb.AppendLineLf("            throw new global::System.InvalidOperationException(");
+            sb.Append("                \"Configuration section '");
+            sb.Append(sectionName);
+            sb.AppendLineLf("' is missing. \" +");
+            sb.AppendLineLf("                \"Ensure the section exists in your appsettings.json or other configuration sources.\");");
+            sb.AppendLineLf("        }");
+            sb.AppendLineLf();
+        }
+
+        // Add DataAnnotations validation if specified
+        if (option.ValidateDataAnnotations)
+        {
+            sb.AppendLineLf("        // Validate immediately (DataAnnotations)");
+            sb.AppendLineLf("        var validationContext = new global::System.ComponentModel.DataAnnotations.ValidationContext(options);");
+            sb.AppendLineLf("        global::System.ComponentModel.DataAnnotations.Validator.ValidateObject(options, validationContext, validateAllProperties: true);");
+            sb.AppendLineLf();
+        }
+
+        // Apply PostConfigure if specified
+        if (!string.IsNullOrWhiteSpace(option.PostConfigure))
+        {
+            sb.AppendLineLf("        // Apply post-configuration");
+            sb.Append("        ");
+            sb.Append(optionsType);
+            sb.Append('.');
+            sb.Append(option.PostConfigure);
+            sb.AppendLineLf("(options);");
+            sb.AppendLineLf();
+        }
+
+        // Register custom validator if specified (even for non-cached Get)
+        if (!string.IsNullOrWhiteSpace(option.ValidatorType))
+        {
+            sb.AppendLineLf("        // Register custom validator");
+            sb.Append("        services.AddSingleton<global::Microsoft.Extensions.Options.IValidateOptions<");
+            sb.Append(optionsType);
+            sb.Append(">, ");
+            sb.Append(option.ValidatorType);
+            sb.AppendLineLf(">();");
+            sb.AppendLineLf();
+        }
+
+        sb.AppendLineLf("        return options;");
+        sb.AppendLineLf("    }");
+    }
+
+    private static void GenerateGetOrAddMethod(
+        StringBuilder sb,
+        OptionsInfo option,
+        string methodSuffix)
+    {
+        var optionsType = $"global::{option.Namespace}.{option.ClassName}";
+        var sectionName = option.SectionName;
+
+        sb.AppendLine();
+        sb.AppendLine("    /// <summary>");
+        sb.Append("    /// Gets or creates a cached instance of ");
+        sb.Append(option.ClassName);
+        sb.AppendLineLf(" with configuration binding for early access.");
+        sb.AppendLineLf("    /// If already cached, returns the existing instance. Otherwise, creates, binds, validates, and caches the instance.");
+        sb.AppendLineLf("    /// This method is idempotent and safe to call multiple times.");
+        sb.AppendLineLf("    /// This method enables early access to options during service registration without calling BuildServiceProvider().");
+        sb.AppendLineLf("    /// Note: This method is called on-demand when you need early access, not automatically by AddOptionsFrom.");
+        sb.AppendLineLf("    /// </summary>");
+        sb.AppendLineLf("    /// <param name=\"services\">The service collection (used for extension method chaining).</param>");
+        sb.AppendLineLf("    /// <param name=\"configuration\">The configuration instance.</param>");
+        sb.Append("    /// <returns>The bound and validated ");
+        sb.Append(option.ClassName);
+        sb.AppendLineLf(" instance for immediate use during service registration.</returns>");
+        sb.Append("    public static ");
+        sb.Append(optionsType);
+        sb.Append(" GetOrAdd");
+        sb.Append(option.ClassName);
+        sb.Append("From");
+        sb.AppendLineLf(methodSuffix);
+        sb.AppendLineLf("        (this global::Microsoft.Extensions.DependencyInjection.IServiceCollection services,");
+        sb.AppendLineLf("         global::Microsoft.Extensions.Configuration.IConfiguration configuration)");
+        sb.AppendLineLf("    {");
+        sb.AppendLineLf("        // Check if already registered (idempotent)");
+        sb.Append("        var existing = global::Atc.OptionsBinding.OptionsInstanceCache.TryGet<");
+        sb.Append(optionsType);
+        sb.AppendLineLf(">();");
+        sb.AppendLineLf("        if (existing is not null)");
+        sb.AppendLineLf("        {");
+        sb.AppendLineLf("            return existing;");
+        sb.AppendLineLf("        }");
+        sb.AppendLineLf();
+        sb.AppendLineLf("        // Create and bind instance");
+        sb.Append("        var options = new ");
+        sb.Append(optionsType);
+        sb.AppendLineLf("();");
+        sb.Append("        var section = configuration.GetSection(\"");
+        sb.Append(sectionName);
+        sb.AppendLineLf("\");");
+        sb.AppendLineLf("        section.Bind(options);");
+        sb.AppendLineLf();
+
+        // Add ErrorOnMissingKeys validation if specified
+        if (option.ErrorOnMissingKeys)
+        {
+            sb.AppendLineLf("        // Validate section exists (ErrorOnMissingKeys)");
+            sb.AppendLineLf("        if (!section.Exists())");
+            sb.AppendLineLf("        {");
+            sb.AppendLineLf("            throw new global::System.InvalidOperationException(");
+            sb.Append("                \"Configuration section '");
+            sb.Append(sectionName);
+            sb.AppendLineLf("' is missing. \" +");
+            sb.AppendLineLf("                \"Ensure the section exists in your appsettings.json or other configuration sources.\");");
+            sb.AppendLineLf("        }");
+            sb.AppendLineLf();
+        }
+
+        // Add DataAnnotations validation if specified
+        if (option.ValidateDataAnnotations)
+        {
+            sb.AppendLineLf("        // Validate immediately (DataAnnotations)");
+            sb.AppendLineLf("        var validationContext = new global::System.ComponentModel.DataAnnotations.ValidationContext(options);");
+            sb.AppendLineLf("        global::System.ComponentModel.DataAnnotations.Validator.ValidateObject(options, validationContext, validateAllProperties: true);");
+            sb.AppendLineLf();
+        }
+
+        // Apply PostConfigure if specified
+        if (!string.IsNullOrWhiteSpace(option.PostConfigure))
+        {
+            sb.AppendLineLf("        // Apply post-configuration");
+            sb.Append("        ");
+            sb.Append(optionsType);
+            sb.Append('.');
+            sb.Append(option.PostConfigure);
+            sb.AppendLineLf("(options);");
+            sb.AppendLineLf();
+        }
+
+        sb.AppendLineLf("        // Add to shared cache for early access and smart dispatcher");
+        sb.Append("        global::Atc.OptionsBinding.OptionsInstanceCache.Add(options, \"");
+        sb.Append(methodSuffix);
+        sb.AppendLineLf("\");");
+        sb.AppendLineLf();
+
+        // Register custom validator if specified
+        if (!string.IsNullOrWhiteSpace(option.ValidatorType))
+        {
+            sb.AppendLineLf("        // Register custom validator");
+            sb.Append("        services.AddSingleton<global::Microsoft.Extensions.Options.IValidateOptions<");
+            sb.Append(optionsType);
+            sb.Append(">, ");
+            sb.Append(option.ValidatorType);
+            sb.AppendLineLf(">();");
+            sb.AppendLineLf();
+        }
+
+        sb.AppendLineLf("        return options;");
+        sb.AppendLineLf("    }");
+    }
+
+    private static void GenerateGenericGetOptionsMethod(
+        StringBuilder sb,
+        List<OptionsInfo> currentAssemblyOptions,
+        string currentAssemblySuffix,
+        ImmutableArray<ReferencedAssemblyInfo> referencedAssemblies,
+        Dictionary<string, List<OptionsInfo>> referencedAssemblyOptions)
+    {
+        // Build context for smart suffix calculation
+        var allAssemblies = new List<string>();
+        foreach (var refAsm in referencedAssemblies)
+        {
+            allAssemblies.Add(refAsm.AssemblyName);
+        }
+
+        // Collect all available options for error message
+        var allOptionsTypes = new List<string>();
+        foreach (var option in currentAssemblyOptions)
+        {
+            allOptionsTypes.Add($"global::{option.Namespace}.{option.ClassName}");
+        }
+
+        foreach (var refAssembly in referencedAssemblies)
+        {
+            if (referencedAssemblyOptions.TryGetValue(refAssembly.AssemblyName, out var refOptions))
+            {
+                foreach (var option in refOptions)
+                {
+                    allOptionsTypes.Add($"global::{option.Namespace}.{option.ClassName}");
+                }
+            }
+        }
+
+        sb.AppendLine();
+        sb.AppendLineLf("    /// <summary>");
+        sb.AppendLineLf("    /// Gets options of the specified type, intelligently dispatching to the correct");
+        sb.AppendLineLf("    /// assembly-specific method based on the type parameter.");
+        sb.AppendLineLf("    /// <para>This smart dispatcher eliminates CS0121 ambiguity errors in multi-assembly scenarios</para>");
+        sb.AppendLineLf("    /// <para>by routing to the appropriate Get{OptionsName}From{Assembly}() method.</para>");
+        sb.AppendLineLf("    /// <para>Note: This method calls the pure Get methods (no caching side effects).</para>");
+        sb.AppendLineLf("    /// </summary>");
+        sb.AppendLineLf("    /// <typeparam name=\"T\">The options type.</typeparam>");
+        sb.AppendLineLf("    /// <param name=\"services\">The service collection.</param>");
+        sb.AppendLineLf("    /// <param name=\"configuration\">The configuration instance.</param>");
+        sb.AppendLineLf("    /// <returns>The bound and validated options instance.</returns>");
+        sb.AppendLineLf("    /// <exception cref=\"global::System.InvalidOperationException\">Thrown when type T is not a registered options type.</exception>");
+        sb.AppendLineLf("    public static T GetOptions<T>(");
+        sb.AppendLineLf("        this global::Microsoft.Extensions.DependencyInjection.IServiceCollection services,");
+        sb.AppendLineLf("        global::Microsoft.Extensions.Configuration.IConfiguration configuration)");
+        sb.AppendLineLf("        where T : class");
+        sb.AppendLineLf("    {");
+        sb.AppendLineLf("        var type = typeof(T);");
+        sb.AppendLineLf();
+
+        // Generate type dispatch for current assembly options
+        if (currentAssemblyOptions.Count > 0)
+        {
+            sb.AppendLineLf("        // Current assembly options");
+            foreach (var option in currentAssemblyOptions)
+            {
+                var optionsType = $"global::{option.Namespace}.{option.ClassName}";
+                sb.Append("        if (type == typeof(");
+                sb.Append(optionsType);
+                sb.AppendLineLf("))");
+                sb.Append("            return (T)(object)services.Get");
+                sb.Append(option.ClassName);
+                sb.Append("From");
+                sb.Append(currentAssemblySuffix);
+                sb.AppendLineLf("(configuration);");
+                sb.AppendLineLf();
+            }
+        }
+
+        // Generate type dispatch for referenced assembly options
+        if (referencedAssemblies.Length > 0)
+        {
+            sb.AppendLineLf("        // Referenced assembly options");
+            foreach (var refAssembly in referencedAssemblies)
+            {
+                if (referencedAssemblyOptions.TryGetValue(refAssembly.AssemblyName, out var refOptions))
+                {
+                    // Get smart suffix for this referenced assembly
+                    var refMethodSuffix = GetSmartMethodSuffixFromContext(refAssembly.AssemblyName, allAssemblies);
+
+                    foreach (var option in refOptions)
+                    {
+                        var optionsType = $"global::{option.Namespace}.{option.ClassName}";
+                        sb.Append("        if (type == typeof(");
+                        sb.Append(optionsType);
+                        sb.AppendLineLf("))");
+                        sb.Append("            return (T)(object)services.Get");
+                        sb.Append(option.ClassName);
+                        sb.Append("From");
+                        sb.Append(refMethodSuffix);
+                        sb.AppendLineLf("(configuration);");
+                        sb.AppendLineLf();
+                    }
+                }
+            }
+        }
+
+        // Generate error for unrecognized types
+        sb.AppendLineLf("        // Type not recognized - generate helpful error message");
+        sb.AppendLineLf("        var availableTypes = new[]");
+        sb.AppendLineLf("        {");
+        for (int i = 0; i < allOptionsTypes.Count; i++)
+        {
+            sb.Append("            \"");
+            sb.Append(allOptionsTypes[i]);
+            sb.Append('"');
+            if (i < allOptionsTypes.Count - 1)
+            {
+                sb.Append(',');
+            }
+
+            sb.AppendLineLf();
+        }
+
+        sb.AppendLineLf("        };");
+        sb.AppendLineLf();
+        sb.AppendLineLf("        throw new global::System.InvalidOperationException(");
+        sb.AppendLineLf("            $\"Type '{type.FullName}' is not a registered options type. \" +");
+        sb.AppendLineLf("            $\"Available types: {string.Join(\", \", availableTypes.Select(t => t.Split('.').Last()))}\");");
+        sb.AppendLineLf("    }");
+    }
+
     private static string SanitizeForMethodName(string assemblyName)
     {
         var sb = new StringBuilder();
@@ -1266,7 +1803,7 @@ public static class OptionsBindingExtensions
             return SanitizeForMethodName(suffix);
         }
 
-        // Multiple assemblies have this suffix, use full sanitized name to avoid conflicts
+        // Multiple assemblies have this suffix, useful sanitized name to avoid conflicts
         return SanitizeForMethodName(assemblyName);
     }
 
@@ -1445,5 +1982,85 @@ public static class OptionsBindingExtensions
                    public string[]? ChildSections { get; set; }
                }
            }
+           """;
+
+    private static string GenerateOptionsInstanceCacheSource()
+        => """
+           // <auto-generated/>
+           #nullable enable
+
+           namespace Atc.OptionsBinding
+           {
+               using System.Collections.Concurrent;
+               using System.Collections.Generic;
+               using System.Linq;
+
+               /// <summary>
+               /// Internal cache for storing option instances for early access during service registration.
+               /// This allows retrieving bound and validated options instances without calling BuildServiceProvider().
+               /// </summary>
+               [global::System.CodeDom.Compiler.GeneratedCode("Atc.SourceGenerators.OptionsBinding", "1.0.0")]
+               [global::System.ComponentModel.EditorBrowsable(global::System.ComponentModel.EditorBrowsableState.Never)]
+               [global::System.Diagnostics.DebuggerNonUserCode]
+               [global::System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
+               internal static class OptionsInstanceCache
+               {
+                   private static readonly ConcurrentDictionary<global::System.Type, global::System.Collections.Generic.List<(object Instance, string AssemblyName)>> instances = new();
+                   private static readonly object lockObject = new();
+
+                   /// <summary>
+                   /// Adds an options instance to the cache with assembly metadata.
+                   /// </summary>
+                   internal static void Add<T>(T instance, string assemblyName) where T : class
+                   {
+                       lock (lockObject)
+                       {
+                           var type = typeof(T);
+                           if (!instances.TryGetValue(type, out var list))
+                           {
+                               list = new global::System.Collections.Generic.List<(object, string)>();
+                               instances[type] = list;
+                           }
+
+                           // Check if already registered from this assembly (idempotency)
+                           var existing = list.FirstOrDefault(x => x.AssemblyName == assemblyName);
+                           if (existing.Instance != null)
+                           {
+                               // Already registered from this assembly - skip
+                               return;
+                           }
+
+                           list.Add((instance, assemblyName));
+                       }
+                   }
+
+                   /// <summary>
+                   /// Tries to get an options instance from the cache (returns first match if multiple).
+                   /// </summary>
+                   internal static T? TryGet<T>() where T : class
+                   {
+                       if (instances.TryGetValue(typeof(T), out var list) && list.Count > 0)
+                       {
+                           return (T)list[0].Instance;
+                       }
+
+                       return null;
+                   }
+
+                   /// <summary>
+                   /// Finds all registrations for a given type across all assemblies.
+                   /// </summary>
+                   internal static global::System.Collections.Generic.List<(object Instance, string AssemblyName)> FindAll<T>() where T : class
+                   {
+                       if (instances.TryGetValue(typeof(T), out var list))
+                       {
+                           return new global::System.Collections.Generic.List<(object Instance, string AssemblyName)>(list);
+                       }
+
+                       return new global::System.Collections.Generic.List<(object Instance, string AssemblyName)>();
+                   }
+               }
+           }
+
            """;
 }

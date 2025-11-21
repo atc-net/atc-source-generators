@@ -14,6 +14,7 @@ This sample demonstrates the **OptionsBindingGenerator** in a multi-project cons
 - **Configuration change callbacks** - Automatic OnChange notifications with Monitor lifetime
 - **Child sections** - Simplified syntax for multiple named configurations (Email → Primary/Secondary/Fallback)
 - **Nested subsection binding** - Automatic binding of complex properties to configuration subsections
+- **Early access to options** - Retrieve options during service registration without BuildServiceProvider() anti-pattern
 
 ## 📁 Sample Projects
 
@@ -1124,11 +1125,13 @@ The **OptionsBindingGenerator** automatically handles nested configuration subse
 ### 🎯 How It Works
 
 When you have properties that are complex types (not primitives like string, int, etc.), the configuration binder automatically:
+
 1. Detects the property is a complex type
 2. Looks for a subsection with the same name
 3. Recursively binds that subsection to the property
 
 This works for:
+
 - **Nested objects** - Properties with custom class types
 - **Collections** - List<T>, IEnumerable<T>, arrays
 - **Dictionaries** - Dictionary<string, string>, Dictionary<string, T>

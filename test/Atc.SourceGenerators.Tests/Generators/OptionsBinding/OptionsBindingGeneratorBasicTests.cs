@@ -152,7 +152,7 @@ public partial class OptionsBindingGeneratorTests
     }
 
     [Fact]
-    public void Generator_Should_Use_Atc_DependencyInjection_Namespace_For_Extension_Method()
+    public void Generator_Should_Use_Microsoft_Extensions_DependencyInjection_Namespace_For_Extension_Method()
     {
         // Arrange
         const string source = """
@@ -175,6 +175,6 @@ public partial class OptionsBindingGeneratorTests
 
         var generatedCode = GetGeneratedExtensionMethod(output);
         Assert.NotNull(generatedCode);
-        Assert.Contains("namespace Atc.DependencyInjection", generatedCode, StringComparison.Ordinal);
+        Assert.Contains("namespace Microsoft.Extensions.DependencyInjection", generatedCode, StringComparison.Ordinal);
     }
 }

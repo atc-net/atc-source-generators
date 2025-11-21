@@ -133,8 +133,9 @@ public partial class OptionsBindingGeneratorTests
         // Verify semicolon is on the same line as the last method call (ValidateOnStart)
         Assert.Contains(".ValidateOnStart();", generatedCode1, StringComparison.Ordinal);
 
-        // Verify semicolon is on the same line as Bind (no validation methods)
-        Assert.Contains("\"));", generatedCode2, StringComparison.Ordinal);
+        // Verify semicolon is on the same line as PostConfigure (added for cache population)
+        // Note: All unnamed options now get a PostConfigure for early access cache population
+        Assert.Contains("            });", generatedCode2, StringComparison.Ordinal);
 
         // Verify there are NO standalone semicolons on a separate line
         Assert.DoesNotContain("            ;", generatedCode1, StringComparison.Ordinal);

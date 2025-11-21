@@ -354,6 +354,7 @@ services.AddOptionsFromApp(configuration);
 - **🔔 Configuration Change Callbacks**: Auto-generated IHostedService for OnChange notifications with Monitor lifetime - perfect for feature flags and runtime config updates
 - **🔧 Post-Configuration Support**: Normalize or transform values after binding with `PostConfigure` callbacks (e.g., ensure paths have trailing slashes, lowercase URLs)
 - **📛 Named Options**: Multiple configurations of the same options type with different names (e.g., Primary/Secondary email servers)
+- **⚡ Early Access to Options**: Retrieve bound and validated options during service registration without BuildServiceProvider() anti-pattern (via `GetOrAdd*` methods)
 - **🎯 Explicit Section Paths**: Support for nested sections like `"App:Database"` or `"Services:Email"`
 - **📂 Nested Subsection Binding**: Automatic binding of complex properties to configuration subsections (e.g., `StorageOptions.Database.Retry` → `"Storage:Database:Retry"`)
 - **📦 Multiple Options Classes**: Register multiple configuration sections in a single assembly with one method call

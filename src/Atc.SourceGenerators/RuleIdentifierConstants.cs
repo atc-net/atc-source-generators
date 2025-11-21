@@ -146,6 +146,16 @@ internal static class RuleIdentifierConstants
         /// ATCOPT016: ChildSections items cannot be null or empty.
         /// </summary>
         internal const string ChildSectionsItemsCannotBeNullOrEmpty = "ATCOPT016";
+
+        /// <summary>
+        /// ATCOPT017: Early access not supported with named options.
+        /// </summary>
+        internal const string EarlyAccessNotSupportedWithNamedOptions = "ATCOPT017";
+
+        /// <summary>
+        /// ATCOPT018: Early access uses Singleton lifetime (informational).
+        /// </summary>
+        internal const string EarlyAccessUsesSingletonLifetime = "ATCOPT018";
     }
 
     /// <summary>

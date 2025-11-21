@@ -35,7 +35,7 @@ services.AddOptions<DatabaseOptions>()
 ## 📑 Table of Contents
 
 - [⚙️ Options Binding Source Generator](#️-options-binding-source-generator)
-  - [� Documentation Navigation](#-documentation-navigation)
+  - [📖 Documentation Navigation](#-documentation-navigation)
   - [📑 Table of Contents](#-table-of-contents)
   - [📖 Overview](#-overview)
     - [😫 Before (Manual Approach)](#-before-manual-approach)
@@ -77,6 +77,9 @@ services.AddOptions<DatabaseOptions>()
       - [🎯 Custom Validation (IValidateOptions)](#-custom-validation-ivalidateoptions)
       - [🚨 Error on Missing Configuration Keys](#-error-on-missing-configuration-keys)
     - [⏱️ Options Lifetimes](#️-options-lifetimes)
+    - [🔔 Configuration Change Callbacks](#-configuration-change-callbacks)
+    - [🔧 Post-Configuration Support](#-post-configuration-support)
+    - [🎛️ ConfigureAll Support](#️-configureall-support)
   - [🔧 How It Works](#-how-it-works)
     - [1️⃣ Attribute Detection](#1️⃣-attribute-detection)
     - [2️⃣ Section Name Resolution](#2️⃣-section-name-resolution)
@@ -85,16 +88,51 @@ services.AddOptions<DatabaseOptions>()
   - [🎯 Advanced Scenarios](#-advanced-scenarios)
     - [🏢 Multiple Assemblies](#-multiple-assemblies)
     - [✨ Smart Naming](#-smart-naming)
-    - [📂 Nested Configuration](#-nested-configuration)
+    - [📂 Nested Configuration (Feature #6: Bind Configuration Subsections to Properties)](#-nested-configuration-feature-6-bind-configuration-subsections-to-properties)
+      - [🎯 How It Works](#-how-it-works-1)
+      - [📋 Example 1: Simple Nested Objects](#-example-1-simple-nested-objects)
+      - [📋 Example 2: Deeply Nested Objects (3 Levels)](#-example-2-deeply-nested-objects-3-levels)
+      - [📋 Example 3: Real-World Scenario (Cloud Storage)](#-example-3-real-world-scenario-cloud-storage)
+      - [🎯 Key Points](#-key-points)
+      - [📍 Explicit Nested Paths](#-explicit-nested-paths)
+    - [⚡ Early Access to Options (Avoid BuildServiceProvider Anti-Pattern)](#-early-access-to-options-avoid-buildserviceprovider-anti-pattern)
+      - [🎯 Key Features](#-key-features)
+      - [📋 Basic Usage](#-basic-usage)
+      - [🔄 Idempotency Example](#-idempotency-example)
+      - [🛡️ Validation Example](#️-validation-example)
+      - [🚀 Real-World Use Cases](#-real-world-use-cases)
+      - [⚙️ How It Works](#️-how-it-works)
+      - [⚠️ Limitations](#️-limitations)
+      - [🎓 Best Practices](#-best-practices)
     - [🌍 Environment-Specific Configuration](#-environment-specific-configuration)
+    - [📛 Named Options (Multiple Configurations)](#-named-options-multiple-configurations)
+      - [✨ Use Cases](#-use-cases)
+      - [🎯 Basic Example](#-basic-example)
+      - [🔧 Generated Code](#-generated-code)
+      - [⚠️ Important Notes](#️-important-notes)
+      - [🎯 Mixing Named and Unnamed Options](#-mixing-named-and-unnamed-options)
+    - [🎯 Child Sections (Simplified Named Options)](#-child-sections-simplified-named-options)
+      - [✨ Use Cases](#-use-cases-1)
+      - [🎯 Basic Example](#-basic-example-1)
+      - [📋 Configuration Structure](#-configuration-structure)
+      - [🔧 Advanced Features](#-advanced-features)
+      - [📍 Nested Paths](#-nested-paths)
+      - [🚨 Validation Rules](#-validation-rules)
+      - [💡 Key Benefits](#-key-benefits)
+      - [📊 ChildSections vs Multiple Attributes](#-childsections-vs-multiple-attributes)
+      - [🎯 Real-World Example](#-real-world-example)
   - [🛡️ Diagnostics](#️-diagnostics)
     - [❌ ATCOPT001: Options class must be partial](#-atcopt001-options-class-must-be-partial)
     - [❌ ATCOPT002: Section name cannot be null or empty](#-atcopt002-section-name-cannot-be-null-or-empty)
     - [⚠️ ATCOPT003: Invalid options binding configuration](#️-atcopt003-invalid-options-binding-configuration)
     - [❌ ATCOPT003: Const section name cannot be null or empty](#-atcopt003-const-section-name-cannot-be-null-or-empty)
+    - [❌ ATCOPT004-007: OnChange Callback Diagnostics](#-atcopt004-007-onchange-callback-diagnostics)
+    - [❌ ATCOPT008-010: PostConfigure Callback Diagnostics](#-atcopt008-010-postconfigure-callback-diagnostics)
+    - [❌ ATCOPT011-013: ConfigureAll Callback Diagnostics](#-atcopt011-013-configureall-callback-diagnostics)
+    - [❌ ATCOPT014-016: ChildSections Diagnostics](#-atcopt014-016-childsections-diagnostics)
   - [🚀 Native AOT Compatibility](#-native-aot-compatibility)
     - [✅ AOT-Safe Features](#-aot-safe-features)
-    - [🏗️ How It Works](#️-how-it-works)
+    - [🏗️ How It Works](#️-how-it-works-1)
     - [📋 Example Generated Code](#-example-generated-code)
     - [🎯 Multi-Project AOT Support](#-multi-project-aot-support)
   - [📚 Examples](#-examples)
@@ -749,6 +787,7 @@ Console.WriteLine($"Other interval: {otherOptions.Value.RepeatIntervalInSeconds}
 - **🎛️ ConfigureAll support** - Set common default values for all named options instances before individual binding with `ConfigureAll` callbacks (e.g., baseline retry/timeout settings)
 - **📛 Named options** - Multiple configurations of the same options type with different names (e.g., Primary/Secondary email servers)
 - **🎯 Child sections** - Simplified syntax for creating multiple named instances from configuration subsections (e.g., Email → Primary/Secondary/Fallback)
+- **⚡ Early access to options** - Access bound and validated options during service registration without BuildServiceProvider() anti-pattern (via `GetOrAdd*` methods)
 - **🎯 Explicit section paths** - Support for nested sections like `"App:Database"` or `"Services:Email"`
 - **📂 Nested subsection binding** - Automatically bind complex properties to configuration subsections (e.g., `StorageOptions.Database.Retry` → `"Storage:Database:Retry"`)
 - **📦 Multiple options classes** - Register multiple configuration sections in a single assembly with one method call
@@ -1030,6 +1069,7 @@ services.AddSingleton<global::Microsoft.Extensions.Options.IValidateOptions<glob
 ```
 
 **Key Features:**
+
 - Supports complex validation logic beyond DataAnnotations
 - Validator is automatically registered as a singleton
 - Runs during options validation pipeline
@@ -1041,6 +1081,7 @@ services.AddSingleton<global::Microsoft.Extensions.Options.IValidateOptions<glob
 The `ErrorOnMissingKeys` feature provides fail-fast validation when configuration sections are missing, preventing runtime errors from invalid or missing configuration.
 
 **When to use:**
+
 - Critical configuration that must be present (database connections, API keys, etc.)
 - Detect configuration issues at application startup instead of later at runtime
 - Ensure deployment validation catches missing configuration files or sections
@@ -1088,18 +1129,21 @@ services.AddOptions<global::MyApp.Options.DatabaseOptions>()
 ```
 
 **Behavior:**
+
 - Validates that the configuration section exists using `IConfigurationSection.Exists()`
 - Throws `InvalidOperationException` with descriptive message if section is missing
 - Combines with `ValidateOnStart = true` to fail at startup (recommended)
 - Error message includes the section name for easy troubleshooting
 
 **Best Practices:**
+
 - Always combine with `ValidateOnStart = true` to catch missing configuration at startup
 - Use for production-critical configuration (databases, external services, etc.)
 - Avoid for optional configuration with reasonable defaults
 - Ensure deployment processes validate configuration files exist
 
 **Example Error Message:**
+
 ```
 System.InvalidOperationException: Configuration section 'Database' is missing.
 Ensure the section exists in your appsettings.json or other configuration sources.
@@ -1177,6 +1221,7 @@ public class FeatureManager
 Automatically respond to configuration changes at runtime using the `OnChange` property. This feature enables hot-reload of configuration without restarting your application.
 
 **Requirements:**
+
 - Must use `Lifetime = OptionsLifetime.Monitor`
 - Requires appsettings.json with `reloadOnChange: true`
 - Cannot be used with named options
@@ -1287,6 +1332,7 @@ public partial class DatabaseOptions
 The generator performs compile-time validation of OnChange callbacks:
 
 - **ATCOPT004**: OnChange callback requires Monitor lifetime
+
   ```csharp
   // ❌ Error: Must use Lifetime = OptionsLifetime.Monitor
   [OptionsBinding("Settings", OnChange = nameof(OnChanged))]
@@ -1294,6 +1340,7 @@ The generator performs compile-time validation of OnChange callbacks:
   ```
 
 - **ATCOPT005**: OnChange callback not supported with named options
+
   ```csharp
   // ❌ Error: Named options don't support OnChange
   [OptionsBinding("Email", Name = "Primary", Lifetime = OptionsLifetime.Monitor, OnChange = nameof(OnChanged))]
@@ -1301,6 +1348,7 @@ The generator performs compile-time validation of OnChange callbacks:
   ```
 
 - **ATCOPT006**: OnChange callback method not found
+
   ```csharp
   // ❌ Error: Method 'OnSettingsChanged' does not exist
   [OptionsBinding("Settings", Lifetime = OptionsLifetime.Monitor, OnChange = "OnSettingsChanged")]
@@ -1308,6 +1356,7 @@ The generator performs compile-time validation of OnChange callbacks:
   ```
 
 - **ATCOPT007**: OnChange callback method has invalid signature
+
   ```csharp
   // ❌ Error: Must be static void with (TOptions, string?) parameters
   [OptionsBinding("Settings", Lifetime = OptionsLifetime.Monitor, OnChange = nameof(OnChanged))]
@@ -1332,6 +1381,7 @@ The generator performs compile-time validation of OnChange callbacks:
 Automatically normalize, validate, or transform configuration values after binding using the `PostConfigure` property. This feature enables applying defaults, normalizing paths, lowercasing URLs, or computing derived properties.
 
 **Requirements:**
+
 - Cannot be used with named options
 - Callback method must have signature: `static void MethodName(TOptions options)`
 - Runs after binding and validation
@@ -1447,6 +1497,7 @@ public partial class DatabaseOptions
 The generator performs compile-time validation of PostConfigure callbacks:
 
 - **ATCOPT008**: PostConfigure callback not supported with named options
+
   ```csharp
   // Error: Named options don't support PostConfigure
   [OptionsBinding("Email", Name = "Primary", PostConfigure = nameof(Normalize))]
@@ -1454,6 +1505,7 @@ The generator performs compile-time validation of PostConfigure callbacks:
   ```
 
 - **ATCOPT009**: PostConfigure callback method not found
+
   ```csharp
   // Error: Method 'ApplyDefaults' does not exist
   [OptionsBinding("Settings", PostConfigure = "ApplyDefaults")]
@@ -1461,6 +1513,7 @@ The generator performs compile-time validation of PostConfigure callbacks:
   ```
 
 - **ATCOPT010**: PostConfigure callback method has invalid signature
+
   ```csharp
   // Error: Must be static void with (TOptions) parameter
   [OptionsBinding("Settings", PostConfigure = nameof(Configure))]
@@ -1485,6 +1538,7 @@ The generator performs compile-time validation of PostConfigure callbacks:
 Set default values for **all named options instances** before individual configuration binding. This feature is perfect for establishing common baseline settings across multiple named configurations that can then be selectively overridden.
 
 **Requirements:**
+
 - Requires multiple named instances (at least 2)
 - Callback method must have signature: `static void MethodName(TOptions options)`
 - Runs **before** individual `Configure()` calls
@@ -1578,6 +1632,7 @@ public partial class DatabaseConnectionOptions
 The generator performs compile-time validation of ConfigureAll callbacks:
 
 - **ATCOPT011**: ConfigureAll requires multiple named options
+
   ```csharp
   // Error: ConfigureAll needs at least 2 named instances
   [OptionsBinding("Settings", Name = "Default", ConfigureAll = nameof(SetDefaults))]
@@ -1585,6 +1640,7 @@ The generator performs compile-time validation of ConfigureAll callbacks:
   ```
 
 - **ATCOPT012**: ConfigureAll callback method not found
+
   ```csharp
   // Error: Method 'SetDefaults' does not exist
   [OptionsBinding("Email", Name = "Primary", ConfigureAll = "SetDefaults")]
@@ -1593,6 +1649,7 @@ The generator performs compile-time validation of ConfigureAll callbacks:
   ```
 
 - **ATCOPT013**: ConfigureAll callback method has invalid signature
+
   ```csharp
   // Error: Must be static void with (TOptions) parameter
   [OptionsBinding("Email", Name = "Primary", ConfigureAll = nameof(Configure))]
@@ -1764,11 +1821,13 @@ The generator automatically handles nested configuration subsections through Mic
 #### 🎯 How It Works
 
 When you have properties that are complex types (not primitives like string, int, etc.), the configuration binder automatically:
+
 1. Detects the property is a complex type
 2. Looks for a subsection with the same name
 3. Recursively binds that subsection to the property
 
 This works for:
+
 - **Nested objects** - Properties with custom class types
 - **Collections** - List<T>, IEnumerable<T>, arrays
 - **Dictionaries** - Dictionary<string, string>, Dictionary<string, T>
@@ -1953,6 +2012,254 @@ public partial class SmtpOptions
   }
 }
 ```
+
+### ⚡ Early Access to Options (Avoid BuildServiceProvider Anti-Pattern)
+
+**Problem:** Sometimes you need to access options values **during service registration** to make conditional decisions, but calling `BuildServiceProvider()` in the middle of registration is an anti-pattern that causes:
+
+- ❌ Memory leaks
+- ❌ Scope issues
+- ❌ Application instability
+
+**Solution:** The generator provides three APIs for early access to bound and validated options without building the service provider:
+
+| Method | Reads Cache | Writes Cache | Use Case |
+|--------|-------------|--------------|----------|
+| `Get[Type]From[Assembly]()` | ✅ Yes | ❌ No | Efficient retrieval (uses cached if available, no side effects) |
+| `GetOrAdd[Type]From[Assembly]()` | ✅ Yes | ✅ Yes | Early access with caching for idempotency |
+| `GetOptions<T>()` | ✅ Yes | ❌ No | Smart dispatcher (calls Get internally, multi-assembly support) |
+
+#### 🎯 Key Features
+
+- ✅ **Efficient caching** - Get methods read from cache when available (no unnecessary instance creation)
+- ✅ **No side effects** - Get and GetOptions don't populate cache (only GetOrAdd does)
+- ✅ **Idempotent GetOrAdd** - Safe to call multiple times, returns the same instance
+- ✅ **Smart dispatcher** - GetOptions<T>() works in multi-assembly projects (routes to correct Get method)
+- ✅ **Immediate validation** - DataAnnotations and ErrorOnMissingKeys validation happens immediately
+- ✅ **PostConfigure support** - Applies PostConfigure callbacks before returning
+- ✅ **Full integration** - Works seamlessly with normal `AddOptionsFrom*` methods
+- ✅ **Unnamed options only** - Named options are excluded (use standard Options pattern for those)
+
+#### 📋 API Approaches
+
+**Approach 1: Get Methods (Pure Retrieval)**
+
+```csharp
+// Reads cache but doesn't populate - efficient, no side effects
+var dbOptions1 = services.GetDatabaseOptionsFromDomain(configuration);
+var dbOptions2 = services.GetDatabaseOptionsFromDomain(configuration);
+// If GetOrAdd was never called: dbOptions1 != dbOptions2 (creates fresh instances)
+// If GetOrAdd was called first: dbOptions1 == dbOptions2 (returns cached)
+
+if (dbOptions1.EnableFeatureX)
+{
+    services.AddScoped<IFeatureX, FeatureXService>();
+}
+```
+
+**Approach 2: GetOrAdd Methods (With Caching)**
+
+```csharp
+// Populates cache on first call - use for idempotency
+var dbOptions1 = services.GetOrAddDatabaseOptionsFromDomain(configuration);
+var dbOptions2 = services.GetOrAddDatabaseOptionsFromDomain(configuration);
+// dbOptions1 == dbOptions2 (always true - cached and reused)
+
+if (dbOptions1.EnableFeatureX)
+{
+    services.AddScoped<IFeatureX, FeatureXService>();
+}
+```
+
+**Approach 3: Generic Smart Dispatcher (Multi-Assembly)**
+
+```csharp
+// Convenience method - routes to Get method internally (no caching side effects)
+// Works in multi-assembly projects! No CS0121 ambiguity
+var dbOptions = services.GetOptions<DatabaseOptions>(configuration);
+
+if (dbOptions.EnableFeatureX)
+{
+    services.AddScoped<IFeatureX, FeatureXService>();
+}
+```
+
+#### ⚖️ When to Use Which API
+
+**Use `Get[Type]...` when:**
+- ✅ You want efficient retrieval (benefits from cache if available)
+- ✅ You don't want side effects (no cache population)
+- ✅ You're okay with fresh instances if cache is empty
+
+**Use `GetOrAdd[Type]...` when:**
+- ✅ You need idempotency (same instance on repeated calls)
+- ✅ You want to explicitly populate cache for later use
+- ✅ You prefer explicit cache management
+
+**Use `GetOptions<T>()` when:**
+- ✅ You want concise, generic syntax
+- ✅ Working in multi-assembly projects (smart dispatcher routes correctly)
+- ✅ You want same behavior as Get (efficient, no side effects)
+
+#### 📋 Basic Usage
+
+```csharp
+// Step 1: Get options early during service registration
+// Option A: Assembly-specific (always works, recommended)
+var dbOptions = services.GetOrAddDatabaseOptionsFromDomain(configuration);
+
+// Option B: Generic (only in single-assembly projects)
+// var dbOptions = services.GetOptions<DatabaseOptions>(configuration);
+
+// Step 2: Use options to make conditional registration decisions
+if (dbOptions.EnableFeatureX)
+{
+    services.AddScoped<IFeatureX, FeatureXService>();
+}
+
+if (dbOptions.MaxRetries > 0)
+{
+    services.AddSingleton<IRetryPolicy>(new RetryPolicy(dbOptions.MaxRetries));
+}
+
+// Step 3: Continue with normal registration (idempotent, no duplication)
+services.AddOptionsFromDomain(configuration);
+
+// The options are now available via IOptions<T>, IOptionsSnapshot<T>, IOptionsMonitor<T>
+```
+
+#### 🔄 Idempotency Example
+
+```csharp
+// First call - creates, binds, validates, and caches
+var dbOptions1 = services.GetOrAddDatabaseOptionsFromDomain(configuration);
+Console.WriteLine($"MaxRetries: {dbOptions1.MaxRetries}");
+
+// Second call - returns cached instance (no re-binding, no re-validation)
+var dbOptions2 = services.GetOrAddDatabaseOptionsFromDomain(configuration);
+
+// Both references point to the same instance
+Console.WriteLine($"Same instance? {ReferenceEquals(dbOptions1, dbOptions2)}"); // True
+```
+
+#### 🛡️ Validation Example
+
+```csharp
+// Options class with validation
+[OptionsBinding("Database", ValidateDataAnnotations = true, ErrorOnMissingKeys = true)]
+public partial class DatabaseOptions
+{
+    [Required]
+    [MinLength(10)]
+    public string ConnectionString { get; set; } = string.Empty;
+
+    [Range(1, 10)]
+    public int MaxRetries { get; set; }
+}
+
+// Early access - validation happens immediately
+try
+{
+    var dbOptions = services.GetOrAddDatabaseOptionsFromDomain(configuration);
+    // Validation passed - options are ready to use
+}
+catch (ValidationException ex)
+{
+    // Validation failed - caught at registration time, not runtime!
+    Console.WriteLine($"Configuration error: {ex.Message}");
+}
+```
+
+#### 🚀 Real-World Use Cases
+
+**1. Conditional Feature Registration:**
+
+```csharp
+var featuresOptions = services.GetOrAddFeaturesOptionsFromDomain(configuration);
+
+if (featuresOptions.EnableRedisCache)
+{
+    services.AddStackExchangeRedisCache(options =>
+    {
+        options.Configuration = featuresOptions.RedisCacheConnectionString;
+    });
+}
+else
+{
+    services.AddDistributedMemoryCache();
+}
+```
+
+**2. Dynamic Service Configuration:**
+
+```csharp
+var storageOptions = services.GetOrAddStorageOptionsFromDomain(configuration);
+
+services.AddScoped<IFileStorage>(sp =>
+{
+    return storageOptions.Provider switch
+    {
+        "Azure" => new AzureBlobStorage(storageOptions.AzureConnectionString),
+        "AWS" => new S3Storage(storageOptions.AwsAccessKey, storageOptions.AwsSecretKey),
+        _ => new LocalFileStorage(storageOptions.LocalPath)
+    };
+});
+```
+
+**3. Validation-Based Registration:**
+
+```csharp
+var apiOptions = services.GetOrAddApiOptionsFromDomain(configuration);
+
+// Only register rate limiting if enabled in config
+if (apiOptions.EnableRateLimiting && apiOptions.RateLimitPerMinute > 0)
+{
+    services.AddRateLimiting(options =>
+    {
+        options.RequestsPerMinute = apiOptions.RateLimitPerMinute;
+    });
+}
+```
+
+#### ⚙️ How It Works
+
+1. **First Call** to `GetOrAdd{OptionsName}()`:
+   - Creates new options instance
+   - Binds from configuration section
+   - Validates (DataAnnotations, ErrorOnMissingKeys)
+   - Applies PostConfigure callbacks
+   - Adds to internal cache
+   - Registers via `services.Configure<T>()`
+   - Returns bound instance
+
+2. **Subsequent Calls**:
+   - Checks internal cache
+   - Returns existing instance (no re-binding, no re-validation)
+
+3. **Normal `AddOptionsFrom*` Call**:
+   - Automatically populates cache via `.PostConfigure()`
+   - Options available via `IOptions<T>`, `IOptionsSnapshot<T>`, `IOptionsMonitor<T>`
+
+#### ⚠️ Limitations
+
+- **Unnamed options only** - Named options (`Name` property) do not generate `GetOrAdd*` methods
+- **Singleton lifetime** - Early access options are registered as singleton
+- **No OnChange support** - Early access is for registration-time decisions only
+
+#### 🎓 Best Practices
+
+✅ **DO:**
+
+- Use early access for conditional service registration
+- Use early access for dynamic service configuration
+- Call `GetOrAdd*` methods before `AddOptionsFrom*`
+- Validate options at registration time
+
+❌ **DON'T:**
+
+- Use early access for runtime decisions (use `IOptions<T>` instead)
+- Call `BuildServiceProvider()` during registration
+- Mix early access with named options (not supported)
 
 ### 🌍 Environment-Specific Configuration
 
@@ -2251,6 +2558,7 @@ public partial class CacheOptions
 The generator performs compile-time validation:
 
 - **ATCOPT014**: ChildSections cannot be used with `Name` property
+
   ```csharp
   // ❌ Error: Cannot use both ChildSections and Name
   [OptionsBinding("Email", Name = "Primary", ChildSections = new[] { "A", "B" })]
@@ -2258,6 +2566,7 @@ The generator performs compile-time validation:
   ```
 
 - **ATCOPT015**: ChildSections requires at least 2 items
+
   ```csharp
   // ❌ Error: Must have at least 2 child sections
   [OptionsBinding("Email", ChildSections = new[] { "Primary" })]
@@ -2269,6 +2578,7 @@ The generator performs compile-time validation:
   ```
 
 - **ATCOPT016**: ChildSections items cannot be null or empty
+
   ```csharp
   // ❌ Error: Array contains empty string
   [OptionsBinding("Email", ChildSections = new[] { "Primary", "", "Secondary" })]
@@ -2296,6 +2606,7 @@ The generator performs compile-time validation:
 | Use case | Few instances | Many instances |
 
 **Recommendation:**
+
 - Use `ChildSections` when you have 2+ related configurations under a common parent section
 - Use multiple `[OptionsBinding]` attributes when configurations come from different sections
 
