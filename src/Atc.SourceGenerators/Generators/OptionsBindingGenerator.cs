@@ -928,7 +928,8 @@ public class OptionsBindingGenerator : IIncrementalGenerator
             PostConfigure: null,
             ConfigureAll: null,
             Name: null,
-            ChildSections: null);
+            ChildSections: null,
+            AlsoRegisterDirectType: false);
     }
 
     private static bool HasOptionsBindingAttributeInNamespace(
