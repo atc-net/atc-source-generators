@@ -14,4 +14,5 @@ internal sealed record OptionsInfo(
     string? OnChange,
     string? PostConfigure,
     string? ConfigureAll,
-    string?[]? ChildSections);
+    string?[]? ChildSections,
+    bool AlsoRegisterDirectType);

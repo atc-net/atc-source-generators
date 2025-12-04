@@ -2,10 +2,22 @@ namespace PetStore.Domain.Options;
 
 /// <summary>
 /// External API endpoint configuration options.
-/// Demonstrates PostConfigure feature for normalizing API URLs after binding.
+/// Demonstrates:
+/// - PostConfigure feature for normalizing API URLs after binding
+/// - AlsoRegisterDirectType feature for third-party library compatibility
 /// Ensures all URLs are lowercase and properly formatted for consistent API communication.
 /// </summary>
-[OptionsBinding("ExternalApis", ValidateDataAnnotations = true, ValidateOnStart = true, PostConfigure = nameof(NormalizeUrls))]
+/// <remarks>
+/// AlsoRegisterDirectType = true allows this class to be injected both as IOptions&lt;ExternalApiOptions&gt;
+/// and as ExternalApiOptions directly. This is useful when integrating with third-party API client
+/// libraries that expect configuration objects directly in their constructors.
+/// </remarks>
+[OptionsBinding(
+    "ExternalApis",
+    ValidateDataAnnotations = true,
+    ValidateOnStart = true,
+    PostConfigure = nameof(NormalizeUrls),
+    AlsoRegisterDirectType = true)]
 public partial class ExternalApiOptions
 {
     /// <summary>

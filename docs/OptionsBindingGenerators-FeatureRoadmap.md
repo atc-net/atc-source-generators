@@ -88,10 +88,10 @@ This roadmap is based on comprehensive analysis of:
 | ❌ | [Auto-Generate Options Classes from appsettings.json](#11-auto-generate-options-classes-from-appsettingsjson) | 🟢 Low |
 | ❌ | [Environment-Specific Validation](#12-environment-specific-validation) | 🟢 Low |
 | ❌ | [Hot Reload Support with Filtering](#13-hot-reload-support-with-filtering) | 🟢 Low |
-| 🚫 | [Reflection-Based Binding](#13-reflection-based-binding) | - |
-| 🚫 | [JSON Schema Generation](#14-json-schema-generation) | - |
-| 🚫 | [Configuration Encryption/Decryption](#15-configuration-encryptiondecryption) | - |
-| 🚫 | [Dynamic Configuration Sources](#16-dynamic-configuration-sources) | - |
+| 🚫 | [Reflection-Based Binding](#15-reflection-based-binding) | - |
+| 🚫 | [JSON Schema Generation](#16-json-schema-generation) | - |
+| 🚫 | [Configuration Encryption/Decryption](#17-configuration-encryptiondecryption) | - |
+| 🚫 | [Dynamic Configuration Sources](#18-dynamic-configuration-sources) | - |
 
 **Legend:**
 

@@ -344,6 +344,7 @@ services.AddDependencyRegistrationsFromDomain(
 - **ConfigureAll support**: Set common default values for all named options instances before individual binding with `ConfigureAll` callbacks (e.g., baseline retry/timeout settings)
 - **Named options support**: Multiple configurations of the same options type with different names (e.g., Primary/Secondary email servers)
 - **Child sections**: Simplified syntax for creating multiple named instances from subsections using `ChildSections` property (e.g., `Email` → Primary/Secondary/Fallback)
+- **Direct type registration**: `AlsoRegisterDirectType` parameter allows registering options classes for both `IOptions<T>` AND direct type injection (for migration scenarios and third-party library compatibility)
 - **Nested subsection binding**: Automatic binding of complex properties to configuration subsections (e.g., `StorageOptions.Database.Retry` → `"Storage:Database:Retry"`) - supported out-of-the-box by Microsoft's `.Bind()` method
 - Supports lifetime selection: Singleton (IOptions), Scoped (IOptionsSnapshot), Monitor (IOptionsMonitor)
 - Requires classes to be declared `partial`
@@ -591,6 +592,34 @@ services.Configure<EmailOptions>("Fallback", configuration.GetSection("Email:Fal
 // [OptionsBinding("Email:Primary", Name = "Primary", ConfigureAll = nameof(SetDefaults))]
 // [OptionsBinding("Email:Secondary", Name = "Secondary")]
 // [OptionsBinding("Email:Fallback", Name = "Fallback")]
+
+// Input with AlsoRegisterDirectType (for legacy code or third-party library compatibility):
+[OptionsBinding("LegacyApi", ValidateDataAnnotations = true, AlsoRegisterDirectType = true)]
+public partial class LegacyApiOptions
+{
+    [Required, Url]
+    public string ApiEndpoint { get; set; } = string.Empty;
+
+    [Required, MinLength(32)]
+    public string ApiKey { get; set; } = string.Empty;
+}
+
+// Output with AlsoRegisterDirectType (generates both registrations):
+// Standard IOptions<T> registration
+services.AddOptions<LegacyApiOptions>()
+    .Bind(configuration.GetSection("LegacyApi"))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+
+// Also register direct type (for legacy code or third-party libraries)
+services.AddSingleton(sp => sp.GetRequiredService<global::Microsoft.Extensions.Options.IOptions<global::MyApp.LegacyApiOptions>>().Value);
+
+// Usage - Both injection patterns now work:
+// Pattern 1: Standard IOptions<T> (recommended for new code)
+public class ApiService(IOptions<LegacyApiOptions> options) { }
+
+// Pattern 2: Direct type (for legacy code or third-party libraries that expect unwrapped types)
+public class LegacyLibraryClient(LegacyApiOptions options) { }
 ```
 
 **Smart Naming:**
