@@ -87,6 +87,42 @@ dotnet run --project sample/PetStore.Api
 dotnet clean
 ```
 
+## Build Requirements
+
+### SDK Version
+
+This project uses **Roslyn 5.0.0 (.NET 10)** source generators and requires .NET 10 SDK for building.
+
+**Consumer Projects:**
+- Projects that reference `Atc.SourceGenerators` must be built with .NET 10 SDK (or later)
+- Consumer projects can target ANY .NET version (.NET 9, .NET 8, .NET Framework, etc.)
+- This is a build-time requirement only - runtime target framework is independent
+
+**Why .NET 10 SDK is required:**
+- Roslyn 5.0.0 APIs ship with .NET 10 SDK
+- Source generators execute during compilation, requiring the SDK's Roslyn version
+- Target framework and SDK version are independent concepts in .NET
+
+**Example Scenario:**
+```xml
+<!-- Consumer project can target .NET 9 -->
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Requires .NET 10 SDK to build due to Roslyn 5.0.0 -->
+    <PackageReference Include="Atc.SourceGenerators" Version="1.0.0" />
+  </ItemGroup>
+</Project>
+```
+
+```bash
+# Must use .NET 10 SDK to build
+dotnet build  # Executes source generators using Roslyn 5.0.0
+```
+
 ## Architecture
 
 ### Source Generator Lifecycle
@@ -314,6 +350,74 @@ services.AddDependencyRegistrationsFromDomain(
 - Requires classes to be declared `partial`
 - **Smart naming** - uses short suffix if unique, full name if conflicts exist
 - **Transitive registration**: Generates 4 overloads for each assembly to support automatic or selective registration of referenced assemblies
+- **Early access to options**: Avoid BuildServiceProvider anti-pattern with GetOrAdd methods for accessing options during service registration
+
+**Early Access to Options (Avoids BuildServiceProvider Anti-Pattern):**
+
+Three APIs available for accessing options during service registration:
+
+| Method | Reads Cache | Writes Cache | Use Case |
+|--------|-------------|--------------|----------|
+| `Get[Type]...` | ✅ Yes | ❌ No | Efficient retrieval (uses cached if available, no side effects) |
+| `GetOrAdd[Type]...` | ✅ Yes | ✅ Yes | Early access with caching for idempotency |
+| `GetOptions<T>()` | ✅ Yes | ❌ No | Smart dispatcher (calls `Get[Type]...` internally) |
+
+```csharp
+// Problem: Need options values during service registration but don't want BuildServiceProvider()
+// Solution: Three APIs available for early access
+
+// API 1: Get methods - Efficient retrieval (reads cache, doesn't populate)
+var dbOptions1 = services.GetDatabaseOptionsFromDomain(configuration);
+var dbOptions2 = services.GetDatabaseOptionsFromDomain(configuration);
+// If GetOrAdd was never called: dbOptions1 != dbOptions2 (different instances)
+// If GetOrAdd was called first: dbOptions1 == dbOptions2 (returns cached instance)
+
+// API 2: GetOrAdd methods - With caching (idempotent, populates cache)
+var dbCached1 = services.GetOrAddDatabaseOptionsFromDomain(configuration);
+var dbCached2 = services.GetOrAddDatabaseOptionsFromDomain(configuration);
+// dbCached1 == dbCached2 (same instance, cached for reuse)
+
+// API 3: Generic smart dispatcher (calls Get internally - reads cache, doesn't populate)
+var dbOptions3 = services.GetOptions<DatabaseOptions>(configuration);
+// Internally calls GetDatabaseOptionsFromDomain() - benefits from cache if available
+// Works in multi-assembly projects - no CS0121 ambiguity!
+
+// Example: Call GetOrAdd first, then Get benefits from cache
+var dbFromAdd = services.GetOrAddDatabaseOptionsFromDomain(configuration);  // Populates cache
+var dbFromGet = services.GetDatabaseOptionsFromDomain(configuration);       // Uses cache
+// dbFromAdd == dbFromGet (true - Get found it in cache)
+
+// Use options to make conditional registration decisions
+if (dbFromAdd.EnableFeatureX)
+{
+    services.AddScoped<IFeatureX, FeatureXService>();
+}
+
+// Normal AddOptionsFrom* methods register with service collection
+services.AddOptionsFromDomain(configuration);
+// Options available via IOptions<T>, IOptionsSnapshot<T>, IOptionsMonitor<T>
+```
+
+**How the Smart Dispatcher Works:**
+- **Library assemblies** (no OptionsBinding references): Don't generate `GetOptions<T>()` - use assembly-specific methods
+- **Consuming assemblies** (with OptionsBinding references): Generate smart dispatcher that routes based on type:
+  ```csharp
+  public static T GetOptions<T>(...)
+  {
+      var type = typeof(T);
+
+      // Current assembly options
+      if (type == typeof(DatabaseOptions))
+          return (T)(object)services.GetDatabaseOptionsFromOptionsBinding(configuration);
+
+      // Referenced assembly options
+      if (type == typeof(CacheOptions))
+          return (T)(object)services.GetCacheOptionsFromDomain(configuration);
+
+      throw new InvalidOperationException($"Type '{type.FullName}' is not registered...");
+  }
+  ```
+- **Result**: No CS0121 ambiguity, convenient generic API, compile-time type safety, no caching side effects!
 
 **Generated Code Pattern:**
 ```csharp

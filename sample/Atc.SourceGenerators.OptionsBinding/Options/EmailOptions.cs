@@ -12,7 +12,7 @@ namespace Atc.SourceGenerators.OptionsBinding.Options;
 /// [OptionsBinding("Email:Secondary", Name = "Secondary")]
 /// [OptionsBinding("Email:Fallback", Name = "Fallback")]
 /// </remarks>
-[OptionsBinding("Email", ChildSections = new[] { "Primary", "Secondary", "Fallback" }, ConfigureAll = nameof(SetDefaults))]
+[OptionsBinding("Email", ChildSections = ["Primary", "Secondary", "Fallback"], ConfigureAll = nameof(SetDefaults))]
 public partial class EmailOptions
 {
     /// <summary>

@@ -1,3 +1,4 @@
+// ReSharper disable CommentTypo
 namespace Atc.SourceGenerators.OptionsBinding.Options;
 
 /// <summary>
@@ -24,7 +25,7 @@ public partial class LoggingOptions
         LoggingOptions options,
         string? name)
     {
-        Console.WriteLine($"[OnChange Callback] Logging configuration changed:");
+        Console.WriteLine("[OnChange Callback] Logging configuration changed:");
         Console.WriteLine($"  Level: {options.Level}");
         Console.WriteLine($"  EnableConsole: {options.EnableConsole}");
         Console.WriteLine($"  EnableFile: {options.EnableFile}");

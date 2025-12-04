@@ -97,6 +97,38 @@ Or in your `.csproj`:
 
 **Note:** The generator emits fallback attributes automatically, so the Annotations package is optional. However, it provides better XML documentation and IntelliSense. If you include it, suppress the expected CS0436 warning: `<NoWarn>$(NoWarn);CS0436</NoWarn>`
 
+## ⚙️ Requirements
+
+### Build-Time Requirements
+
+This package uses **Roslyn 5.0.0 (.NET 10)** for source generation. To build projects that consume this package:
+
+**Required:**
+- **.NET 10 SDK** (or later)
+
+**Important Notes:**
+- Projects targeting **.NET 9 (or earlier)** CAN successfully build using the .NET 10 SDK
+- This is a **build-time requirement only**, not a runtime requirement
+- Your application can still target and run on .NET 9, .NET 8, or earlier framework versions
+- The SDK version only affects the build process, not the target framework or runtime
+
+**Example:**
+
+```bash
+# Install .NET 10 SDK
+# Download from: https://dotnet.microsoft.com/download/dotnet/10.0
+
+# Your project can still target .NET 9
+<TargetFramework>net9.0</TargetFramework>
+
+# But requires .NET 10 SDK to build (due to Roslyn 5.0.0 source generator dependency)
+dotnet build  # Must use .NET 10 SDK
+```
+
+**Why .NET 10 SDK?**
+
+The source generators in this package leverage Roslyn 5.0.0 APIs which ship with .NET 10. While your consuming applications can target any .NET version (including .NET 9, .NET 8, or .NET Framework), the build toolchain requires .NET 10 SDK for proper source generator execution.
+
 ---
 
 ### ⚡ DependencyRegistrationGenerator
@@ -322,6 +354,7 @@ services.AddOptionsFromApp(configuration);
 - **🔔 Configuration Change Callbacks**: Auto-generated IHostedService for OnChange notifications with Monitor lifetime - perfect for feature flags and runtime config updates
 - **🔧 Post-Configuration Support**: Normalize or transform values after binding with `PostConfigure` callbacks (e.g., ensure paths have trailing slashes, lowercase URLs)
 - **📛 Named Options**: Multiple configurations of the same options type with different names (e.g., Primary/Secondary email servers)
+- **⚡ Early Access to Options**: Retrieve bound and validated options during service registration without BuildServiceProvider() anti-pattern (via `GetOrAdd*` methods)
 - **🎯 Explicit Section Paths**: Support for nested sections like `"App:Database"` or `"Services:Email"`
 - **📂 Nested Subsection Binding**: Automatic binding of complex properties to configuration subsections (e.g., `StorageOptions.Database.Retry` → `"Storage:Database:Retry"`)
 - **📦 Multiple Options Classes**: Register multiple configuration sections in a single assembly with one method call
