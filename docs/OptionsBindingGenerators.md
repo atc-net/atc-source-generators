@@ -97,6 +97,8 @@ services.AddOptions<DatabaseOptions>()
       - [📍 Explicit Nested Paths](#-explicit-nested-paths)
     - [⚡ Early Access to Options (Avoid BuildServiceProvider Anti-Pattern)](#-early-access-to-options-avoid-buildserviceprovider-anti-pattern)
       - [🎯 Key Features](#-key-features)
+      - [📋 API Approaches](#-api-approaches)
+      - [⚖️ When to Use Which API](#️-when-to-use-which-api)
       - [📋 Basic Usage](#-basic-usage)
       - [🔄 Idempotency Example](#-idempotency-example)
       - [🛡️ Validation Example](#️-validation-example)
@@ -2087,16 +2089,19 @@ if (dbOptions.EnableFeatureX)
 #### ⚖️ When to Use Which API
 
 **Use `Get[Type]...` when:**
+
 - ✅ You want efficient retrieval (benefits from cache if available)
 - ✅ You don't want side effects (no cache population)
 - ✅ You're okay with fresh instances if cache is empty
 
 **Use `GetOrAdd[Type]...` when:**
+
 - ✅ You need idempotency (same instance on repeated calls)
 - ✅ You want to explicitly populate cache for later use
 - ✅ You prefer explicit cache management
 
 **Use `GetOptions<T>()` when:**
+
 - ✅ You want concise, generic syntax
 - ✅ Working in multi-assembly projects (smart dispatcher routes correctly)
 - ✅ You want same behavior as Get (efficient, no side effects)

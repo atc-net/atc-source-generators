@@ -1,21 +1,24 @@
 <Solution>
   <Folder Name="/docs/">
+    <File Path="docs/AnnotationConstantsGenerator-FeatureRoadmap.md" />
+    <File Path="docs/AnnotationConstantsGenerator-Samples.md" />
+    <File Path="docs/AnnotationConstantsGenerator.md" />
+    <File Path="docs/DependencyRegistrationGenerators-FeatureRoadmap.md" />
+    <File Path="docs/DependencyRegistrationGenerators-Samples.md" />
+    <File Path="docs/DependencyRegistrationGenerators.md" />
+    <File Path="docs/EnumMappingGenerators-Samples.md" />
+    <File Path="docs/EnumMappingGenerators.md" />
+    <File Path="docs/ObjectMappingGenerators-FeatureRoadmap.md" />
+    <File Path="docs/ObjectMappingGenerators-Samples.md" />
+    <File Path="docs/ObjectMappingGenerators.md" />
+    <File Path="docs/OptionsBindingGenerators-FeatureRoadmap.md" />
+    <File Path="docs/OptionsBindingGenerators-Samples.md" />
+    <File Path="docs/OptionsBindingGenerators.md" />
+    <File Path="docs/PetStoreApi-Samples.md" />
     <File Path="README.md" />
   </Folder>
-  <Folder Name="/docs/generators/">
-    <File Path="docs/generators/DependencyRegistration.md" />
-    <File Path="docs/generators/EnumMapping.md" />
-    <File Path="docs/generators/Mapping.md" />
-    <File Path="docs/generators/OptionsBinding.md" />
-  </Folder>
-  <Folder Name="/docs/samples/">
-    <File Path="docs/samples/DependencyRegistration.md" />
-    <File Path="docs/samples/EnumMapping.md" />
-    <File Path="docs/samples/Mapping.md" />
-    <File Path="docs/samples/OptionsBinding.md" />
-    <File Path="docs/samples/PetStoreApi.md" />
-  </Folder>
   <Folder Name="/sample/">
+    <Project Path="sample/Atc.SourceGenerators.AnnotationConstants/Atc.SourceGenerators.AnnotationConstants.csproj" />
     <Project Path="sample/Atc.SourceGenerators.DependencyRegistration.Domain/Atc.SourceGenerators.DependencyRegistration.Domain.csproj" />
     <Project Path="sample/Atc.SourceGenerators.DependencyRegistration/Atc.SourceGenerators.DependencyRegistration.csproj" />
     <Project Path="sample/Atc.SourceGenerators.EnumMapping/Atc.SourceGenerators.EnumMapping.csproj" />

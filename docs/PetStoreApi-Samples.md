@@ -652,19 +652,24 @@ public static Pet MapToPet(this PetEntity source)
 ## ✨ Key Features Demonstrated
 
 ### 1. **Complete Integration**
+
 All three generators work seamlessly together:
+
 - Services auto-registered via `[Registration]`
 - Background services auto-registered with `AddHostedService<T>()` via `[Registration]`
 - Configuration auto-bound via `[OptionsBinding]`
 - Objects auto-mapped via `[MapTo]` with bidirectional support
 
 ### 2. **Clean Architecture with Enum Separation**
+
 Each layer has its own enum to maintain proper separation of concerns:
+
 - **API Layer**: `PetStatus` (Api.Contract) - exposed to clients
 - **Domain Layer**: `PetStatus` (Domain.Models) - business logic
 - **DataAccess Layer**: `PetStatusEntity` - database persistence
 
 The MappingGenerator automatically handles enum conversions via casting at layer boundaries:
+
 ```csharp
 // API → Domain
 var pets = petService.GetByStatus((PetStore.Domain.Models.PetStatus)status);
@@ -679,6 +684,7 @@ Status = (Models.PetStatus)source.Status
 **Why simple casting instead of EnumMapping extension methods?**
 
 The PetStore sample uses simple enum casts because the enum values have identical names and underlying values across all layers. The MappingGenerator automatically uses:
+
 - **Simple casts** `(TargetEnum)source.Value` when enums don't have `[MapTo]` attributes (like in this sample)
 - **EnumMapping extension methods** `source.Value.MapToTargetEnum()` when enums have `[MapTo]` attributes (for special case handling like None → Unknown)
 
@@ -687,6 +693,7 @@ For advanced enum mapping with special case detection, see the [EnumMapping samp
 **Benefit:** DataAccess layer has **NO** dependency on Api.Contract, maintaining clean architecture principles.
 
 ### 3. **Bidirectional Mapping**
+
 Single attribute generates both forward and reverse mappings:
 
 ```csharp
@@ -695,12 +702,14 @@ public partial class Pet { ... }
 ```
 
 Generates:
+
 - `Pet.MapToPetEntity()` - forward mapping
 - `PetEntity.MapToPet()` - reverse mapping (automatically!)
 
 **Benefit:** Eliminates manual reverse mapping code like `PetEntityExtensions.cs`.
 
 ### 4. **Transitive Registration**
+
 Single registration call includes all referenced assemblies:
 
 ```csharp
@@ -711,9 +720,11 @@ builder.Services.AddDependencyRegistrationsFromPetStoreDomain(
 **Benefit:** One line registers services from multiple projects.
 
 ### 5. **Zero Boilerplate**
+
 Compare traditional approach vs generator approach:
 
 **Traditional (150+ lines)**:
+
 ```csharp
 // Manual DI
 services.AddSingleton<IPetService, PetService>();
@@ -733,25 +744,31 @@ public static PetResponse MapToPetResponse(Pet pet) { ... }
 ```
 
 **With Generators (2 lines)**:
+
 ```csharp
 services.AddDependencyRegistrationsFromPetStoreDomain(includeReferencedAssemblies: true);
 services.AddOptionsFromPetStoreDomain(configuration, includeReferencedAssemblies: true);
 ```
 
 ### 6. **OpenAPI Integration**
+
 XML documentation works correctly with proper project configuration:
+
 - Library projects: `GenerateDocumentationFile=false`
 - API project: `GenerateDocumentationFile=true`
 - No duplicate key errors from generated attributes
 
 ### 7. **Type Safety**
+
 Compile-time validation catches errors:
+
 - Missing interface implementations
 - Invalid configuration bindings
 - Mapping mismatches
 - Enum conversion errors
 
 ### 8. **Production Ready**
+
 - Validation with Data Annotations
 - Structured logging ready
 - Separation of concerns (3-layer architecture)
@@ -786,12 +803,14 @@ dotnet run
 ```
 
 Then open your browser to:
-- **Scalar UI**: https://localhost:42616/scalar/v1
-- **OpenAPI JSON**: https://localhost:42616/openapi/v1.json
+
+- **Scalar UI**: <https://localhost:42616/scalar/v1>
+- **OpenAPI JSON**: <https://localhost:42616/openapi/v1.json>
 
 ### Try It Out
 
 **Create a pet:**
+
 ```bash
 curl -X POST https://localhost:42616/pets \
   -H "Content-Type: application/json" \
@@ -799,16 +818,19 @@ curl -X POST https://localhost:42616/pets \
 ```
 
 **Get all pets:**
+
 ```bash
 curl https://localhost:42616/pets
 ```
 
 **Get a specific pet:**
+
 ```bash
 curl https://localhost:42616/pets/11111111-1111-1111-1111-111111111111
 ```
 
 **Get pets by status:**
+
 ```bash
 curl https://localhost:42616/pets/status/Available
 curl https://localhost:42616/pets/status/Pending

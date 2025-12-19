@@ -96,6 +96,7 @@ This roadmap is based on comprehensive analysis of:
 | 🚫 | [Service Replacement/Override at Runtime](#15-service-replacementoverride-at-runtime) | - |
 
 **Legend:**
+
 - ✅ **Implemented** - Feature is complete and available
 - ⚠️ **Partially Implemented** - Some aspects are available, others are in progress
 - ❌ **Not Implemented** - Feature is planned but not yet developed
@@ -534,6 +535,7 @@ services.AddDependencyRegistrationsFromDomain(configuration);
 - ✅ Comprehensive documentation in Conditional Registration section
 
 **Benefits**:
+
 - 🎯 Feature Flags - Enable/disable features without redeployment
 - 🌍 Environment-Specific - Different implementations for dev/staging/prod
 - 🧪 A/B Testing - Easy experimentation with different implementations
@@ -671,8 +673,8 @@ Based on priority, user demand, and implementation complexity:
 
 **Goal**: Conditional registration and filtering
 
-4. ✅ **TryAdd* Registration** 🟡 Medium - Conditional registration for library scenarios
-5. ✅ **Assembly Scanning Filters** 🟡 Medium - Exclude namespaces/patterns from transitive registration
+1. ✅ **TryAdd* Registration** 🟡 Medium - Conditional registration for library scenarios
+2. ✅ **Assembly Scanning Filters** 🟡 Medium - Exclude namespaces/patterns from transitive registration
 
 **Status**: ✅ COMPLETED (January 2025)
 **Impact**: Better control over transitive registration, library author support
@@ -683,7 +685,7 @@ Based on priority, user demand, and implementation complexity:
 
 **Goal**: Decorator pattern for cross-cutting concerns
 
-6. ✅ **Decorator Pattern Support** 🟢 Low-Medium ⭐ - Wrap services with logging, caching, validation
+1. ✅ **Decorator Pattern Support** 🟢 Low-Medium ⭐ - Wrap services with logging, caching, validation
 
 **Status**: ✅ COMPLETED (January 2025)
 **Impact**: Enterprise-grade cross-cutting concerns without code modification
@@ -694,7 +696,7 @@ Based on priority, user demand, and implementation complexity:
 
 **Goal**: Instance registration for pre-created singletons
 
-7. ✅ **Implementation Instance Registration** 🟢 Low - Pre-created singleton instances
+1. ✅ **Implementation Instance Registration** 🟢 Low - Pre-created singleton instances
 
 **Status**: ✅ COMPLETED (January 2025)
 **Impact**: Support immutable configuration objects and pre-initialized singletons
@@ -705,9 +707,9 @@ Based on priority, user demand, and implementation complexity:
 
 **Goal**: Validation and diagnostics
 
-8. **Multi-Interface Registration** 🟢 Low - Selective interface registration
-9. **Registration Validation Diagnostics** 🟡 Medium - Compile-time warnings for missing dependencies
-10. **Conditional Registration** 🟢 Low-Medium - Feature flag-based registration
+1. **Multi-Interface Registration** 🟢 Low - Selective interface registration
+2. **Registration Validation Diagnostics** 🟡 Medium - Compile-time warnings for missing dependencies
+3. **Conditional Registration** 🟢 Low-Medium - Feature flag-based registration
 
 **Estimated effort**: 3-4 weeks
 **Impact**: Catch DI mistakes at compile time, support feature toggles
@@ -718,7 +720,7 @@ Based on priority, user demand, and implementation complexity:
 
 **Goal**: Convention-based patterns
 
-11. **Auto-Discovery by Convention** 🟢 Low-Medium - Optional convention-based registration
+1. **Auto-Discovery by Convention** 🟢 Low-Medium - Optional convention-based registration
 
 **Estimated effort**: 2-3 weeks
 **Impact**: Reduce boilerplate further with conventions
