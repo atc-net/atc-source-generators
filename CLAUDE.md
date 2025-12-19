@@ -4,11 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a **Roslyn C# Source Generators** project that provides compile-time code generation for .NET applications. The solution contains three main source generators:
+This is a **Roslyn C# Source Generators** project that provides compile-time code generation for .NET applications. The solution contains four main source generators:
 
 1. **DependencyRegistrationGenerator** - Automatically generates dependency injection service registrations
 2. **OptionsBindingGenerator** - Automatically generates configuration options binding code
 3. **MappingGenerator** - Automatically generates type-safe object-to-object mapping code
+4. **AnnotationConstantsGenerator** - Automatically generates compile-time constants from DataAnnotation attributes
 
 All generators eliminate boilerplate code and improve developer productivity while maintaining Native AOT compatibility.
 
@@ -20,6 +21,7 @@ src/
     DependencyRegistrationGenerator.cs
     OptionsBindingGenerator.cs
     ObjectMappingGenerator.cs
+    AnnotationConstantsGenerator.cs
     RuleIdentifierConstants.cs    # Diagnostic ID constants
     RuleCategoryConstants.cs       # Diagnostic category constants
   Atc.SourceGenerators.Annotations/ # Shared attribute definitions (published as separate package)
@@ -34,6 +36,7 @@ test/
     DependencyRegistrationGeneratorTests.cs
     OptionsBindingGeneratorTests.cs
     ObjectMappingGeneratorTests.cs
+    AnnotationConstantsGeneratorTests.cs
 
 sample/
   Atc.SourceGenerators.DependencyRegistration/        # DI registration sample
@@ -43,6 +46,7 @@ sample/
   Atc.SourceGenerators.Mapping/                       # Object mapping API sample
   Atc.SourceGenerators.Mapping.Domain/                # Domain models with mappings (includes BaseEntity/AuditableEntity/Book for inheritance demo)
   Atc.SourceGenerators.Mapping.DataAccess/            # Database entities with mappings
+  Atc.SourceGenerators.AnnotationConstants/           # DataAnnotation constants sample
   PetStore.Api/                                       # Complete 3-layer ASP.NET Core API with OpenAPI/Scalar
   PetStore.Api.Contract/                              # API contracts (DTOs)
   PetStore.Domain/                                    # Domain layer using all generators
@@ -971,6 +975,98 @@ PetStatus (API)
 **Diagnostics:**
 - `ATCENUM001` - Target type must be an enum (Error)
 - `ATCENUM002` - Source enum value has no matching target value (Warning)
+
+### AnnotationConstantsGenerator
+
+**Key Features:**
+- Automatic scanning of classes/records with DataAnnotation attributes
+- No opt-in attribute required - scans all types automatically
+- Full support for 17 Microsoft DataAnnotation attributes
+- **Atc attributes support** - IPAddress, Uri, String, KeyString, IsoCurrencySymbol, IgnoreDisplay, EnumGuid, CasingStyleDescription (when Atc package is referenced)
+- Zero reflection at runtime - all metadata accessible at compile time
+- Native AOT compatible
+- Configurable via .editorconfig (`atc_annotation_constants.include_unannotated_properties`)
+
+**Supported Microsoft DataAnnotation Attributes:**
+- Display: DisplayName, Description, ShortName, GroupName, Prompt, Order
+- Validation: Required (with AllowEmptyStrings, ErrorMessage), StringLength, MinLength, MaxLength, Range, RegularExpression
+- Data Types: EmailAddress, Phone, Url, CreditCard, DataType
+- Metadata: Key, Compare, Editable, ScaffoldColumn, Timestamp
+
+**Supported Atc Attributes (from Atc package):**
+- `IPAddressAttribute` - IsIPAddress, IPAddressRequired
+- `IsoCurrencySymbolAttribute` - IsIsoCurrencySymbol, IsoCurrencySymbolRequired, AllowedIsoCurrencySymbols
+- `StringAttribute` - IsAtcString, AtcStringRequired, AtcStringMinLength, AtcStringMaxLength, AtcStringRegularExpression, AtcStringInvalidCharacters, AtcStringInvalidPrefixStrings
+- `KeyStringAttribute` - IsKeyString (plus all StringAttribute constants)
+- `UriAttribute` - IsAtcUri, AtcUriRequired, AtcUriAllowHttp, AtcUriAllowHttps, AtcUriAllowFtp, AtcUriAllowFtps, AtcUriAllowFile, AtcUriAllowOpcTcp
+- `IgnoreDisplayAttribute` - IsIgnoreDisplay
+- `EnumGuidAttribute` - EnumGuid
+- `CasingStyleDescriptionAttribute` - CasingStyleDefault, CasingStylePrefix
+
+**Generated Code Pattern:**
+```csharp
+// Input:
+using System.ComponentModel.DataAnnotations;
+
+public class Product
+{
+    [Display(Name = "Product Name", Description = "The display name of the product")]
+    [Required]
+    [StringLength(100)]
+    public string Name { get; set; } = string.Empty;
+
+    [Display(Name = "Price")]
+    [Required]
+    [Range(typeof(decimal), "0.01", "999999.99")]
+    public decimal Price { get; set; }
+}
+
+// Output (static partial class in same namespace):
+namespace MyNamespace;
+
+public static partial class AnnotationConstants
+{
+    public static partial class Product
+    {
+        public static partial class Name
+        {
+            public const string DisplayName = "Product Name";
+            public const string Description = "The display name of the product";
+            public const bool IsRequired = true;
+            public const int MaximumLength = 100;
+        }
+
+        public static partial class Price
+        {
+            public const string DisplayName = "Price";
+            public const bool IsRequired = true;
+            public const string Minimum = "0.01";
+            public const string Maximum = "999999.99";
+            public static readonly System.Type OperandType = typeof(decimal);
+        }
+    }
+}
+
+// Usage:
+string displayName = AnnotationConstants.Product.Name.DisplayName;    // "Product Name"
+bool isRequired = AnnotationConstants.Product.Name.IsRequired;        // true
+int maxLength = AnnotationConstants.Product.Name.MaximumLength;       // 100
+string priceMin = AnnotationConstants.Product.Price.Minimum;          // "0.01"
+Type priceType = AnnotationConstants.Product.Price.OperandType;       // typeof(decimal)
+```
+
+**Configuration via .editorconfig:**
+```ini
+# Include properties without annotations (default: false)
+atc_annotation_constants.include_unannotated_properties = true
+```
+
+**Use Cases:**
+- Blazor dynamic forms without reflection
+- Client-side validation metadata
+- API documentation generation
+- TypeScript type generation
+- UI label/placeholder generation
 
 ## PetStore Sample - Complete Example
 

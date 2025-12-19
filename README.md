@@ -17,6 +17,7 @@ A collection of Roslyn C# source generators for .NET that eliminate boilerplate 
 - **[⚙️ OptionsBindingGenerator](#️-optionsbindinggenerator)** - Automatic configuration binding to strongly-typed options classes
 - **[🗺️ MappingGenerator](#️-mappinggenerator)** - Automatic object-to-object mapping with type safety
 - **[🔄 EnumMappingGenerator](#-enummappinggenerator)** - Automatic enum-to-enum mapping with intelligent matching
+- **[📋 AnnotationConstantsGenerator](#-annotationconstantsgenerator)** - Compile-time access to DataAnnotation metadata
 
 ## ✨ See It In Action
 
@@ -808,6 +809,108 @@ Get errors and warnings at compile time, not runtime:
 
 ---
 
+### 📋 AnnotationConstantsGenerator
+
+Access DataAnnotation attribute metadata at compile time without reflection. The generator automatically scans classes and records for `System.ComponentModel.DataAnnotations` attributes and generates strongly-typed constants.
+
+#### 📚 Documentation
+
+- **[Annotation Constants Guide](docs/AnnotationConstantsGenerator.md)** - Full documentation with examples
+- **[Sample Projects](docs/AnnotationConstantsGenerator-Samples.md)** - Working code examples
+
+#### 😫 From This
+
+```csharp
+// Runtime reflection to access annotation metadata 😫
+var nameProperty = typeof(Product).GetProperty("Name");
+var displayAttr = nameProperty.GetCustomAttribute<DisplayAttribute>();
+var displayName = displayAttr?.Name;  // "Product Name"
+
+var maxLengthAttr = nameProperty.GetCustomAttribute<StringLengthAttribute>();
+var maxLength = maxLengthAttr?.MaximumLength;  // 100
+
+// ... more reflection for each property
+// ... slow, not AOT compatible
+// ... no IntelliSense
+```
+
+#### ✨ To This
+
+```csharp
+// Your model - No special attribute needed ✨
+using System.ComponentModel.DataAnnotations;
+
+public class Product
+{
+    [Display(Name = "Product Name", Description = "The product name")]
+    [Required]
+    [StringLength(100)]
+    public string Name { get; set; } = string.Empty;
+
+    [Display(Name = "Price")]
+    [Required]
+    [Range(typeof(decimal), "0.01", "999999.99")]
+    public decimal Price { get; set; }
+}
+
+// Access via generated constants - Zero reflection! ✨
+string displayName = AnnotationConstants.Product.Name.DisplayName;     // "Product Name"
+string description = AnnotationConstants.Product.Name.Description;    // "The product name"
+bool isRequired = AnnotationConstants.Product.Name.IsRequired;        // true
+int maxLength = AnnotationConstants.Product.Name.MaximumLength;       // 100
+
+string priceMin = AnnotationConstants.Product.Price.Minimum;          // "0.01"
+string priceMax = AnnotationConstants.Product.Price.Maximum;          // "999999.99"
+Type priceType = AnnotationConstants.Product.Price.OperandType;       // typeof(decimal)
+```
+
+#### ✨ Key Features
+
+- **🔍 Automatic Scanning**: No opt-in attribute needed - scans all classes with DataAnnotation attributes
+- **📦 Full DataAnnotations Support**: Display, Required, StringLength, Range, RegularExpression, EmailAddress, Phone, Url, CreditCard, DataType, Compare, Key, Editable, ScaffoldColumn, Timestamp
+- **🔵 Atc Attributes Support**: IPAddress, Uri, String, KeyString, IsoCurrencySymbol, IgnoreDisplay, EnumGuid, CasingStyleDescription (when Atc package is referenced)
+- **⚡ Zero Reflection**: All metadata accessible at compile time
+- **🚀 Native AOT Compatible**: Fully trimming-safe, no runtime type inspection
+- **🛡️ Type-Safe**: Full IntelliSense support with compile-time validation
+- **⚙️ Configurable**: Optional `.editorconfig` setting to include unannotated properties
+- **🎯 Perfect for Blazor**: Build dynamic forms without reflection
+- **📝 API Documentation**: Generate OpenAPI schemas at compile time
+
+#### 🚀 Quick Example
+
+```csharp
+using System.ComponentModel.DataAnnotations;
+
+public class Customer
+{
+    [Display(Name = "Full Name", Order = 1)]
+    [Required]
+    [StringLength(200)]
+    public string FullName { get; set; } = string.Empty;
+
+    [Display(Name = "Email Address", Order = 2)]
+    [Required]
+    [EmailAddress]
+    public string Email { get; set; } = string.Empty;
+
+    [Key]
+    [Editable(false)]
+    public Guid Id { get; set; }
+}
+
+// ✨ Generated constants - use in validation, UI, docs
+Console.WriteLine(AnnotationConstants.Customer.FullName.DisplayName);    // "Full Name"
+Console.WriteLine(AnnotationConstants.Customer.FullName.Order);          // 1
+Console.WriteLine(AnnotationConstants.Customer.FullName.IsRequired);     // true
+Console.WriteLine(AnnotationConstants.Customer.FullName.MaximumLength);  // 200
+
+Console.WriteLine(AnnotationConstants.Customer.Email.IsEmailAddress);    // true
+Console.WriteLine(AnnotationConstants.Customer.Id.IsKey);                // true
+Console.WriteLine(AnnotationConstants.Customer.Id.IsEditable);           // false
+```
+
+---
+
 ## 🔨 Building
 
 ```bash
@@ -857,6 +960,15 @@ Console app demonstrating intelligent enum-to-enum mapping with special case han
 
 ```bash
 cd sample/Atc.SourceGenerators.EnumMapping
+dotnet run
+```
+
+### 📋 [AnnotationConstants Sample](docs/AnnotationConstantsGenerator-Samples.md)
+
+Console app demonstrating compile-time access to DataAnnotation metadata without reflection. Shows how to access Display names, validation rules, and data type constraints via generated constants.
+
+```bash
+cd sample/Atc.SourceGenerators.AnnotationConstants
 dotnet run
 ```
 
