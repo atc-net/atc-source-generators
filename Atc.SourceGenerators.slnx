@@ -8,7 +8,10 @@
     <File Path="docs/DependencyRegistrationGenerators.md" />
     <File Path="docs/EnumMappingGenerators-Samples.md" />
     <File Path="docs/EnumMappingGenerators.md" />
+    <File Path="docs/ObjectMappingGenerators-ConfigurationBasedMapping.md" />
+    <File Path="docs/ObjectMappingGenerators-ConfigurationBasedMapping-Samples.md" />
     <File Path="docs/ObjectMappingGenerators-FeatureRoadmap.md" />
+    <File Path="docs/ObjectMappingGenerators-MigrationGuide.md" />
     <File Path="docs/ObjectMappingGenerators-Samples.md" />
     <File Path="docs/ObjectMappingGenerators.md" />
     <File Path="docs/OptionsBindingGenerators-FeatureRoadmap.md" />
@@ -26,6 +29,14 @@
     <Project Path="sample/Atc.SourceGenerators.Mapping.DataAccess/Atc.SourceGenerators.Mapping.DataAccess.csproj" />
     <Project Path="sample/Atc.SourceGenerators.Mapping.Domain/Atc.SourceGenerators.Mapping.Domain.csproj" />
     <Project Path="sample/Atc.SourceGenerators.Mapping/Atc.SourceGenerators.Mapping.csproj" />
+    <Project Path="sample/Atc.SourceGenerators.MappingOnlyConfiguration/Atc.SourceGenerators.MappingOnlyConfiguration.csproj" />
+    <Project Path="sample/Atc.SourceGenerators.MappingOnlyConfiguration.Domain/Atc.SourceGenerators.MappingOnlyConfiguration.Domain.csproj" />
+    <Project Path="sample/Atc.SourceGenerators.MappingCombinedConfiguration/Atc.SourceGenerators.MappingCombinedConfiguration.csproj" />
+    <Project Path="sample/Atc.SourceGenerators.MappingCombinedConfiguration.Contract/Atc.SourceGenerators.MappingCombinedConfiguration.Contract.csproj" />
+    <Project Path="sample/Atc.SourceGenerators.MappingCombinedConfiguration.Domain/Atc.SourceGenerators.MappingCombinedConfiguration.Domain.csproj" />
+    <Project Path="sample/Atc.SourceGenerators.MappingCombinedConfiguration.ExternalAnalytics/Atc.SourceGenerators.MappingCombinedConfiguration.ExternalAnalytics.csproj" />
+    <Project Path="sample/Atc.SourceGenerators.MappingCombinedConfiguration.ExternalNotifications/Atc.SourceGenerators.MappingCombinedConfiguration.ExternalNotifications.csproj" />
+    <Project Path="sample/Atc.SourceGenerators.MappingOnlyConfiguration.ExternalCrm/Atc.SourceGenerators.MappingOnlyConfiguration.ExternalCrm.csproj" />
     <Project Path="sample/Atc.SourceGenerators.OptionsBinding.Domain/Atc.SourceGenerators.OptionsBinding.Domain.csproj" />
     <Project Path="sample/Atc.SourceGenerators.OptionsBinding/Atc.SourceGenerators.OptionsBinding.csproj" />
     <Project Path="sample/PetStore.Api.Contract/PetStore.Api.Contract.csproj" />

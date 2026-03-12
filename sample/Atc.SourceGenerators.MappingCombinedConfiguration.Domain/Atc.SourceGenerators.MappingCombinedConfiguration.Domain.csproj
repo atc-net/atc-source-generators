@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <NoWarn>$(NoWarn);CS0436;EnableGenerateDocumentationFile</NoWarn>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Atc.SourceGenerators.MappingCombinedConfiguration.ExternalNotifications\Atc.SourceGenerators.MappingCombinedConfiguration.ExternalNotifications.csproj" />
+    <ProjectReference Include="..\Atc.SourceGenerators.MappingCombinedConfiguration.ExternalAnalytics\Atc.SourceGenerators.MappingCombinedConfiguration.ExternalAnalytics.csproj" />
+    <ProjectReference Include="..\Atc.SourceGenerators.MappingCombinedConfiguration.Contract\Atc.SourceGenerators.MappingCombinedConfiguration.Contract.csproj" />
+    <ProjectReference Include="..\..\src\Atc.SourceGenerators\Atc.SourceGenerators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+</Project>
