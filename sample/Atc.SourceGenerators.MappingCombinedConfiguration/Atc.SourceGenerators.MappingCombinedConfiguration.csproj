@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <NoWarn>$(NoWarn);CS0436</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Atc.SourceGenerators.MappingCombinedConfiguration.Contract\Atc.SourceGenerators.MappingCombinedConfiguration.Contract.csproj" />
+    <ProjectReference Include="..\Atc.SourceGenerators.MappingCombinedConfiguration.Domain\Atc.SourceGenerators.MappingCombinedConfiguration.Domain.csproj" />
+    <ProjectReference Include="..\Atc.SourceGenerators.MappingCombinedConfiguration.ExternalAnalytics\Atc.SourceGenerators.MappingCombinedConfiguration.ExternalAnalytics.csproj" />
+    <ProjectReference Include="..\Atc.SourceGenerators.MappingCombinedConfiguration.ExternalNotifications\Atc.SourceGenerators.MappingCombinedConfiguration.ExternalNotifications.csproj" />
+  </ItemGroup>
+
+</Project>

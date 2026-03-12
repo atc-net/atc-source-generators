@@ -1,0 +1,2 @@
+global using Atc.SourceGenerators.MappingOnlyConfiguration.Domain;
+global using Atc.SourceGenerators.MappingOnlyConfiguration.ExternalCrm;

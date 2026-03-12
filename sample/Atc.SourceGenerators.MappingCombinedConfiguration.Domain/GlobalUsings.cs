@@ -1,0 +1,4 @@
+global using Atc.SourceGenerators.Annotations;
+global using Atc.SourceGenerators.MappingCombinedConfiguration.Contract;
+global using Atc.SourceGenerators.MappingCombinedConfiguration.ExternalAnalytics;
+global using Atc.SourceGenerators.MappingCombinedConfiguration.ExternalNotifications;
