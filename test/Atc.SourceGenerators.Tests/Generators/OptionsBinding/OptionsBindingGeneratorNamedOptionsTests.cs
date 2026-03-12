@@ -303,7 +303,7 @@ public partial class OptionsBindingGeneratorTests
         Assert.Contains("services.Configure<global::MyApp.Configuration.EmailOptions>(\"Backup\", configuration.GetSection(\"AppSettings:Email:Backup\"));", generatedCode, StringComparison.Ordinal);
 
         // Count ValidateDataAnnotations calls - should only be 1 (for unnamed)
-        var validateDataAnnotationsCount = System.Text.RegularExpressions.Regex.Matches(generatedCode, "ValidateDataAnnotations").Count;
+        var validateDataAnnotationsCount = Regex.Count(generatedCode, "ValidateDataAnnotations");
         Assert.Equal(1, validateDataAnnotationsCount);
     }
 }
