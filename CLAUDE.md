@@ -4,12 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a **Roslyn C# Source Generators** project that provides compile-time code generation for .NET applications. The solution contains four main source generators:
+This is a **Roslyn C# Source Generators** project that provides compile-time code generation for .NET applications. The solution contains five main source generators:
 
 1. **DependencyRegistrationGenerator** - Automatically generates dependency injection service registrations
 2. **OptionsBindingGenerator** - Automatically generates configuration options binding code
-3. **MappingGenerator** - Automatically generates type-safe object-to-object mapping code
-4. **AnnotationConstantsGenerator** - Automatically generates compile-time constants from DataAnnotation attributes
+3. **MappingGenerator** - Automatically generates type-safe object-to-object mapping code (attribute-based)
+4. **MappingConfigurationGenerator** - Automatically generates mappings for 3rd-party types via configuration (no attributes on source types)
+5. **AnnotationConstantsGenerator** - Automatically generates compile-time constants from DataAnnotation attributes
 
 All generators eliminate boilerplate code and improve developer productivity while maintaining Native AOT compatibility.
 
@@ -21,6 +22,7 @@ src/
     DependencyRegistrationGenerator.cs
     OptionsBindingGenerator.cs
     ObjectMappingGenerator.cs
+    MappingConfigurationGenerator.cs
     AnnotationConstantsGenerator.cs
     RuleIdentifierConstants.cs    # Diagnostic ID constants
     RuleCategoryConstants.cs       # Diagnostic category constants
@@ -28,6 +30,12 @@ src/
     RegistrationAttribute.cs
     OptionsBindingAttribute.cs
     MapToAttribute.cs
+    MappingConfigurationAttribute.cs
+    MapConfigPropertyAttribute.cs
+    MapConfigIgnoreAttribute.cs
+    MapConfigOptionsAttribute.cs
+    MapTypesAttribute.cs
+    MappingBuilder.cs
     Lifetime.cs
     OptionsLifetime.cs
 
@@ -46,6 +54,14 @@ sample/
   Atc.SourceGenerators.Mapping/                       # Object mapping API sample
   Atc.SourceGenerators.Mapping.Domain/                # Domain models with mappings (includes BaseEntity/AuditableEntity/Book for inheritance demo)
   Atc.SourceGenerators.Mapping.DataAccess/            # Database entities with mappings
+  Atc.SourceGenerators.MappingOnlyConfiguration/              # Config-based mapping console demo
+  Atc.SourceGenerators.MappingOnlyConfiguration.Domain/       # Domain with [MappingConfiguration] mappings
+  Atc.SourceGenerators.MappingOnlyConfiguration.ExternalCrm/  # Simulated 3rd-party CRM SDK (no generator)
+  Atc.SourceGenerators.MappingCombinedConfiguration/          # Mixed attribute + config mapping demo
+  Atc.SourceGenerators.MappingCombinedConfiguration.Contract/ # API DTOs
+  Atc.SourceGenerators.MappingCombinedConfiguration.Domain/   # Domain with mixed attribute + config mappings
+  Atc.SourceGenerators.MappingCombinedConfiguration.ExternalNotifications/ # Simulated 3rd-party SDK
+  Atc.SourceGenerators.MappingCombinedConfiguration.ExternalAnalytics/     # Simulated 3rd-party SDK
   Atc.SourceGenerators.AnnotationConstants/           # DataAnnotation constants sample
   PetStore.Api/                                       # Complete 3-layer ASP.NET Core API with OpenAPI/Scalar
   PetStore.Api.Contract/                              # API contracts (DTOs)
@@ -80,6 +96,12 @@ dotnet run --project sample/Atc.SourceGenerators.OptionsBinding
 
 # Mapping sample (minimal API with 3-layer architecture)
 dotnet run --project sample/Atc.SourceGenerators.Mapping
+
+# Configuration-based mapping sample (3rd-party type mapping)
+dotnet run --project sample/Atc.SourceGenerators.MappingOnlyConfiguration
+
+# Combined attribute + configuration mapping sample
+dotnet run --project sample/Atc.SourceGenerators.MappingCombinedConfiguration
 
 # PetStore API (complete 3-layer app with all generators + OpenAPI/Scalar)
 dotnet run --project sample/PetStore.Api
@@ -975,6 +997,92 @@ PetStatus (API)
 **Diagnostics:**
 - `ATCENUM001` - Target type must be an enum (Error)
 - `ATCENUM002` - Source enum value has no matching target value (Warning)
+
+### MappingConfigurationGenerator
+
+**Key Features:**
+- Map 3rd-party types (external assemblies, NuGet packages) without requiring `[MapTo]` attributes on source types
+- Four complementary approaches: Mapper Class Pattern (primary), Assembly-Level `[MapTypes]`, Class-Level `[MapTypes]`, and Inline `AddMappings()`/`MappingBuilder.Configure()`
+- Enum auto-detection - automatically generates switch expression mappings when properties have different enum types
+- Property renaming, ignoring, nested mapping, constructor support, collection mapping
+- Mixed mode - attribute-based `[MapTo]` and configuration-based mappings coexist (attribute always wins)
+
+**Mapper Class Pattern (Primary):**
+```csharp
+[MappingConfiguration]
+public static partial class ExternalMappings
+{
+    [MapConfigProperty("FullName", "DisplayName")]
+    [MapConfigProperty("EmailAddress", "Email")]
+    [MapConfigIgnore("InternalId")]
+    public static partial CustomerDto MapToCustomerDto(this ThirdParty.Contact source);
+}
+```
+
+**Assembly-Level Pattern (Shorthand):**
+```csharp
+[assembly: MapTypes(typeof(ExternalLib.Contact), typeof(MyApp.Customer),
+    PropertyMap = new[] { "EmailAddress:Email", "PhoneNumber:Phone" },
+    IgnoreSourceProperties = new[] { "InternalId" })]
+```
+
+**Class-Level `[MapTypes]` Pattern:**
+```csharp
+[MapTypes(typeof(ExternalLib.Contact), typeof(MyApp.Customer), Bidirectional = true)]
+[MapTypes(typeof(ExternalLib.Address), typeof(MyApp.Address))]
+static class Mappings;
+```
+
+**Inline `AddMappings()` / `MappingBuilder.Configure()` Pattern:**
+```csharp
+// With DI (requires IServiceCollection in compilation)
+builder.Services.AddMappings(map =>
+{
+    map.Map<AddressDto, AddressEntity>(bidirectional: true);
+    map.Map(typeof(OrderDto), typeof(OrderEntity));
+    map.Map<CustomerDto, CustomerEntity>(
+        propertyMap: new[] { "FullName:Name" },
+        ignoreSourceProperties: new[] { "InternalId" });
+});
+
+// Without DI
+MappingBuilder.Configure(map =>
+{
+    map.Map<AddressDto, AddressEntity>(bidirectional: true);
+});
+```
+
+**How Inline Registration Works:**
+- `MappingBuilder` and `AddMappings()` are no-ops at runtime — all mapping code is generated at compile time
+- The generator parses the lambda body syntax tree to find `Map()` invocations
+- Supports both generic (`Map<A, B>()`) and typeof (`Map(typeof(A), typeof(B))`) syntax
+- Named arguments (`bidirectional:`, `propertyMap:`, `ignoreSourceProperties:`) are extracted from syntax
+- Results feed into the same `GenerateAssemblyLevelCode()` pipeline as `[MapTypes]`
+
+**Enum Auto-Detection:**
+When mapping properties with different enum types (e.g., `ContactType` → `CustomerCategory`), the generator automatically generates switch expressions using EnumMappingHelper's special case detection (None↔Unknown, Active↔Enabled, etc.).
+
+**Attributes (in Atc.SourceGenerators.Annotations):**
+- `MappingConfigurationAttribute` - Marks static partial class as mapping configuration container
+- `MapConfigPropertyAttribute(sourcePropertyName, targetPropertyName)` - Renames properties in mapping
+- `MapConfigIgnoreAttribute(propertyName)` - Excludes properties from mapping
+- `MapConfigOptionsAttribute` - Advanced options (Bidirectional, EnableFlattening, PropertyNameStrategy)
+- `MapTypesAttribute(sourceType, targetType)` - Assembly-level or class-level shorthand for simple mappings
+- `MappingBuilder` - Fluent API for inline mapping registration (compile-time analyzed, runtime no-op)
+
+**Diagnostics:**
+- `ATCMCF001` - Configuration class must be static (Error)
+- `ATCMCF002` - Configuration class must be partial (Error)
+- `ATCMCF004` - Method must be an extension method (Error)
+- `ATCMCF005` - Return type must be a class, struct, or record (Error)
+- `ATCMCF006` - Source property not found for MapConfigProperty/MapConfigIgnore (Error)
+- `ATCMCF007` - Target property not found for MapConfigProperty (Error)
+- `ATCMCF008` - Unmatched source/target properties (Info)
+- `ATCMCF010` - Assembly MapTypes source type not found (Error)
+- `ATCMCF011` - Map() requires exactly two type arguments (Error)
+- `ATCMCF013` - AddMappings() requires a lambda expression argument (Error)
+- `ATCMAP005` - Duplicate mapping: attribute-based [MapTo] takes precedence over configuration (Warning)
+- `ATCMAP006` - Duplicate configuration mapping for same source→target pair (Warning)
 
 ### AnnotationConstantsGenerator
 
