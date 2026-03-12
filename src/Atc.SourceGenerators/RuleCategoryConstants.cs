@@ -25,4 +25,9 @@ internal static class RuleCategoryConstants
     /// Enum Mapping category - diagnostic IDs from ATCENUM001 to ATCENUM099.
     /// </summary>
     public const string EnumMapping = nameof(EnumMapping);
+
+    /// <summary>
+    /// Mapping Configuration category - diagnostic IDs from ATCMCF001 to ATCMCF099.
+    /// </summary>
+    public const string MappingConfiguration = nameof(MappingConfiguration);
 }

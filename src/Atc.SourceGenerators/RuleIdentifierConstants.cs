@@ -198,5 +198,127 @@ internal static class RuleIdentifierConstants
         /// ATCENUM002: Source enum value has no matching target value.
         /// </summary>
         internal const string UnmappedEnumValue = "ATCENUM002";
+
+        /// <summary>
+        /// ATCENUM003: Enum has [MapTo] attribute which overrides auto-detected mapping from configuration.
+        /// </summary>
+        internal const string DuplicateAttributeAndAutoDetectedEnum = "ATCENUM003";
+
+        /// <summary>
+        /// ATCENUM004: Auto-detected enum mapping has partial match.
+        /// </summary>
+        internal const string AutoDetectedEnumPartialMatch = "ATCENUM004";
+
+        /// <summary>
+        /// ATCENUM005: Enum types have no matching values; falling back to cast.
+        /// </summary>
+        internal const string AutoDetectedEnumNoMatch = "ATCENUM005";
+    }
+
+    /// <summary>
+    /// Mapping Configuration - Rule identifiers from ATCMCF001 to ATCMCF099.
+    /// </summary>
+    internal static class MappingConfiguration
+    {
+        /// <summary>
+        /// ATCMCF001: Mapping configuration class must be declared as static.
+        /// </summary>
+        internal const string ConfigClassMustBeStatic = "ATCMCF001";
+
+        /// <summary>
+        /// ATCMCF002: Mapping configuration class must be declared as partial.
+        /// </summary>
+        internal const string ConfigClassMustBePartial = "ATCMCF002";
+
+        /// <summary>
+        /// ATCMCF003: Mapping method must be declared as partial.
+        /// </summary>
+        internal const string MethodMustBePartial = "ATCMCF003";
+
+        /// <summary>
+        /// ATCMCF004: Mapping method must be an extension method.
+        /// </summary>
+        internal const string MethodMustBeExtensionMethod = "ATCMCF004";
+
+        /// <summary>
+        /// ATCMCF005: Ignored property not found on source type.
+        /// </summary>
+        internal const string IgnoredPropertyNotFound = "ATCMCF005";
+
+        /// <summary>
+        /// ATCMCF006: Renamed source property not found on type.
+        /// </summary>
+        internal const string RenamedSourcePropertyNotFound = "ATCMCF006";
+
+        /// <summary>
+        /// ATCMCF007: Renamed target property not found on type.
+        /// </summary>
+        internal const string RenamedTargetPropertyNotFound = "ATCMCF007";
+
+        /// <summary>
+        /// ATCMCF008: Mapping configuration class has no partial extension methods.
+        /// </summary>
+        internal const string EmptyConfigurationClass = "ATCMCF008";
+
+        /// <summary>
+        /// ATCMCF009: Mapping method must have exactly one parameter (the source type).
+        /// </summary>
+        internal const string MethodTooManyParameters = "ATCMCF009";
+
+        /// <summary>
+        /// ATCMCF010: Mapping method return type must be a class, record, or struct.
+        /// </summary>
+        internal const string MethodReturnTypeInvalid = "ATCMCF010";
+
+        /// <summary>
+        /// ATCMCF011: Map() requires exactly two type arguments (source and target type).
+        /// </summary>
+        internal const string MapCallRequiresTypeArguments = "ATCMCF011";
+
+        /// <summary>
+        /// ATCMCF012: Map() argument must be a typeof() expression or compile-time constant.
+        /// </summary>
+        internal const string MapCallInvalidArgument = "ATCMCF012";
+
+        /// <summary>
+        /// ATCMCF013: AddMappings() requires a lambda expression argument.
+        /// </summary>
+        internal const string AddMappingsLambdaRequired = "ATCMCF013";
+    }
+
+    /// <summary>
+    /// Extended Object Mapping - Rule identifiers from ATCMAP005 onwards.
+    /// </summary>
+    internal static class ObjectMappingExtended
+    {
+        /// <summary>
+        /// ATCMAP005: Type has both attribute and configuration-based mapping.
+        /// </summary>
+        internal const string DuplicateAttributeAndConfiguration = "ATCMAP005";
+
+        /// <summary>
+        /// ATCMAP006: Type pair is configured multiple times.
+        /// </summary>
+        internal const string DuplicateConfigurationMapping = "ATCMAP006";
+
+        /// <summary>
+        /// ATCMAP007: Configuration references source type which cannot be found.
+        /// </summary>
+        internal const string ConfigSourceTypeNotFound = "ATCMAP007";
+
+        /// <summary>
+        /// ATCMAP008: Configuration references target type which cannot be found.
+        /// </summary>
+        internal const string ConfigTargetTypeNotFound = "ATCMAP008";
+
+        /// <summary>
+        /// ATCMAP009: Target type has no accessible constructor for mapping.
+        /// </summary>
+        internal const string ConfigTargetNoAccessibleConstructor = "ATCMAP009";
+
+        /// <summary>
+        /// ATCMAP010: Configuration target type must be a class or struct.
+        /// </summary>
+        internal const string ConfigTargetTypeMustBeClassOrStruct = "ATCMAP010";
     }
 }

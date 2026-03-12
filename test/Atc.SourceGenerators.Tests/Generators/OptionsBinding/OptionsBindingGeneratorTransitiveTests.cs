@@ -31,10 +31,10 @@ public partial class OptionsBindingGeneratorTests
         Assert.NotNull(generatedCode);
 
         // Check that all 4 overloads exist
-        var overload1Count = Regex.Matches(generatedCode, @"public static IServiceCollection AddOptionsFromTestAssembly\s*\(\s*this IServiceCollection services,\s*IConfiguration configuration\s*\)", RegexOptions.Multiline).Count;
-        var overload2Count = Regex.Matches(generatedCode, @"public static IServiceCollection AddOptionsFromTestAssembly\s*\(\s*this IServiceCollection services,\s*IConfiguration configuration,\s*bool includeReferencedAssemblies\s*\)", RegexOptions.Multiline).Count;
-        var overload3Count = Regex.Matches(generatedCode, @"public static IServiceCollection AddOptionsFromTestAssembly\s*\(\s*this IServiceCollection services,\s*IConfiguration configuration,\s*string referencedAssemblyName\s*\)", RegexOptions.Multiline).Count;
-        var overload4Count = Regex.Matches(generatedCode, @"public static IServiceCollection AddOptionsFromTestAssembly\s*\(\s*this IServiceCollection services,\s*IConfiguration configuration,\s*params string\[\] referencedAssemblyNames\s*\)", RegexOptions.Multiline).Count;
+        var overload1Count = Regex.Count(generatedCode, @"public static IServiceCollection AddOptionsFromTestAssembly\s*\(\s*this IServiceCollection services,\s*IConfiguration configuration\s*\)");
+        var overload2Count = Regex.Count(generatedCode, @"public static IServiceCollection AddOptionsFromTestAssembly\s*\(\s*this IServiceCollection services,\s*IConfiguration configuration,\s*bool includeReferencedAssemblies\s*\)");
+        var overload3Count = Regex.Count(generatedCode, @"public static IServiceCollection AddOptionsFromTestAssembly\s*\(\s*this IServiceCollection services,\s*IConfiguration configuration,\s*string referencedAssemblyName\s*\)");
+        var overload4Count = Regex.Count(generatedCode, @"public static IServiceCollection AddOptionsFromTestAssembly\s*\(\s*this IServiceCollection services,\s*IConfiguration configuration,\s*params string\[\] referencedAssemblyNames\s*\)");
 
         Assert.Equal(1, overload1Count);
         Assert.Equal(1, overload2Count);
