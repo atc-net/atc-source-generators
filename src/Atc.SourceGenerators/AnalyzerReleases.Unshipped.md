@@ -19,3 +19,4 @@ ATCMCF011 | MappingConfiguration | Error | Map() requires exactly two type argum
 ATCMCF013 | MappingConfiguration | Error | AddMappings() requires a lambda expression argument
 ATCENUM006 | EnumMapping | Warning | Flag enum mapping may produce incorrect results for combined values
 ATCMAP011 | ObjectMapping | Warning | Collection element type has no mapping method
+ATCMCF014 | MappingConfiguration | Warning | Type could not be resolved (possibly from sibling generator)

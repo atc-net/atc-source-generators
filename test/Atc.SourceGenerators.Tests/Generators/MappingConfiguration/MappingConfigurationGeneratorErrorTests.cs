@@ -317,4 +317,89 @@ public partial class MappingConfigurationGeneratorTests
         var extensionErrors = diagnostics.Where(d => d.Id == "ATCMCF004").ToList();
         Assert.True(extensionErrors.Count >= 2, $"Expected at least 2 ATCMCF004 errors but found {extensionErrors.Count}");
     }
+
+    [Fact]
+    public void Config_Should_Warn_ATCMCF014_When_Return_Type_Is_Unresolved()
+    {
+        const string source = """
+                              using Atc.SourceGenerators.Annotations;
+
+                              namespace ExternalLib
+                              {
+                                  public class Source { public int Id { get; set; } }
+                              }
+
+                              namespace MyApp.Mappings
+                              {
+                                  [MappingConfiguration]
+                                  public static partial class Mappings
+                                  {
+                                      public static partial MyApp.UnresolvedTarget MapToTarget(this ExternalLib.Source source);
+                                  }
+                              }
+                              """;
+
+        var (diagnostics, _) = GetGeneratedOutput(source, "ATCMCF");
+
+        Assert.Contains(diagnostics, d => d.Id == "ATCMCF014");
+        var diagnostic = diagnostics.First(d => d.Id == "ATCMCF014");
+        Assert.Equal(DiagnosticSeverity.Warning, diagnostic.Severity);
+        Assert.DoesNotContain(diagnostics, d => d.Id == "ATCMCF010");
+    }
+
+    [Fact]
+    public void Config_Should_Warn_ATCMCF014_When_Source_Type_Is_Unresolved()
+    {
+        const string source = """
+                              using Atc.SourceGenerators.Annotations;
+
+                              namespace MyApp
+                              {
+                                  public class Target { public int Id { get; set; } }
+                              }
+
+                              namespace MyApp.Mappings
+                              {
+                                  [MappingConfiguration]
+                                  public static partial class Mappings
+                                  {
+                                      public static partial MyApp.Target MapToTarget(this ExternalLib.UnresolvedSource source);
+                                  }
+                              }
+                              """;
+
+        var (diagnostics, _) = GetGeneratedOutput(source, "ATCMCF");
+
+        Assert.Contains(diagnostics, d => d.Id == "ATCMCF014");
+        var diagnostic = diagnostics.First(d => d.Id == "ATCMCF014");
+        Assert.Equal(DiagnosticSeverity.Warning, diagnostic.Severity);
+    }
+
+    [Fact]
+    public void Config_Should_Still_Error_ATCMCF010_When_Return_Type_Is_Void()
+    {
+        // Ensure existing ATCMCF010 behavior is preserved for void/primitive returns
+        const string source = """
+                              using Atc.SourceGenerators.Annotations;
+
+                              namespace ExternalLib
+                              {
+                                  public class Source { public int Id { get; set; } }
+                              }
+
+                              namespace MyApp.Mappings
+                              {
+                                  [MappingConfiguration]
+                                  public static partial class Mappings
+                                  {
+                                      public static partial void MapToNothing(this ExternalLib.Source source);
+                                  }
+                              }
+                              """;
+
+        var (diagnostics, _) = GetGeneratedOutput(source, "ATCMCF");
+
+        Assert.Contains(diagnostics, d => d.Id == "ATCMCF010");
+        Assert.DoesNotContain(diagnostics, d => d.Id == "ATCMCF014");
+    }
 }

@@ -84,6 +84,14 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 
+    private static readonly DiagnosticDescriptor TypeNotResolvedDescriptor = new(
+        id: RuleIdentifierConstants.MappingConfiguration.TypeNotResolved,
+        title: "Type not resolved",
+        messageFormat: "Type '{0}' could not be resolved in method '{1}'. If this type is produced by another source generator, note that source generators cannot reference types from sibling generators in the same compilation. Consider moving the type to a referenced project or pre-compiling the other generator's output.",
+        category: RuleCategoryConstants.MappingConfiguration,
+        DiagnosticSeverity.Warning,
+        isEnabledByDefault: true);
+
     private static readonly DiagnosticDescriptor DuplicateAttributeAndConfigurationDescriptor = new(
         id: RuleIdentifierConstants.ObjectMappingExtended.DuplicateAttributeAndConfiguration,
         title: "Duplicate attribute and configuration mapping",
@@ -457,6 +465,18 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
             return null;
         }
 
+        // Check for unresolved return type (possibly from sibling source generator)
+        if (!method.ReturnsVoid && method.ReturnType.TypeKind == TypeKind.Error)
+        {
+            context.ReportDiagnostic(
+                Diagnostic.Create(
+                    TypeNotResolvedDescriptor,
+                    method.Locations.FirstOrDefault() ?? Location.None,
+                    method.ReturnType.Name,
+                    method.Name));
+            return null;
+        }
+
         // Validate return type
         if (method.ReturnsVoid ||
             method.ReturnType is not INamedTypeSymbol targetType ||
@@ -475,6 +495,18 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         var sourceType = method.Parameters[0].Type as INamedTypeSymbol;
         if (sourceType is null)
         {
+            return null;
+        }
+
+        // Check for unresolved source type (possibly from sibling source generator)
+        if (sourceType.TypeKind == TypeKind.Error)
+        {
+            context.ReportDiagnostic(
+                Diagnostic.Create(
+                    TypeNotResolvedDescriptor,
+                    method.Locations.FirstOrDefault() ?? Location.None,
+                    sourceType.Name,
+                    method.Name));
             return null;
         }
 
@@ -717,6 +749,19 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
             return null;
         }
 
+        // Check for unresolved types (possibly from sibling source generator)
+        if (sourceType.TypeKind == TypeKind.Error || targetType.TypeKind == TypeKind.Error)
+        {
+            var unresolvedType = sourceType.TypeKind == TypeKind.Error ? sourceType : targetType;
+            context.ReportDiagnostic(
+                Diagnostic.Create(
+                    TypeNotResolvedDescriptor,
+                    mapCall.GetLocation(),
+                    unresolvedType.Name,
+                    "Map"));
+            return null;
+        }
+
         // Validate target type
         if (targetType.TypeKind != TypeKind.Class && targetType.TypeKind != TypeKind.Struct)
         {
@@ -874,6 +919,29 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
 
         if (attr.ConstructorArguments[1].Value is not INamedTypeSymbol targetType)
         {
+            return null;
+        }
+
+        // Check for unresolved types (possibly from sibling source generator)
+        if (sourceType.TypeKind == TypeKind.Error)
+        {
+            context.ReportDiagnostic(
+                Diagnostic.Create(
+                    TypeNotResolvedDescriptor,
+                    attr.ApplicationSyntaxReference?.GetSyntax().GetLocation() ?? Location.None,
+                    sourceType.Name,
+                    "MapTypes"));
+            return null;
+        }
+
+        if (targetType.TypeKind == TypeKind.Error)
+        {
+            context.ReportDiagnostic(
+                Diagnostic.Create(
+                    TypeNotResolvedDescriptor,
+                    attr.ApplicationSyntaxReference?.GetSyntax().GetLocation() ?? Location.None,
+                    targetType.Name,
+                    "MapTypes"));
             return null;
         }
 
