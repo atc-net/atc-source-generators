@@ -189,4 +189,33 @@ internal static class MappingTypeAnalyzer
         return attributes.Any(attr =>
             IsAttributeMatch(attr.AttributeClass, "MapIgnoreAttribute"));
     }
+
+    internal static bool IsImplicitlyConvertible(
+        ITypeSymbol sourceType,
+        ITypeSymbol targetType)
+    {
+        if (targetType.TypeKind == TypeKind.Interface)
+        {
+            return sourceType.AllInterfaces.Any(i =>
+                SymbolEqualityComparer.Default.Equals(i, targetType));
+        }
+
+        var current = sourceType.BaseType;
+        while (current is not null)
+        {
+            if (SymbolEqualityComparer.Default.Equals(current, targetType))
+            {
+                return true;
+            }
+
+            current = current.BaseType;
+        }
+
+        if (targetType is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T } namedTarget)
+        {
+            return SymbolEqualityComparer.Default.Equals(sourceType, namedTarget.TypeArguments[0]);
+        }
+
+        return false;
+    }
 }

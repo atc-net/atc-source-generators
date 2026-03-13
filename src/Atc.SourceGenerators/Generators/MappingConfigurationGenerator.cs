@@ -1158,12 +1158,27 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
 
                     if (isSourceCollection && isTargetCollection && sourceElementType is not null && targetElementType is not null)
                     {
+                        // Auto-detect enum mapping for collection element types
+                        var hasCollectionEnumMapping = false;
+                        if (MappingTypeAnalyzer.IsEnumConversion(sourceElementType, targetElementType))
+                        {
+                            hasCollectionEnumMapping = HasEnumMappingAttribute(sourceElementType, targetElementType);
+
+                            if (!hasCollectionEnumMapping &&
+                                sourceElementType is INamedTypeSymbol sourceElementEnumType &&
+                                targetElementType is INamedTypeSymbol targetElementEnumType)
+                            {
+                                hasCollectionEnumMapping = TryAutoDetectEnumMapping(
+                                    sourceElementEnumType, targetElementEnumType, autoDetectedEnums, context);
+                            }
+                        }
+
                         mappings.Add(new PropertyMapping(
                             SourceProperty: sourceProp,
                             TargetProperty: targetProp,
                             RequiresConversion: false,
                             IsNested: false,
-                            HasEnumMapping: false,
+                            HasEnumMapping: hasCollectionEnumMapping,
                             IsCollection: true,
                             CollectionElementType: targetElementType,
                             CollectionTargetType: MappingTypeAnalyzer.GetCollectionTargetType(targetProp.Type),
@@ -1467,11 +1482,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
             return (null, []);
         }
 
-        var sourceProperties = sourceType
-            .GetMembers()
-            .OfType<IPropertySymbol>()
-            .Where(p => p.GetMethod is not null)
-            .ToList();
+        var sourceProperties = GetAllProperties(sourceType, includePrivateMembers: false);
 
         foreach (var constructor in constructors.OrderByDescending(c => c.Parameters.Length))
         {
@@ -1489,6 +1500,19 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
                     break;
                 }
 
+                // Verify type compatibility: reject clear mismatches (e.g., string vs int)
+                // Allow custom type mismatches since mapping methods may bridge the gap
+                // (e.g., Address → AddressDto, StatusEnum → StatusEnumDto)
+                var sourcePropertyType = matchingSourceProperty.Type;
+                var parameterType = parameter.Type;
+                if (!SymbolEqualityComparer.Default.Equals(sourcePropertyType, parameterType) &&
+                    !MappingTypeAnalyzer.IsImplicitlyConvertible(sourcePropertyType, parameterType) &&
+                    !AreBothCustomOrEnumTypes(sourcePropertyType, parameterType))
+                {
+                    allParametersMatch = false;
+                    break;
+                }
+
                 parameterNames.Add(parameter.Name);
             }
 
@@ -1499,6 +1523,33 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         }
 
         return (null, []);
+    }
+
+    private static bool AreBothCustomOrEnumTypes(
+        ITypeSymbol sourceType,
+        ITypeSymbol targetType)
+    {
+        if (sourceType is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T } ns)
+        {
+            sourceType = ns.TypeArguments[0];
+        }
+
+        if (targetType is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T } nt)
+        {
+            targetType = nt.TypeArguments[0];
+        }
+
+        if (sourceType.TypeKind == TypeKind.Enum && targetType.TypeKind == TypeKind.Enum)
+        {
+            return true;
+        }
+
+        var isSourceCustom = sourceType.TypeKind is TypeKind.Class or TypeKind.Struct &&
+                             sourceType.SpecialType == SpecialType.None;
+        var isTargetCustom = targetType.TypeKind is TypeKind.Class or TypeKind.Struct &&
+                             targetType.SpecialType == SpecialType.None;
+
+        return isSourceCustom && isTargetCustom;
     }
 
     private static void DetectDuplicatesWithAttributeMappings(
@@ -1911,12 +1962,19 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
             }
 
             // Check if any mapping in this scope references this enum pair
+            // (either as a direct property conversion or as a collection element type)
             var isReferenced = mappings.Any(m =>
                 m.PropertyMappings.Any(p =>
-                    p.RequiresConversion &&
-                    p.HasEnumMapping &&
-                    SymbolEqualityComparer.Default.Equals(p.SourceProperty.Type, enumMapping.SourceEnum) &&
-                    SymbolEqualityComparer.Default.Equals(p.TargetProperty.Type, enumMapping.TargetEnum)));
+                    (p.RequiresConversion &&
+                     p.HasEnumMapping &&
+                     SymbolEqualityComparer.Default.Equals(p.SourceProperty.Type, enumMapping.SourceEnum) &&
+                     SymbolEqualityComparer.Default.Equals(p.TargetProperty.Type, enumMapping.TargetEnum)) ||
+                    (p.IsCollection &&
+                     p.HasEnumMapping &&
+                     MappingTypeAnalyzer.IsCollectionType(p.SourceProperty.Type, out var srcElem) &&
+                     srcElem is not null &&
+                     SymbolEqualityComparer.Default.Equals(srcElem, enumMapping.SourceEnum) &&
+                     SymbolEqualityComparer.Default.Equals(p.CollectionElementType, enumMapping.TargetEnum))));
 
             if (!isReferenced)
             {

@@ -237,4 +237,143 @@ public partial class MappingConfigurationGeneratorTests
         Assert.Contains("Name = source.Name", output, StringComparison.Ordinal);
         Assert.Contains("IsActive = source.IsActive", output, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void Config_Should_Use_Constructor_For_Positional_Record_With_Different_Types()
+    {
+        const string source = """
+                              using Atc.SourceGenerators.Annotations;
+
+                              namespace ExternalLib
+                              {
+                                  public enum SourceStatus { None, Active, Inactive }
+
+                                  public class SourceItem
+                                  {
+                                      public string Id { get; set; } = string.Empty;
+                                      public string Name { get; set; } = string.Empty;
+                                      public SourceStatus Status { get; set; }
+                                  }
+                              }
+
+                              namespace MyApp
+                              {
+                                  public enum TargetStatus { Unknown, Active, Inactive }
+
+                                  public sealed record TargetItem(string Id, string Name, TargetStatus Status);
+                              }
+
+                              namespace MyApp.Mappings
+                              {
+                                  [MappingConfiguration]
+                                  public static partial class Mappings
+                                  {
+                                      public static partial MyApp.TargetItem MapToTargetItem(this ExternalLib.SourceItem source);
+                                  }
+                              }
+                              """;
+
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        Assert.Empty(diagnostics);
+        Assert.Contains("new MyApp.TargetItem(", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("new MyApp.TargetItem\n", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Config_Should_Use_Constructor_For_Positional_Record_With_Nested_Types()
+    {
+        const string source = """
+                              using Atc.SourceGenerators.Annotations;
+
+                              namespace ExternalLib
+                              {
+                                  public class SourceAddress
+                                  {
+                                      public string Street { get; set; } = string.Empty;
+                                      public string City { get; set; } = string.Empty;
+                                  }
+
+                                  public class SourcePerson
+                                  {
+                                      public string Name { get; set; } = string.Empty;
+                                      public SourceAddress Address { get; set; } = new();
+                                  }
+                              }
+
+                              namespace MyApp
+                              {
+                                  public class TargetAddress
+                                  {
+                                      public string Street { get; set; } = string.Empty;
+                                      public string City { get; set; } = string.Empty;
+                                  }
+
+                                  public sealed record TargetPerson(string Name, TargetAddress Address);
+                              }
+
+                              namespace MyApp.Mappings
+                              {
+                                  [MappingConfiguration]
+                                  public static partial class Mappings
+                                  {
+                                      public static partial MyApp.TargetAddress MapToTargetAddress(this ExternalLib.SourceAddress source);
+                                      public static partial MyApp.TargetPerson MapToTargetPerson(this ExternalLib.SourcePerson source);
+                                  }
+                              }
+                              """;
+
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        Assert.Empty(diagnostics);
+        Assert.Contains("new MyApp.TargetPerson(", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Config_Should_Generate_Enum_Mapper_For_Collection_Element_Types()
+    {
+        const string source = """
+                              using System.Collections.Generic;
+                              using Atc.SourceGenerators.Annotations;
+
+                              namespace ExternalLib
+                              {
+                                  public enum FeatureType { None, Basic, Premium, Enterprise }
+
+                                  public class SourceProduct
+                                  {
+                                      public string Name { get; set; } = string.Empty;
+                                      public List<FeatureType> Features { get; set; } = new();
+                                  }
+                              }
+
+                              namespace MyApp
+                              {
+                                  public enum FeatureType { Unknown, Basic, Premium, Enterprise }
+
+                                  public class TargetProduct
+                                  {
+                                      public string Name { get; set; } = string.Empty;
+                                      public List<FeatureType> Features { get; set; } = new();
+                                  }
+                              }
+
+                              namespace MyApp.Mappings
+                              {
+                                  [MappingConfiguration]
+                                  public static partial class Mappings
+                                  {
+                                      public static partial MyApp.TargetProduct MapToTargetProduct(this ExternalLib.SourceProduct source);
+                                  }
+                              }
+                              """;
+
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        Assert.Empty(diagnostics);
+        Assert.Contains("x.MapToFeatureType()", output, StringComparison.Ordinal);
+        Assert.Contains("MapToFeatureType(", output, StringComparison.Ordinal);
+        Assert.Contains("this ExternalLib.FeatureType source)", output, StringComparison.Ordinal);
+        Assert.Contains("=> source switch", output, StringComparison.Ordinal);
+    }
 }
