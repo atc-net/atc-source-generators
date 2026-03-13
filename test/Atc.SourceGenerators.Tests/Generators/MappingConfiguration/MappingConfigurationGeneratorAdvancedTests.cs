@@ -464,4 +464,222 @@ public partial class MappingConfigurationGeneratorTests
         Assert.Contains("new MyApp.TargetItem", output, StringComparison.Ordinal);
         Assert.Contains("Name = source.Name", output, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void Config_Should_Handle_Numeric_Type_Width_Conversion_In_Constructor()
+    {
+        const string source = """
+                              using Atc.SourceGenerators.Annotations;
+
+                              namespace ExternalLib
+                              {
+                                  public class SourceProject
+                                  {
+                                      public string Name { get; set; } = string.Empty;
+                                      public uint Version { get; set; }
+                                  }
+                              }
+
+                              namespace MyApp
+                              {
+                                  public sealed record TargetProject(string Name, int Version);
+                              }
+
+                              namespace MyApp.Mappings
+                              {
+                                  [MappingConfiguration]
+                                  public static partial class Mappings
+                                  {
+                                      public static partial MyApp.TargetProject MapToTargetProject(this ExternalLib.SourceProject source);
+                                  }
+                              }
+                              """;
+
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        Assert.Empty(diagnostics);
+        Assert.Contains("new MyApp.TargetProject(", output, StringComparison.Ordinal);
+        Assert.Contains("(int)source.Version", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Config_Should_Handle_Multiple_Numeric_Conversions_In_Constructor()
+    {
+        const string source = """
+                              using Atc.SourceGenerators.Annotations;
+
+                              namespace ExternalLib
+                              {
+                                  public class SourceDevice
+                                  {
+                                      public string Id { get; set; } = string.Empty;
+                                      public ushort Address { get; set; }
+                                      public uint Port { get; set; }
+                                      public long Timestamp { get; set; }
+                                  }
+                              }
+
+                              namespace MyApp
+                              {
+                                  public sealed record TargetDevice(string Id, int Address, int Port, int Timestamp);
+                              }
+
+                              namespace MyApp.Mappings
+                              {
+                                  [MappingConfiguration]
+                                  public static partial class Mappings
+                                  {
+                                      public static partial MyApp.TargetDevice MapToTargetDevice(this ExternalLib.SourceDevice source);
+                                  }
+                              }
+                              """;
+
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        Assert.Empty(diagnostics);
+        Assert.Contains("new MyApp.TargetDevice(", output, StringComparison.Ordinal);
+        Assert.Contains("(int)source.Address", output, StringComparison.Ordinal);
+        Assert.Contains("(int)source.Port", output, StringComparison.Ordinal);
+        Assert.Contains("(int)source.Timestamp", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Config_Should_Handle_Numeric_Conversion_With_Object_Initializer()
+    {
+        const string source = """
+                              using Atc.SourceGenerators.Annotations;
+
+                              namespace ExternalLib
+                              {
+                                  public class SourceData
+                                  {
+                                      public string Name { get; set; } = string.Empty;
+                                      public uint Count { get; set; }
+                                  }
+                              }
+
+                              namespace MyApp
+                              {
+                                  public class TargetData
+                                  {
+                                      public string Name { get; set; } = string.Empty;
+                                      public int Count { get; set; }
+                                  }
+                              }
+
+                              namespace MyApp.Mappings
+                              {
+                                  [MappingConfiguration]
+                                  public static partial class Mappings
+                                  {
+                                      public static partial MyApp.TargetData MapToTargetData(this ExternalLib.SourceData source);
+                                  }
+                              }
+                              """;
+
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        Assert.Empty(diagnostics);
+        Assert.Contains("Count = (int)source.Count", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Config_Should_Use_Constructor_For_Record_With_Collection_Of_Different_Element_Types()
+    {
+        const string source = """
+                              using System.Collections.Generic;
+                              using Atc.SourceGenerators.Annotations;
+
+                              namespace ExternalLib
+                              {
+                                  public class SourceHeader
+                                  {
+                                      public string Title { get; set; } = string.Empty;
+                                  }
+
+                                  public class SourceProject
+                                  {
+                                      public string Name { get; set; } = string.Empty;
+                                      public IList<SourceHeader> Headers { get; set; } = new List<SourceHeader>();
+                                  }
+                              }
+
+                              namespace MyApp
+                              {
+                                  public class TargetHeader
+                                  {
+                                      public string Title { get; set; } = string.Empty;
+                                  }
+
+                                  public sealed record TargetProject(string Name, List<TargetHeader> Headers);
+                              }
+
+                              namespace MyApp.Mappings
+                              {
+                                  [MappingConfiguration]
+                                  public static partial class Mappings
+                                  {
+                                      public static partial MyApp.TargetHeader MapToTargetHeader(this ExternalLib.SourceHeader source);
+                                      public static partial MyApp.TargetProject MapToTargetProject(this ExternalLib.SourceProject source);
+                                  }
+                              }
+                              """;
+
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        Assert.Empty(diagnostics);
+        Assert.Contains("new MyApp.TargetProject(", output, StringComparison.Ordinal);
+        Assert.Contains("MapToTargetHeader", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Config_Should_Use_Constructor_For_Record_With_Mixed_Collections_And_Numeric_Conversions()
+    {
+        const string source = """
+                              using System.Collections.Generic;
+                              using Atc.SourceGenerators.Annotations;
+
+                              namespace ExternalLib
+                              {
+                                  public class SourceItem
+                                  {
+                                      public string Id { get; set; } = string.Empty;
+                                  }
+
+                                  public class SourceContainer
+                                  {
+                                      public string Name { get; set; } = string.Empty;
+                                      public uint Version { get; set; }
+                                      public IList<SourceItem> Items { get; set; } = new List<SourceItem>();
+                                  }
+                              }
+
+                              namespace MyApp
+                              {
+                                  public class TargetItem
+                                  {
+                                      public string Id { get; set; } = string.Empty;
+                                  }
+
+                                  public sealed record TargetContainer(string Name, int Version, List<TargetItem> Items);
+                              }
+
+                              namespace MyApp.Mappings
+                              {
+                                  [MappingConfiguration]
+                                  public static partial class Mappings
+                                  {
+                                      public static partial MyApp.TargetItem MapToTargetItem(this ExternalLib.SourceItem source);
+                                      public static partial MyApp.TargetContainer MapToTargetContainer(this ExternalLib.SourceContainer source);
+                                  }
+                              }
+                              """;
+
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        Assert.Empty(diagnostics);
+        Assert.Contains("new MyApp.TargetContainer(", output, StringComparison.Ordinal);
+        Assert.Contains("(int)source.Version", output, StringComparison.Ordinal);
+        Assert.Contains("MapToTargetItem", output, StringComparison.Ordinal);
+    }
 }

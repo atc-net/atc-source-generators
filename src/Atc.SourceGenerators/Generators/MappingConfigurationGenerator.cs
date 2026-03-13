@@ -1196,6 +1196,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
                         var requiresConversion = MappingTypeAnalyzer.IsEnumConversion(sourceProp.Type, targetProp.Type);
                         var isNested = MappingTypeAnalyzer.IsNestedMapping(sourceProp.Type, targetProp.Type);
                         var isBuiltInTypeConversion = MappingTypeAnalyzer.IsBuiltInTypeConversion(sourceProp.Type, targetProp.Type);
+                        var isNumericConversion = MappingTypeAnalyzer.IsNumericTypeConversion(sourceProp.Type, targetProp.Type);
 
                         // Auto-detect enum mapping
                         var hasEnumMapping = false;
@@ -1214,12 +1215,12 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
                             }
                         }
 
-                        if (requiresConversion || isNested || isBuiltInTypeConversion)
+                        if (requiresConversion || isNested || isBuiltInTypeConversion || isNumericConversion)
                         {
                             mappings.Add(new PropertyMapping(
                                 SourceProperty: sourceProp,
                                 TargetProperty: targetProp,
-                                RequiresConversion: requiresConversion,
+                                RequiresConversion: requiresConversion || isNumericConversion,
                                 IsNested: isNested,
                                 HasEnumMapping: hasEnumMapping,
                                 IsCollection: false,
@@ -1511,7 +1512,9 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
                 var parameterType = parameter.Type;
                 if (!SymbolEqualityComparer.Default.Equals(sourcePropertyType, parameterType) &&
                     !MappingTypeAnalyzer.IsImplicitlyConvertible(sourcePropertyType, parameterType) &&
-                    !AreBothCustomOrEnumTypes(sourcePropertyType, parameterType))
+                    !AreBothCustomOrEnumTypes(sourcePropertyType, parameterType) &&
+                    !MappingTypeAnalyzer.IsNumericTypeConversion(sourcePropertyType, parameterType) &&
+                    !AreBothCollectionTypesWithCompatibleElements(sourcePropertyType, parameterType))
                 {
                     allParametersMatch = false;
                     break;
@@ -1556,7 +1559,9 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
                     var parameterType = parameter.Type;
                     if (!SymbolEqualityComparer.Default.Equals(sourcePropertyType, parameterType) &&
                         !MappingTypeAnalyzer.IsImplicitlyConvertible(sourcePropertyType, parameterType) &&
-                        !AreBothCustomOrEnumTypes(sourcePropertyType, parameterType))
+                        !AreBothCustomOrEnumTypes(sourcePropertyType, parameterType) &&
+                        !MappingTypeAnalyzer.IsNumericTypeConversion(sourcePropertyType, parameterType) &&
+                        !AreBothCollectionTypesWithCompatibleElements(sourcePropertyType, parameterType))
                     {
                         hasIncompatibleParam = true;
                         break;
@@ -1625,6 +1630,31 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
                              targetType.SpecialType == SpecialType.None;
 
         return isSourceCustom && isTargetCustom;
+    }
+
+    private static bool AreBothCollectionTypesWithCompatibleElements(
+        ITypeSymbol sourceType,
+        ITypeSymbol targetType)
+    {
+        if (!MappingTypeAnalyzer.IsCollectionType(sourceType, out var sourceElement) ||
+            !MappingTypeAnalyzer.IsCollectionType(targetType, out var targetElement))
+        {
+            return false;
+        }
+
+        if (sourceElement is null || targetElement is null)
+        {
+            return false;
+        }
+
+        // Same element type
+        if (SymbolEqualityComparer.Default.Equals(sourceElement, targetElement))
+        {
+            return true;
+        }
+
+        // Compatible element types (custom/enum types that can be mapped)
+        return AreBothCustomOrEnumTypes(sourceElement, targetElement);
     }
 
     private static void DetectDuplicatesWithAttributeMappings(
