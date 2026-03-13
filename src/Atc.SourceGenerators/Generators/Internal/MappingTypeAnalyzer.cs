@@ -108,6 +108,15 @@ internal static class MappingTypeAnalyzer
            "uint" or "ulong" or "ushort" or
            "decimal" or "double" or "float";
 
+    internal static bool IsNumericTypeConversion(
+        ITypeSymbol sourceType,
+        ITypeSymbol targetType)
+    {
+        var sourceName = sourceType.ToDisplayString();
+        var targetName = targetType.ToDisplayString();
+        return sourceName != targetName && IsNumericType(sourceName) && IsNumericType(targetName);
+    }
+
     internal static bool IsCollectionType(
         ITypeSymbol type,
         out ITypeSymbol? elementType)
