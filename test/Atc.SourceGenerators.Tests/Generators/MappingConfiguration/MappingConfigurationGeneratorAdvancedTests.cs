@@ -845,6 +845,116 @@ public partial class MappingConfigurationGeneratorTests
     }
 
     [Fact]
+    public void Config_Bug6_Mixed_Defaults_Int_Params_Not_Skipped()
+    {
+        const string source = """
+                              using Atc.SourceGenerators.Annotations;
+
+                              namespace Source
+                              {
+                                  public sealed record ConfigWithIntDefaults(
+                                      string Name,
+                                      int Width = 100,
+                                      int Height = 200,
+                                      double Scale = 1.5,
+                                      string Label = "default");
+                              }
+
+                              namespace Target
+                              {
+                                  public record ConfigAllRequired(
+                                      string Name,
+                                      int Width,
+                                      int Height,
+                                      double Scale,
+                                      string Label);
+                              }
+
+                              namespace MyApp.Mappings
+                              {
+                                  [MappingConfiguration]
+                                  public static partial class Mappings
+                                  {
+                                      public static partial Target.ConfigAllRequired MapToConfigAllRequired(
+                                          this Source.ConfigWithIntDefaults source);
+                                  }
+                              }
+                              """;
+
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        Assert.Empty(diagnostics);
+        Assert.Contains("new Target.ConfigAllRequired(", output, StringComparison.Ordinal);
+        Assert.Contains("source.Name,", output, StringComparison.Ordinal);
+        Assert.Contains("source.Width,", output, StringComparison.Ordinal);
+        Assert.Contains("source.Height,", output, StringComparison.Ordinal);
+        Assert.Contains("source.Scale,", output, StringComparison.Ordinal);
+        Assert.Contains("source.Label", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Config_Bug6_Same_Named_Records_With_Mixed_Defaults()
+    {
+        const string source = """
+                              using Atc.SourceGenerators.Annotations;
+
+                              namespace Generated.Models
+                              {
+                                  public class GridSettings
+                                  {
+                                      public bool Show { get; set; }
+                                  }
+
+                                  public sealed record DesignerSettings(
+                                      GridSettings GridLines,
+                                      int SizeHorizontal = 300,
+                                      int SizeVertical = 300,
+                                      int GridCountHorizontal = 6,
+                                      int GridCountVertical = 6,
+                                      string BackgroundColorInHex = "#FF333333");
+                              }
+
+                              namespace Domain.Models
+                              {
+                                  public class GridSettings
+                                  {
+                                      public bool Show { get; set; }
+                                  }
+
+                                  public record DesignerSettings(
+                                      GridSettings GridLines,
+                                      int SizeHorizontal,
+                                      int SizeVertical,
+                                      int GridCountHorizontal,
+                                      int GridCountVertical,
+                                      string BackgroundColorInHex);
+                              }
+
+                              namespace MyApp.Mappings
+                              {
+                                  [MappingConfiguration]
+                                  public static partial class Mappings
+                                  {
+                                      public static partial Domain.Models.GridSettings MapToDomainGridSettings(
+                                          this Generated.Models.GridSettings source);
+                                      public static partial Domain.Models.DesignerSettings MapToDomainDesignerSettings(
+                                          this Generated.Models.DesignerSettings source);
+                                  }
+                              }
+                              """;
+
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        Assert.Empty(diagnostics);
+        Assert.Contains("new Domain.Models.DesignerSettings(", output, StringComparison.Ordinal);
+        Assert.Contains("source.SizeHorizontal,", output, StringComparison.Ordinal);
+        Assert.Contains("source.SizeVertical,", output, StringComparison.Ordinal);
+        Assert.Contains("source.GridCountHorizontal,", output, StringComparison.Ordinal);
+        Assert.Contains("source.GridCountVertical,", output, StringComparison.Ordinal);
+        Assert.Contains("source.BackgroundColorInHex", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Config_Bug8a_Ref_To_Value_Type_Nested_Mapping()
     {
         const string source = """
