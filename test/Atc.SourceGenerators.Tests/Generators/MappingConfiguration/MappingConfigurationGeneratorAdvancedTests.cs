@@ -1080,4 +1080,129 @@ public partial class MappingConfigurationGeneratorTests
         // Should NOT use object initializer
         Assert.DoesNotContain("new Target.GridPositionDto\n", output, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void Config_PrivateSetter_Properties_Included_When_Target_From_Assembly_Reference()
+    {
+        // Step 1: Compile target type with { get; private set; } to a DLL
+        var targetDll = CompileToAssembly("""
+                                          namespace TestDomain
+                                          {
+                                              public record Settings(
+                                                  string Name,
+                                                  int Width = 100,
+                                                  int Height = 200,
+                                                  string Color = "#FFF")
+                                              {
+                                                  public int Width { get; private set; } = Width;
+                                                  public int Height { get; private set; } = Height;
+                                              }
+                                          }
+                                          """);
+
+        // Step 2: Source code referencing the DLL type as target
+        const string source = """
+                              using Atc.SourceGenerators.Annotations;
+
+                              namespace TestGen
+                              {
+                                  public sealed record Settings(
+                                      string Name,
+                                      int Width = 100,
+                                      int Height = 200,
+                                      string Color = "#FFF");
+                              }
+
+                              namespace MyApp.Mappings
+                              {
+                                  [MappingConfiguration]
+                                  public static partial class Mappings
+                                  {
+                                      public static partial TestDomain.Settings MapToDomainSettings(
+                                          this TestGen.Settings source);
+                                  }
+                              }
+                              """;
+
+        var (diagnostics, output) = GetGeneratedOutputWithAssemblyReference(source, targetDll);
+
+        Assert.Empty(diagnostics);
+        Assert.Contains("new TestDomain.Settings(", output, StringComparison.Ordinal);
+        // All 4 constructor args must be emitted, including Width and Height (which have private setters)
+        Assert.Contains("source.Name", output, StringComparison.Ordinal);
+        Assert.Contains("source.Width", output, StringComparison.Ordinal);
+        Assert.Contains("source.Height", output, StringComparison.Ordinal);
+        Assert.Contains("source.Color", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Config_PrivateSetter_DesignerSettings_From_Assembly_Reference()
+    {
+        // Real-world reproduction: DesignerSettings with 4 int properties having private setters
+        var targetDll = CompileToAssembly("""
+                                          namespace Linksoft.Data.Models
+                                          {
+                                              public class GridSettings
+                                              {
+                                                  public bool Show { get; set; }
+                                              }
+
+                                              public record DesignerSettings(
+                                                  GridSettings GridLines,
+                                                  int SizeHorizontal = 300,
+                                                  int SizeVertical = 300,
+                                                  int GridCountHorizontal = 6,
+                                                  int GridCountVertical = 6,
+                                                  string BackgroundColorInHex = "#FF333333")
+                                              {
+                                                  public int SizeHorizontal { get; private set; } = SizeHorizontal;
+                                                  public int SizeVertical { get; private set; } = SizeVertical;
+                                                  public int GridCountHorizontal { get; private set; } = GridCountHorizontal;
+                                                  public int GridCountVertical { get; private set; } = GridCountVertical;
+                                              }
+                                          }
+                                          """);
+
+        const string source = """
+                              using Atc.SourceGenerators.Annotations;
+
+                              namespace Generated.Models
+                              {
+                                  public class GridSettings
+                                  {
+                                      public bool Show { get; set; }
+                                  }
+
+                                  public sealed record DesignerSettings(
+                                      GridSettings GridLines,
+                                      int SizeHorizontal = 300,
+                                      int SizeVertical = 300,
+                                      int GridCountHorizontal = 6,
+                                      int GridCountVertical = 6,
+                                      string BackgroundColorInHex = "#FF333333");
+                              }
+
+                              namespace MyApp.Mappings
+                              {
+                                  [MappingConfiguration]
+                                  public static partial class Mappings
+                                  {
+                                      public static partial Linksoft.Data.Models.GridSettings MapToDomainGridSettings(
+                                          this Generated.Models.GridSettings source);
+                                      public static partial Linksoft.Data.Models.DesignerSettings MapToDomainDesignerSettings(
+                                          this Generated.Models.DesignerSettings source);
+                                  }
+                              }
+                              """;
+
+        var (diagnostics, output) = GetGeneratedOutputWithAssemblyReference(source, targetDll);
+
+        Assert.Empty(diagnostics);
+        Assert.Contains("new Linksoft.Data.Models.DesignerSettings(", output, StringComparison.Ordinal);
+        Assert.Contains("source.SizeHorizontal", output, StringComparison.Ordinal);
+        Assert.Contains("source.SizeVertical", output, StringComparison.Ordinal);
+        Assert.Contains("source.GridCountHorizontal", output, StringComparison.Ordinal);
+        Assert.Contains("source.GridCountVertical", output, StringComparison.Ordinal);
+        Assert.Contains("source.BackgroundColorInHex", output, StringComparison.Ordinal);
+    }
 }

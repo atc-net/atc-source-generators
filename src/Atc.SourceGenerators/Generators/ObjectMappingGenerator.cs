@@ -360,7 +360,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         var sourceProperties = GetAllProperties(sourceType, includePrivateMembers);
 
         // Collect properties from the target type including inherited properties
-        var targetProperties = GetAllProperties(targetType, includePrivateMembers, requireSetter: true);
+        var targetProperties = GetAllProperties(targetType, includePrivateMembers);
 
         foreach (var sourceProp in sourceProperties)
         {
