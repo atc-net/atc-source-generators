@@ -609,7 +609,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
             context);
 
         // Find best matching constructor
-        var (constructor, constructorParameterNames, constructorDefaultParameters) = FindBestConstructor(sourceType, targetType);
+        var (constructor, constructorParameterNames, constructorDefaultParameters) = FindBestConstructor(sourceType, targetType, propertyRenames);
 
         return new ConfiguredMappingInfo(
             SourceType: sourceType,
@@ -831,7 +831,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
             context);
 
         // Find best matching constructor
-        var (constructor, constructorParameterNames, constructorDefaultParameters) = FindBestConstructor(sourceType, targetType);
+        var (constructor, constructorParameterNames, constructorDefaultParameters) = FindBestConstructor(sourceType, targetType, propertyRenames);
 
         return new ConfiguredMappingInfo(
             SourceType: sourceType,
@@ -1013,7 +1013,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
             context);
 
         // Find best matching constructor
-        var (constructor, constructorParameterNames, constructorDefaultParameters) = FindBestConstructor(sourceType, targetType);
+        var (constructor, constructorParameterNames, constructorDefaultParameters) = FindBestConstructor(sourceType, targetType, propertyRenames);
 
         return new ConfiguredMappingInfo(
             SourceType: sourceType,
@@ -1474,7 +1474,8 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
 
     private static (IMethodSymbol? Constructor, List<string> ParameterNames, List<ConstructorDefaultParameter> DefaultParameters) FindBestConstructor(
         INamedTypeSymbol sourceType,
-        INamedTypeSymbol targetType)
+        INamedTypeSymbol targetType,
+        List<(string Source, string Target)>? propertyRenames = null)
     {
         var constructors = targetType
             .Constructors
@@ -1496,8 +1497,8 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
 
             foreach (var parameter in constructor.Parameters)
             {
-                var matchingSourceProperty = sourceProperties.FirstOrDefault(p =>
-                    string.Equals(p.Name, parameter.Name, StringComparison.OrdinalIgnoreCase));
+                var matchingSourceProperty = FindSourcePropertyForParameter(
+                    sourceProperties, parameter.Name, propertyRenames);
 
                 if (matchingSourceProperty is null)
                 {
@@ -1542,8 +1543,8 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
 
                 foreach (var parameter in constructor.Parameters)
                 {
-                    var matchingSourceProperty = sourceProperties.FirstOrDefault(p =>
-                        string.Equals(p.Name, parameter.Name, StringComparison.OrdinalIgnoreCase));
+                    var matchingSourceProperty = FindSourcePropertyForParameter(
+                        sourceProperties, parameter.Name, propertyRenames);
 
                     if (matchingSourceProperty is null)
                     {
@@ -1603,6 +1604,36 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
 
         // Non-nullable reference types
         return "default!";
+    }
+
+    private static IPropertySymbol? FindSourcePropertyForParameter(
+        List<IPropertySymbol> sourceProperties,
+        string parameterName,
+        List<(string Source, string Target)>? propertyRenames)
+    {
+        // Direct name match
+        var match = sourceProperties.FirstOrDefault(p =>
+            string.Equals(p.Name, parameterName, StringComparison.OrdinalIgnoreCase));
+
+        if (match is not null)
+        {
+            return match;
+        }
+
+        // Check property renames: parameterName matches a rename Target → find source by rename Source
+        if (propertyRenames is not null)
+        {
+            var rename = propertyRenames.FirstOrDefault(r =>
+                string.Equals(r.Target, parameterName, StringComparison.OrdinalIgnoreCase));
+
+            if (rename != default)
+            {
+                return sourceProperties.FirstOrDefault(p =>
+                    string.Equals(p.Name, rename.Source, StringComparison.OrdinalIgnoreCase));
+            }
+        }
+
+        return null;
     }
 
     private static bool AreBothCustomOrEnumTypes(
@@ -1921,11 +1952,14 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
     {
         var targetTypeName = mapping.TargetType.ToDisplayString();
 
-        sb.AppendLineLf("        if (source is null)");
-        sb.AppendLineLf("        {");
-        sb.AppendLineLf("            return default!;");
-        sb.AppendLineLf("        }");
-        sb.AppendLineLf();
+        if (!mapping.SourceType.IsValueType)
+        {
+            sb.AppendLineLf("        if (source is null)");
+            sb.AppendLineLf("        {");
+            sb.AppendLineLf("            return default!;");
+            sb.AppendLineLf("        }");
+            sb.AppendLineLf();
+        }
 
         var useConstructor = mapping.Constructor is not null && mapping.ConstructorParameterNames.Count > 0;
 
@@ -2202,6 +2236,11 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
             if (prop.SourceProperty.Type.IsValueType)
             {
                 return $"{sourceVariable}.{prop.SourceProperty.Name}.{nestedMethodName}()";
+            }
+
+            if (prop.TargetProperty.Type.IsValueType)
+            {
+                return $"{sourceVariable}.{prop.SourceProperty.Name} is not null ? {sourceVariable}.{prop.SourceProperty.Name}.{nestedMethodName}() : default";
             }
 
             return $"{sourceVariable}.{prop.SourceProperty.Name}?.{nestedMethodName}()!";

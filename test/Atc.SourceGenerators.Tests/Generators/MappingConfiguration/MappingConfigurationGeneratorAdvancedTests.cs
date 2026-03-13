@@ -798,4 +798,176 @@ public partial class MappingConfigurationGeneratorTests
         Assert.Contains("source.Location.MapToTargetPoint()", output, StringComparison.Ordinal);
         Assert.DoesNotContain("source.Location?.MapToTargetPoint()", output, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void Config_Bug6_Source_With_Defaults_To_Target_Without_Defaults()
+    {
+        const string source = """
+                              using Atc.SourceGenerators.Annotations;
+
+                              namespace Source
+                              {
+                                  public sealed record SettingsWithDefaults(
+                                      string Name,
+                                      int Width = 100,
+                                      int Height = 200,
+                                      string Color = "#FFF");
+                              }
+
+                              namespace Target
+                              {
+                                  public record SettingsNoDefaults(
+                                      string Name,
+                                      int Width,
+                                      int Height,
+                                      string Color);
+                              }
+
+                              namespace MyApp.Mappings
+                              {
+                                  [MappingConfiguration]
+                                  public static partial class Mappings
+                                  {
+                                      public static partial Target.SettingsNoDefaults MapToSettingsNoDefaults(
+                                          this Source.SettingsWithDefaults source);
+                                  }
+                              }
+                              """;
+
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        Assert.Empty(diagnostics);
+        Assert.Contains("new Target.SettingsNoDefaults(", output, StringComparison.Ordinal);
+        Assert.Contains("source.Name", output, StringComparison.Ordinal);
+        Assert.Contains("source.Width", output, StringComparison.Ordinal);
+        Assert.Contains("source.Height", output, StringComparison.Ordinal);
+        Assert.Contains("source.Color", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Config_Bug8a_Ref_To_Value_Type_Nested_Mapping()
+    {
+        const string source = """
+                              using Atc.SourceGenerators.Annotations;
+
+                              namespace Source
+                              {
+                                  public sealed record PositionDto(double X, double Y);
+                                  public sealed record ItemDto(string Name, PositionDto Location);
+                              }
+
+                              namespace Target
+                              {
+                                  public readonly struct Position
+                                  {
+                                      public Position(double x, double y) { X = x; Y = y; }
+                                      public double X { get; }
+                                      public double Y { get; }
+                                  }
+
+                                  public record Item(string Name, Position Location);
+                              }
+
+                              namespace MyApp.Mappings
+                              {
+                                  [MappingConfiguration]
+                                  public static partial class Mappings
+                                  {
+                                      public static partial Target.Position MapToPosition(this Source.PositionDto source);
+                                      public static partial Target.Item MapToItem(this Source.ItemDto source);
+                                  }
+                              }
+                              """;
+
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        Assert.Empty(diagnostics);
+        // Should NOT use ?. when target type is value type
+        Assert.DoesNotContain("?.MapToPosition()!", output, StringComparison.Ordinal);
+        // Should use ternary or direct call pattern
+        Assert.Contains("MapToPosition()", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Config_Bug8b_No_Null_Guard_For_Struct_Source()
+    {
+        const string source = """
+                              using Atc.SourceGenerators.Annotations;
+
+                              namespace Source
+                              {
+                                  public readonly struct Coordinate
+                                  {
+                                      public Coordinate(int x, int y) { X = x; Y = y; }
+                                      public int X { get; }
+                                      public int Y { get; }
+                                  }
+                              }
+
+                              namespace Target
+                              {
+                                  public sealed record CoordinateDto(int X, int Y);
+                              }
+
+                              namespace MyApp.Mappings
+                              {
+                                  [MappingConfiguration]
+                                  public static partial class Mappings
+                                  {
+                                      public static partial Target.CoordinateDto MapToCoordinateDto(
+                                          this Source.Coordinate source);
+                                  }
+                              }
+                              """;
+
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        Assert.Empty(diagnostics);
+        Assert.Contains("new Target.CoordinateDto(", output, StringComparison.Ordinal);
+        // Should NOT have null guard for struct input
+        Assert.DoesNotContain("if (source is null)", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Config_Bug8c_MapConfigProperty_With_Constructor_Uses_Named_Args()
+    {
+        const string source = """
+                              using Atc.SourceGenerators.Annotations;
+
+                              namespace Source
+                              {
+                                  public readonly struct GridPosition
+                                  {
+                                      public GridPosition(int x, int y) { X = x; Y = y; }
+                                      public int X { get; }
+                                      public int Y { get; }
+                                  }
+                              }
+
+                              namespace Target
+                              {
+                                  public sealed record GridPositionDto(int Row, int Column);
+                              }
+
+                              namespace MyApp.Mappings
+                              {
+                                  [MappingConfiguration]
+                                  public static partial class Mappings
+                                  {
+                                      [MapConfigProperty("X", "Column")]
+                                      [MapConfigProperty("Y", "Row")]
+                                      public static partial Target.GridPositionDto MapToGridPositionDto(
+                                          this Source.GridPosition source);
+                                  }
+                              }
+                              """;
+
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        Assert.Empty(diagnostics);
+        // Should use constructor syntax, not object initializer
+        Assert.Contains("new Target.GridPositionDto(", output, StringComparison.Ordinal);
+        // Should NOT use object initializer
+        Assert.DoesNotContain("new Target.GridPositionDto\n", output, StringComparison.Ordinal);
+    }
 }
