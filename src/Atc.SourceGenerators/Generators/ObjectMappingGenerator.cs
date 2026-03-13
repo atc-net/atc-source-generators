@@ -47,6 +47,14 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         DiagnosticSeverity.Warning,
         isEnabledByDefault: true);
 
+    private static readonly DiagnosticDescriptor CollectionElementMappingNotFoundDescriptor = new(
+        id: RuleIdentifierConstants.ObjectMapping.CollectionElementMappingNotFound,
+        title: "Collection element type has no mapping method",
+        messageFormat: "Property '{0}' is a collection of '{1}' but element type has no [MapTo] attribute targeting '{2}'. The property will be skipped.",
+        category: RuleCategoryConstants.ObjectMapping,
+        DiagnosticSeverity.Warning,
+        isEnabledByDefault: true);
+
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         // Generate the attribute definitions as fallback
@@ -155,7 +163,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
             context.ReportDiagnostic(
                 Diagnostic.Create(
                     MappingClassMustBePartialDescriptor,
-                    classSymbol.Locations.First(),
+                    classSymbol.Locations.FirstOrDefault() ?? Location.None,
                     classSymbol.Name));
             return null;
         }
@@ -186,7 +194,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                 context.ReportDiagnostic(
                     Diagnostic.Create(
                         TargetTypeMustBeClassOrStructDescriptor,
-                        classSymbol.Locations.First(),
+                        classSymbol.Locations.FirstOrDefault() ?? Location.None,
                         targetType.Name,
                         targetType
                             .TypeKind
@@ -365,7 +373,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                     context.Value.ReportDiagnostic(
                         Diagnostic.Create(
                             MapPropertyTargetNotFoundDescriptor,
-                            sourceProp.Locations.First(),
+                            sourceProp.Locations.FirstOrDefault() ?? Location.None,
                             sourceProp.Name,
                             customTargetName,
                             targetType.Name));
@@ -408,21 +416,36 @@ public class ObjectMappingGenerator : IIncrementalGenerator
 
                     if (isSourceCollection && isTargetCollection && sourceElementType is not null && targetElementType is not null)
                     {
-                        // Collection mapping
-                        mappings.Add(new PropertyMapping(
-                            SourceProperty: sourceProp,
-                            TargetProperty: targetProp,
-                            RequiresConversion: false,
-                            IsNested: false,
-                            HasEnumMapping: false,
-                            IsCollection: true,
-                            CollectionElementType: targetElementType,
-                            CollectionTargetType: GetCollectionTargetType(targetProp.Type),
-                            IsFlattened: false,
-                            FlattenedNestedProperty: null,
-                            IsBuiltInTypeConversion: false,
-                            SourceRequiresUnsafeAccessor: includePrivateMembers && RequiresUnsafeAccessorForReading(sourceProp),
-                            TargetRequiresUnsafeAccessor: includePrivateMembers && RequiresUnsafeAccessorForWriting(targetProp)));
+                        // Validate that the source element type has a [MapTo] mapping to the target element type
+                        if (HasObjectMappingToType(sourceElementType, targetElementType))
+                        {
+                            // Collection mapping with validated element mapping
+                            mappings.Add(new PropertyMapping(
+                                SourceProperty: sourceProp,
+                                TargetProperty: targetProp,
+                                RequiresConversion: false,
+                                IsNested: false,
+                                HasEnumMapping: false,
+                                IsCollection: true,
+                                CollectionElementType: targetElementType,
+                                CollectionTargetType: GetCollectionTargetType(targetProp.Type),
+                                IsFlattened: false,
+                                FlattenedNestedProperty: null,
+                                IsBuiltInTypeConversion: false,
+                                SourceRequiresUnsafeAccessor: includePrivateMembers && RequiresUnsafeAccessorForReading(sourceProp),
+                                TargetRequiresUnsafeAccessor: includePrivateMembers && RequiresUnsafeAccessorForWriting(targetProp)));
+                        }
+                        else if (context is not null)
+                        {
+                            // No mapping method found for collection element type - report diagnostic and skip
+                            context.Value.ReportDiagnostic(
+                                Diagnostic.Create(
+                                    CollectionElementMappingNotFoundDescriptor,
+                                    sourceProp.Locations.FirstOrDefault() ?? Location.None,
+                                    sourceProp.Name,
+                                    sourceElementType.ToDisplayString(),
+                                    targetElementType.ToDisplayString()));
+                        }
                     }
                     else
                     {
@@ -596,6 +619,65 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         return false;
     }
 
+    /// <summary>
+    /// Checks if sourceElementType has a [MapTo] attribute targeting targetElementType,
+    /// or if targetElementType has a bidirectional [MapTo] back to sourceElementType.
+    /// </summary>
+    private static bool HasObjectMappingToType(
+        ITypeSymbol sourceElementType,
+        ITypeSymbol targetElementType)
+    {
+        // Check if source has [MapTo(typeof(target))]
+        foreach (var attr in sourceElementType.GetAttributes())
+        {
+            if (attr.AttributeClass?.ToDisplayString() != FullAttributeName)
+            {
+                continue;
+            }
+
+            if (attr.ConstructorArguments.Length == 0)
+            {
+                continue;
+            }
+
+            if (attr.ConstructorArguments[0].Value is INamedTypeSymbol attrTargetType &&
+                SymbolEqualityComparer.Default.Equals(attrTargetType, targetElementType))
+            {
+                return true;
+            }
+        }
+
+        // Check if target has [MapTo(typeof(source), Bidirectional = true)]
+        foreach (var attr in targetElementType.GetAttributes())
+        {
+            if (attr.AttributeClass?.ToDisplayString() != FullAttributeName)
+            {
+                continue;
+            }
+
+            if (attr.ConstructorArguments.Length == 0)
+            {
+                continue;
+            }
+
+            if (attr.ConstructorArguments[0].Value is not INamedTypeSymbol attrSourceType ||
+                !SymbolEqualityComparer.Default.Equals(attrSourceType, sourceElementType))
+            {
+                continue;
+            }
+
+            foreach (var namedArg in attr.NamedArguments)
+            {
+                if (namedArg is { Key: "Bidirectional", Value.Value: true })
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
     private static bool IsNestedMapping(
         ITypeSymbol sourceType,
         ITypeSymbol targetType)
@@ -721,7 +803,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         var targetProperties = targetType
             .GetMembers()
             .OfType<IPropertySymbol>()
-            .Where(p => (p.SetMethod is not null || targetType.TypeKind == TypeKind.Struct) &&
+            .Where(p => (p.SetMethod is not null && p.SetMethod.DeclaredAccessibility == Accessibility.Public) &&
                         !HasMapIgnoreAttribute(p))
             .ToList();
 
@@ -773,25 +855,34 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         }
 
         // Handle generic collections: List<T>, IEnumerable<T>, ICollection<T>, IReadOnlyList<T>, etc.
-        if (namedType is { IsGenericType: true, TypeArguments.Length: 1 })
+        if (namedType is { IsGenericType: true, TypeArguments.Length: 1 } &&
+            IsKnownCollectionType(namedType.ConstructedFrom))
         {
-            var typeName = namedType.ConstructedFrom.ToDisplayString();
-
-            if (typeName.StartsWith("System.Collections.Generic.List<", StringComparison.Ordinal) ||
-                typeName.StartsWith("System.Collections.Generic.IEnumerable<", StringComparison.Ordinal) ||
-                typeName.StartsWith("System.Collections.Generic.ICollection<", StringComparison.Ordinal) ||
-                typeName.StartsWith("System.Collections.Generic.IList<", StringComparison.Ordinal) ||
-                typeName.StartsWith("System.Collections.Generic.IReadOnlyList<", StringComparison.Ordinal) ||
-                typeName.StartsWith("System.Collections.Generic.IReadOnlyCollection<", StringComparison.Ordinal) ||
-                typeName.StartsWith("System.Collections.ObjectModel.Collection<", StringComparison.Ordinal) ||
-                typeName.StartsWith("System.Collections.ObjectModel.ReadOnlyCollection<", StringComparison.Ordinal))
-            {
-                elementType = namedType.TypeArguments[0];
-                return true;
-            }
+            elementType = namedType.TypeArguments[0];
+            return true;
         }
 
         return false;
+    }
+
+    private static bool IsKnownCollectionType(
+        INamedTypeSymbol originalDefinition)
+    {
+        var name = originalDefinition.MetadataName;
+        var ns = originalDefinition.ContainingNamespace?.ToDisplayString() ?? string.Empty;
+
+        return (ns == "System.Collections.Generic" &&
+                name is
+                    "List`1" or
+                    "IEnumerable`1" or
+                    "ICollection`1" or
+                    "IList`1" or
+                    "IReadOnlyList`1" or
+                    "IReadOnlyCollection`1")
+               || (ns == "System.Collections.ObjectModel" &&
+                   name is
+                       "Collection`1" or
+                       "ReadOnlyCollection`1");
     }
 
     private static string GetCollectionTargetType(
@@ -807,46 +898,19 @@ public class ObjectMappingGenerator : IIncrementalGenerator
             return "List";
         }
 
-        var typeName = namedType.ConstructedFrom.ToDisplayString();
+        var originalDef = namedType.ConstructedFrom;
+        var name = originalDef.MetadataName;
+        var ns = originalDef.ContainingNamespace?.ToDisplayString() ?? string.Empty;
 
-        if (typeName.StartsWith("System.Collections.Generic.List<", StringComparison.Ordinal))
+        if (ns == "System.Collections.ObjectModel")
         {
-            return "List";
-        }
-
-        if (typeName.StartsWith("System.Collections.Generic.IEnumerable<", StringComparison.Ordinal))
-        {
-            return "List";
-        }
-
-        if (typeName.StartsWith("System.Collections.Generic.ICollection<", StringComparison.Ordinal))
-        {
-            return "List";
-        }
-
-        if (typeName.StartsWith("System.Collections.Generic.IList<", StringComparison.Ordinal))
-        {
-            return "List";
-        }
-
-        if (typeName.StartsWith("System.Collections.Generic.IReadOnlyList<", StringComparison.Ordinal))
-        {
-            return "List";
-        }
-
-        if (typeName.StartsWith("System.Collections.Generic.IReadOnlyCollection<", StringComparison.Ordinal))
-        {
-            return "List";
-        }
-
-        if (typeName.StartsWith("System.Collections.ObjectModel.Collection<", StringComparison.Ordinal))
-        {
-            return "Collection";
-        }
-
-        if (typeName.StartsWith("System.Collections.ObjectModel.ReadOnlyCollection<", StringComparison.Ordinal))
-        {
-            return "ReadOnlyCollection";
+            switch (name)
+            {
+                case "Collection`1":
+                    return "Collection";
+                case "ReadOnlyCollection`1":
+                    return "ReadOnlyCollection";
+            }
         }
 
         return "List";
@@ -1021,11 +1085,24 @@ public class ObjectMappingGenerator : IIncrementalGenerator
 
             foreach (var parameter in constructor.Parameters)
             {
-                // Check if we have a matching source property (case-insensitive)
+                // Check if we have a matching source property (case-insensitive name AND compatible type)
                 var matchingSourceProperty = sourceProperties.FirstOrDefault(p =>
                     string.Equals(p.Name, parameter.Name, StringComparison.OrdinalIgnoreCase));
 
                 if (matchingSourceProperty is null)
+                {
+                    allParametersMatch = false;
+                    break;
+                }
+
+                // Verify type compatibility: reject clear mismatches (e.g., string vs int)
+                // Allow custom type mismatches since mapping methods may bridge the gap
+                // (e.g., Address → AddressDto, StatusEnum → StatusEnumDto)
+                var sourcePropertyType = matchingSourceProperty.Type;
+                var parameterType = parameter.Type;
+                if (!SymbolEqualityComparer.Default.Equals(sourcePropertyType, parameterType) &&
+                    !IsImplicitlyConvertible(sourcePropertyType, parameterType) &&
+                    !AreBothCustomOrEnumTypes(sourcePropertyType, parameterType))
                 {
                     allParametersMatch = false;
                     break;
@@ -1043,16 +1120,109 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         return (null, []);
     }
 
+    /// <summary>
+    /// Checks if sourceType can be implicitly converted to targetType
+    /// (e.g., int → long, or derived → base, or nullable unwrapping).
+    /// </summary>
+    private static void AddNamespaceIfValid(
+        HashSet<string> namespaces,
+        string? ns)
+    {
+        if (!string.IsNullOrEmpty(ns) && ns != "<global namespace>")
+        {
+            namespaces.Add(ns!);
+        }
+    }
+
+    /// <summary>
+    /// Returns true if both types are custom (non-primitive, non-system) types or enums,
+    /// meaning a mapping extension method could bridge the type gap.
+    /// </summary>
+    private static bool AreBothCustomOrEnumTypes(
+        ITypeSymbol sourceType,
+        ITypeSymbol targetType)
+    {
+        // Strip nullable wrapper
+        if (sourceType is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T } ns)
+        {
+            sourceType = ns.TypeArguments[0];
+        }
+
+        if (targetType is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T } nt)
+        {
+            targetType = nt.TypeArguments[0];
+        }
+
+        // Both enums — enum mapping methods can bridge
+        if (sourceType.TypeKind == TypeKind.Enum && targetType.TypeKind == TypeKind.Enum)
+        {
+            return true;
+        }
+
+        // Both are custom reference types (class/record/struct) — mapping methods can bridge
+        var sourceIsCustom = IsCustomType(sourceType);
+        var targetIsCustom = IsCustomType(targetType);
+        return sourceIsCustom && targetIsCustom;
+    }
+
+    private static bool IsCustomType(ITypeSymbol type)
+    {
+        if (type.SpecialType != SpecialType.None)
+        {
+            return false;
+        }
+
+        var ns = type.ContainingNamespace?.ToDisplayString() ?? string.Empty;
+        return !ns.StartsWith("System", StringComparison.Ordinal) &&
+               !ns.StartsWith("Microsoft", StringComparison.Ordinal);
+    }
+
+    private static bool IsImplicitlyConvertible(
+        ITypeSymbol sourceType,
+        ITypeSymbol targetType)
+    {
+        // Check inheritance/interface relationship
+        if (targetType.TypeKind == TypeKind.Interface)
+        {
+            return sourceType.AllInterfaces.Any(i =>
+                SymbolEqualityComparer.Default.Equals(i, targetType));
+        }
+
+        // Check base type chain
+        var current = sourceType.BaseType;
+        while (current is not null)
+        {
+            if (SymbolEqualityComparer.Default.Equals(current, targetType))
+            {
+                return true;
+            }
+
+            current = current.BaseType;
+        }
+
+        // Check nullable unwrapping (T → T?)
+        if (targetType is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T } namedTarget)
+        {
+            return SymbolEqualityComparer.Default.Equals(sourceType, namedTarget.TypeArguments[0]);
+        }
+
+        return false;
+    }
+
     private static string GenerateMappingExtensions(List<MappingInfo> mappings)
     {
         var sb = new StringBuilder();
         var namespaces = new HashSet<string>(StringComparer.Ordinal);
 
-        // Collect all namespaces
+        // Collect all namespaces (skip global/empty namespaces)
         foreach (var mapping in mappings)
         {
-            namespaces.Add(mapping.SourceType.ContainingNamespace.ToDisplayString());
-            namespaces.Add(mapping.TargetType.ContainingNamespace.ToDisplayString());
+            AddNamespaceIfValid(
+                namespaces,
+                mapping.SourceType.ContainingNamespace?.ToDisplayString());
+            AddNamespaceIfValid(
+                namespaces,
+                mapping.TargetType.ContainingNamespace?.ToDisplayString());
         }
 
         sb.AppendLineLf("// <auto-generated/>");
@@ -1143,7 +1313,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         StringBuilder sb,
         MappingInfo mapping)
     {
-        var methodName = $"MapTo{mapping.TargetType.Name}";
+        var methodName = $"MapTo{TypeNameSanitizer.SanitizeForIdentifier(mapping.TargetType.Name)}";
 
         // Build type parameter list for generic methods
         var typeParamList = string.Empty;
@@ -1361,7 +1531,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         StringBuilder sb,
         MappingInfo mapping)
     {
-        var methodName = $"MapTo{mapping.TargetType.Name}";
+        var methodName = $"MapTo{TypeNameSanitizer.SanitizeForIdentifier(mapping.TargetType.Name)}";
 
         // Build type parameter list for generic methods
         var typeParamList = string.Empty;
@@ -1574,16 +1744,18 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         if (prop.IsFlattened && prop.FlattenedNestedProperty is not null)
         {
             // Flattened property mapping: source.Address.City → target.AddressCity
-            // Handle nullable nested objects with null-conditional operator
-            var isNullable = prop.SourceProperty.Type.NullableAnnotation == NullableAnnotation.Annotated ||
-                             !prop.SourceProperty.Type.IsValueType;
+            // Handle nullable intermediate and nested properties with null-conditional operator
+            var isIntermediateNullable = prop.SourceProperty.Type.NullableAnnotation == NullableAnnotation.Annotated ||
+                                         !prop.SourceProperty.Type.IsValueType;
 
-            if (isNullable)
-            {
-                return $"{sourceVariable}.{prop.SourceProperty.Name}?.{prop.FlattenedNestedProperty.Name}!";
-            }
+            var isNestedNullable = prop.FlattenedNestedProperty.Type.NullableAnnotation == NullableAnnotation.Annotated ||
+                                   (!prop.FlattenedNestedProperty.Type.IsValueType &&
+                                    prop.FlattenedNestedProperty.Type.NullableAnnotation != NullableAnnotation.NotAnnotated);
 
-            return $"{sourceVariable}.{prop.SourceProperty.Name}.{prop.FlattenedNestedProperty.Name}";
+            var accessOperator = isIntermediateNullable ? "?." : ".";
+            var nullForgiving = isIntermediateNullable || isNestedNullable ? "!" : string.Empty;
+
+            return $"{sourceVariable}.{prop.SourceProperty.Name}{accessOperator}{prop.FlattenedNestedProperty.Name}{nullForgiving}";
         }
 
         if (prop.IsBuiltInTypeConversion)
@@ -1624,7 +1796,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
             if (prop.HasEnumMapping)
             {
                 // Use EnumMapping extension method (safe mapping with special case handling)
-                var enumMappingMethodName = $"MapTo{prop.TargetProperty.Type.Name}";
+                var enumMappingMethodName = $"MapTo{TypeNameSanitizer.SanitizeForIdentifier(prop.TargetProperty.Type.Name)}";
                 return $"{sourceVariable}.{prop.SourceProperty.Name}.{enumMappingMethodName}()";
             }
 
@@ -1635,15 +1807,14 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         if (prop.IsNested)
         {
             // Nested object mapping
-            var nestedMethodName = $"MapTo{prop.TargetProperty.Type.Name}";
+            var nestedMethodName = $"MapTo{TypeNameSanitizer.SanitizeForIdentifier(prop.TargetProperty.Type.Name)}";
             var propertyAccess = GenerateSourcePropertyAccess(prop, sourceVariable, sourceType);
 
             // For nullable nested objects, we need null-conditional operator
-            // But UnsafeAccessor returns the value directly, so we need to handle both cases
+            // UnsafeAccessor returns the value directly via ref, so use a local variable for null check
             if (prop.SourceRequiresUnsafeAccessor)
             {
-                // UnsafeAccessor: check for null separately
-                return $"{propertyAccess}?.{nestedMethodName}()!";
+                return $"{propertyAccess} is {{ }} __nested ? __nested.{nestedMethodName}() : default!";
             }
 
             return $"{propertyAccess}?.{nestedMethodName}()!";

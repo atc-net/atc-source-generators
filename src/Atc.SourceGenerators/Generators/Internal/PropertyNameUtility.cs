@@ -41,7 +41,7 @@ internal static class PropertyNameUtility
             return input;
         }
 
-        return char.ToLowerInvariant(input[0]) + input.Substring(1);
+        return string.Concat(char.ToLowerInvariant(input[0]).ToString(), input.Substring(1));
     }
 
     /// <summary>

@@ -3,11 +3,35 @@ namespace Atc.SourceGenerators.Generators.Internal;
 /// <summary>
 /// Represents filtering rules for excluding types from registration.
 /// </summary>
-internal sealed record FilterRules(
-    ImmutableArray<string> ExcludedNamespaces,
-    ImmutableArray<string> ExcludedPatterns,
-    ImmutableArray<ITypeSymbol> ExcludedInterfaces)
+internal sealed class FilterRules
 {
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, System.Text.RegularExpressions.Regex> PatternCache = new(StringComparer.Ordinal);
+
+    public ImmutableArray<string> ExcludedNamespaces { get; }
+
+    public ImmutableArray<string> ExcludedPatterns { get; }
+
+    public ImmutableArray<ITypeSymbol> ExcludedInterfaces { get; }
+
+    private readonly HashSet<ISymbol> excludedInterfaceSet;
+
+    public FilterRules(
+        ImmutableArray<string> excludedNamespaces,
+        ImmutableArray<string> excludedPatterns,
+        ImmutableArray<ITypeSymbol> excludedInterfaces)
+    {
+        ExcludedNamespaces = excludedNamespaces;
+        ExcludedPatterns = excludedPatterns;
+        ExcludedInterfaces = excludedInterfaces;
+
+        // Pre-build HashSet for O(1) interface lookups instead of O(n×m) nested loops
+        excludedInterfaceSet = new HashSet<ISymbol>(SymbolEqualityComparer.Default);
+        foreach (var iface in excludedInterfaces)
+        {
+            excludedInterfaceSet.Add(iface.OriginalDefinition);
+        }
+    }
+
     /// <summary>
     /// Gets an empty filter rules instance with no exclusions.
     /// </summary>
@@ -29,7 +53,9 @@ internal sealed record FilterRules(
         {
             // Exact match or sub-namespace match
             if (typeNamespace == excludedNs ||
-                typeNamespace.StartsWith($"{excludedNs}.", StringComparison.Ordinal))
+                (typeNamespace.StartsWith(excludedNs, StringComparison.Ordinal) &&
+                 typeNamespace.Length > excludedNs.Length &&
+                 typeNamespace[excludedNs.Length] == '.'))
             {
                 return true;
             }
@@ -46,21 +72,14 @@ internal sealed record FilterRules(
             }
         }
 
-        // Check interface exclusion
-        if (!ExcludedInterfaces.IsEmpty)
+        // Check interface exclusion using HashSet for O(1) lookup
+        if (excludedInterfaceSet.Count > 0)
         {
-            var implementedInterfaces = typeSymbol.AllInterfaces;
-            foreach (var excludedInterface in ExcludedInterfaces)
+            foreach (var implementedInterface in typeSymbol.AllInterfaces)
             {
-                foreach (var implementedInterface in implementedInterfaces)
+                if (excludedInterfaceSet.Contains(implementedInterface.OriginalDefinition))
                 {
-                    // Use SymbolEqualityComparer to properly compare generic types
-                    if (SymbolEqualityComparer.Default.Equals(
-                        implementedInterface.OriginalDefinition,
-                        excludedInterface.OriginalDefinition))
-                    {
-                        return true;
-                    }
+                    return true;
                 }
             }
         }
@@ -71,21 +90,25 @@ internal sealed record FilterRules(
     /// <summary>
     /// Matches a string against a wildcard pattern.
     /// Supports * (any characters) and ? (single character).
+    /// Uses a static cache to avoid recompiling regex patterns.
     /// </summary>
     private static bool MatchesPattern(
         string value,
         string pattern)
     {
-        // Convert wildcard pattern to regex
-        var escapedPattern = System.Text.RegularExpressions.Regex.Escape(pattern);
-        var replacedStars = escapedPattern.Replace("\\*", ".*");
-        var replacedQuestions = replacedStars.Replace("\\?", ".");
-        var regexPattern = $"^{replacedQuestions}$";
+        var regex = PatternCache.GetOrAdd(pattern, static p =>
+        {
+            var escapedPattern = System.Text.RegularExpressions.Regex.Escape(p);
+            var replacedStars = escapedPattern.Replace("\\*", ".*");
+            var replacedQuestions = replacedStars.Replace("\\?", ".");
+            var regexPattern = $"^{replacedQuestions}$";
 
-        return System.Text.RegularExpressions.Regex.IsMatch(
-            value,
-            regexPattern,
-            System.Text.RegularExpressions.RegexOptions.IgnoreCase,
-            TimeSpan.FromSeconds(1));
+            return new System.Text.RegularExpressions.Regex(
+                regexPattern,
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled,
+                TimeSpan.FromSeconds(1));
+        });
+
+        return regex.IsMatch(value);
     }
 }
