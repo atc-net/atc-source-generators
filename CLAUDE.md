@@ -1081,6 +1081,7 @@ When mapping properties with different enum types (e.g., `ContactType` → `Cust
 - `ATCMCF010` - Assembly MapTypes source type not found (Error)
 - `ATCMCF011` - Map() requires exactly two type arguments (Error)
 - `ATCMCF013` - AddMappings() requires a lambda expression argument (Error)
+- `ATCMCF014` - Type could not be resolved, possibly from sibling source generator (Warning)
 - `ATCMAP005` - Duplicate mapping: attribute-based [MapTo] takes precedence over configuration (Warning)
 - `ATCMAP006` - Duplicate configuration mapping for same source→target pair (Warning)
 

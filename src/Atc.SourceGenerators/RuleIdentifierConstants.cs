@@ -294,6 +294,11 @@ internal static class RuleIdentifierConstants
         /// ATCMCF013: AddMappings() requires a lambda expression argument.
         /// </summary>
         internal const string AddMappingsLambdaRequired = "ATCMCF013";
+
+        /// <summary>
+        /// ATCMCF014: Type could not be resolved (possibly produced by another source generator).
+        /// </summary>
+        internal const string TypeNotResolved = "ATCMCF014";
     }
 
     /// <summary>
