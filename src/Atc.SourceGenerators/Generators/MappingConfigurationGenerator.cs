@@ -573,7 +573,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         }
 
         // Validate renamed properties exist
-        var targetProperties = GetAllProperties(targetType, includePrivateMembers: false, requireSetter: true);
+        var targetProperties = GetAllProperties(targetType, includePrivateMembers: false);
         foreach (var rename in propertyRenames)
         {
             if (!sourceProperties.Any(p => string.Equals(p.Name, rename.Source, StringComparison.OrdinalIgnoreCase)))
@@ -1106,7 +1106,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         var mappings = new List<PropertyMapping>();
 
         var sourceProperties = GetAllProperties(sourceType, includePrivateMembers: false);
-        var targetProperties = GetAllProperties(targetType, includePrivateMembers: false, requireSetter: true);
+        var targetProperties = GetAllProperties(targetType, includePrivateMembers: false);
 
         foreach (var sourceProp in sourceProperties)
         {
