@@ -682,4 +682,120 @@ public partial class MappingConfigurationGeneratorTests
         Assert.Contains("(int)source.Version", output, StringComparison.Ordinal);
         Assert.Contains("MapToTargetItem", output, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void Config_Should_Emit_All_Constructor_Args_When_Source_Has_Default_Values()
+    {
+        const string source = """
+                              using Atc.SourceGenerators.Annotations;
+
+                              namespace ExternalLib
+                              {
+                                  public class SourceGridSettings
+                                  {
+                                      public bool Show { get; set; }
+                                      public double DefaultThickness { get; set; }
+                                  }
+
+                                  public sealed record SourceDesignerSettings(
+                                      SourceGridSettings GridLines,
+                                      int SizeHorizontal = 300,
+                                      int SizeVertical = 300,
+                                      int GridCountHorizontal = 6,
+                                      int GridCountVertical = 6,
+                                      string BackgroundColorInHex = "#FF333333");
+                              }
+
+                              namespace MyApp
+                              {
+                                  public class TargetGridSettings
+                                  {
+                                      public bool Show { get; set; }
+                                      public double DefaultThickness { get; set; }
+                                  }
+
+                                  public record TargetDesignerSettings(
+                                      TargetGridSettings GridLines,
+                                      int SizeHorizontal,
+                                      int SizeVertical,
+                                      int GridCountHorizontal,
+                                      int GridCountVertical,
+                                      string BackgroundColorInHex);
+                              }
+
+                              namespace MyApp.Mappings
+                              {
+                                  [MappingConfiguration]
+                                  public static partial class Mappings
+                                  {
+                                      public static partial MyApp.TargetGridSettings MapToTargetGridSettings(this ExternalLib.SourceGridSettings source);
+                                      public static partial MyApp.TargetDesignerSettings MapToTargetDesignerSettings(this ExternalLib.SourceDesignerSettings source);
+                                  }
+                              }
+                              """;
+
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        Assert.Empty(diagnostics);
+        Assert.Contains("new MyApp.TargetDesignerSettings(", output, StringComparison.Ordinal);
+        Assert.Contains("source.SizeHorizontal", output, StringComparison.Ordinal);
+        Assert.Contains("source.SizeVertical", output, StringComparison.Ordinal);
+        Assert.Contains("source.GridCountHorizontal", output, StringComparison.Ordinal);
+        Assert.Contains("source.GridCountVertical", output, StringComparison.Ordinal);
+        Assert.Contains("source.BackgroundColorInHex", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Config_Should_Not_Use_Null_Conditional_On_Value_Type_Nested_Mapping()
+    {
+        const string source = """
+                              using Atc.SourceGenerators.Annotations;
+
+                              namespace ExternalLib
+                              {
+                                  public struct SourcePoint
+                                  {
+                                      public double X { get; set; }
+                                      public double Y { get; set; }
+                                  }
+
+                                  public class SourceShape
+                                  {
+                                      public string Name { get; set; } = string.Empty;
+                                      public SourcePoint Location { get; set; }
+                                  }
+                              }
+
+                              namespace MyApp
+                              {
+                                  public struct TargetPoint
+                                  {
+                                      public double X { get; set; }
+                                      public double Y { get; set; }
+                                  }
+
+                                  public class TargetShape
+                                  {
+                                      public string Name { get; set; } = string.Empty;
+                                      public TargetPoint Location { get; set; }
+                                  }
+                              }
+
+                              namespace MyApp.Mappings
+                              {
+                                  [MappingConfiguration]
+                                  public static partial class Mappings
+                                  {
+                                      public static partial MyApp.TargetPoint MapToTargetPoint(this ExternalLib.SourcePoint source);
+                                      public static partial MyApp.TargetShape MapToTargetShape(this ExternalLib.SourceShape source);
+                                  }
+                              }
+                              """;
+
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        Assert.Empty(diagnostics);
+        Assert.Contains("source.Location.MapToTargetPoint()", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("source.Location?.MapToTargetPoint()", output, StringComparison.Ordinal);
+    }
 }
