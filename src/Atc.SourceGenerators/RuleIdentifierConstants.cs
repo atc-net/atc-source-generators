@@ -182,6 +182,11 @@ internal static class RuleIdentifierConstants
         /// ATCMAP004: Required property on target type has no mapping.
         /// </summary>
         internal const string RequiredPropertyNotMapped = "ATCMAP004";
+
+        /// <summary>
+        /// ATCMAP011: Collection element type has no mapping method.
+        /// </summary>
+        internal const string CollectionElementMappingNotFound = "ATCMAP011";
     }
 
     /// <summary>
@@ -213,6 +218,11 @@ internal static class RuleIdentifierConstants
         /// ATCENUM005: Enum types have no matching values; falling back to cast.
         /// </summary>
         internal const string AutoDetectedEnumNoMatch = "ATCENUM005";
+
+        /// <summary>
+        /// ATCENUM006: Flag enum mapping may produce incorrect results for combined values.
+        /// </summary>
+        internal const string FlagEnumMappingWarning = "ATCENUM006";
     }
 
     /// <summary>
