@@ -125,12 +125,20 @@ public class ObjectMappingGenerator : IIncrementalGenerator
 
         var mappingsToGenerate = new List<MappingInfo>();
 
-        foreach (var classDeclaration in classes.Distinct())
+        // Deduplicate by fully qualified symbol name to handle partial classes across multiple files
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var classDeclaration in classes)
         {
             context.CancellationToken.ThrowIfCancellationRequested();
 
             var semanticModel = compilation.GetSemanticModel(classDeclaration.SyntaxTree);
             if (semanticModel.GetDeclaredSymbol(classDeclaration) is not { } classSymbol)
+            {
+                continue;
+            }
+
+            if (!seen.Add(classSymbol.ToDisplayString()))
             {
                 continue;
             }
