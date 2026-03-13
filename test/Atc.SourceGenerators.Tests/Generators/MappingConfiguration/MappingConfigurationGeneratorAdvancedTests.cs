@@ -460,6 +460,7 @@ public partial class MappingConfigurationGeneratorTests
         var (diagnostics, output) = GetGeneratedOutput(source);
 
         Assert.Empty(diagnostics);
+
         // Should use object initializer, not constructor (class has parameterless constructor)
         Assert.Contains("new MyApp.TargetItem", output, StringComparison.Ordinal);
         Assert.Contains("Name = source.Name", output, StringComparison.Ordinal);
@@ -992,8 +993,10 @@ public partial class MappingConfigurationGeneratorTests
         var (diagnostics, output) = GetGeneratedOutput(source);
 
         Assert.Empty(diagnostics);
+
         // Should NOT use ?. when target type is value type
         Assert.DoesNotContain("?.MapToPosition()!", output, StringComparison.Ordinal);
+
         // Should use ternary or direct call pattern
         Assert.Contains("MapToPosition()", output, StringComparison.Ordinal);
     }
@@ -1034,6 +1037,7 @@ public partial class MappingConfigurationGeneratorTests
 
         Assert.Empty(diagnostics);
         Assert.Contains("new Target.CoordinateDto(", output, StringComparison.Ordinal);
+
         // Should NOT have null guard for struct input
         Assert.DoesNotContain("if (source is null)", output, StringComparison.Ordinal);
     }
@@ -1075,8 +1079,10 @@ public partial class MappingConfigurationGeneratorTests
         var (diagnostics, output) = GetGeneratedOutput(source);
 
         Assert.Empty(diagnostics);
+
         // Should use constructor syntax, not object initializer
         Assert.Contains("new Target.GridPositionDto(", output, StringComparison.Ordinal);
+
         // Should NOT use object initializer
         Assert.DoesNotContain("new Target.GridPositionDto\n", output, StringComparison.Ordinal);
     }
@@ -1128,6 +1134,7 @@ public partial class MappingConfigurationGeneratorTests
 
         Assert.Empty(diagnostics);
         Assert.Contains("new TestDomain.Settings(", output, StringComparison.Ordinal);
+
         // All 4 constructor args must be emitted, including Width and Height (which have private setters)
         Assert.Contains("source.Name", output, StringComparison.Ordinal);
         Assert.Contains("source.Width", output, StringComparison.Ordinal);

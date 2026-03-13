@@ -24,21 +24,40 @@ internal static class MappingTypeAnalyzer
                attributeClass.ContainingNamespace?.ToDisplayString() == expectedNamespace;
     }
 
+    internal static ITypeSymbol UnwrapNullable(ITypeSymbol type)
+    {
+        if (type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T } nullable)
+        {
+            return nullable.TypeArguments[0];
+        }
+
+        return type;
+    }
+
+    internal static bool IsNullableValueType(ITypeSymbol type)
+        => type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T };
+
     internal static bool IsEnumConversion(
         ITypeSymbol sourceType,
         ITypeSymbol targetType)
-        => sourceType.TypeKind == TypeKind.Enum &&
-           targetType.TypeKind == TypeKind.Enum;
+    {
+        var unwrappedSource = UnwrapNullable(sourceType);
+        var unwrappedTarget = UnwrapNullable(targetType);
+        return unwrappedSource.TypeKind == TypeKind.Enum &&
+               unwrappedTarget.TypeKind == TypeKind.Enum;
+    }
 
     internal static bool IsNestedMapping(
         ITypeSymbol sourceType,
         ITypeSymbol targetType)
     {
-        var st = sourceType.SpecialType.ToString();
-        var tt = targetType.SpecialType.ToString();
+        var unwrappedSource = UnwrapNullable(sourceType);
+        var unwrappedTarget = UnwrapNullable(targetType);
+        var st = unwrappedSource.SpecialType.ToString();
+        var tt = unwrappedTarget.SpecialType.ToString();
 
-        return sourceType.TypeKind is TypeKind.Class or TypeKind.Struct &&
-               targetType.TypeKind is TypeKind.Class or TypeKind.Struct &&
+        return unwrappedSource.TypeKind is TypeKind.Class or TypeKind.Struct &&
+               unwrappedTarget.TypeKind is TypeKind.Class or TypeKind.Struct &&
                !st.StartsWith("System", StringComparison.Ordinal) &&
                !tt.StartsWith("System", StringComparison.Ordinal);
     }
@@ -47,55 +66,81 @@ internal static class MappingTypeAnalyzer
         ITypeSymbol sourceType,
         ITypeSymbol targetType)
     {
-        var sourceTypeName = sourceType.ToDisplayString();
-        var targetTypeName = targetType.ToDisplayString();
+        var sourceTypeName = UnwrapNullable(sourceType).ToDisplayString();
+        var targetTypeName = UnwrapNullable(targetType).ToDisplayString();
 
-        // DateTime/DateTimeOffset -> string
+        return IsStringToFromSystemTypeConversion(sourceTypeName, targetTypeName) ||
+               IsStringToFromUriConversion(sourceTypeName, targetTypeName) ||
+               IsStringToFromEnumConversion(sourceType, targetType, sourceTypeName, targetTypeName);
+    }
+
+    private static bool IsStringToFromSystemTypeConversion(
+        string sourceTypeName,
+        string targetTypeName)
+    {
+        // DateTime/DateTimeOffset <-> string
         if ((sourceTypeName is "System.DateTime" or "System.DateTimeOffset") &&
             targetTypeName == "string")
         {
             return true;
         }
 
-        // string -> DateTime/DateTimeOffset
         if (sourceTypeName == "string" &&
             (targetTypeName is "System.DateTime" or "System.DateTimeOffset"))
         {
             return true;
         }
 
-        // Guid -> string
-        if (sourceTypeName == "System.Guid" && targetTypeName == "string")
+        // Guid <-> string
+        if ((sourceTypeName == "System.Guid" && targetTypeName == "string") ||
+            (sourceTypeName == "string" && targetTypeName == "System.Guid"))
         {
             return true;
         }
 
-        // string -> Guid
-        if (sourceTypeName == "string" && targetTypeName == "System.Guid")
+        // Numeric types <-> string
+        if ((IsNumericType(sourceTypeName) && targetTypeName == "string") ||
+            (sourceTypeName == "string" && IsNumericType(targetTypeName)))
         {
             return true;
         }
 
-        // Numeric types -> string
-        if (IsNumericType(sourceTypeName) && targetTypeName == "string")
+        // bool <-> string
+        if ((sourceTypeName == "bool" && targetTypeName == "string") ||
+            (sourceTypeName == "string" && targetTypeName == "bool"))
         {
             return true;
         }
 
-        // string -> Numeric types
-        if (sourceTypeName == "string" && IsNumericType(targetTypeName))
+        return false;
+    }
+
+    private static bool IsStringToFromUriConversion(
+        string sourceTypeName,
+        string targetTypeName)
+    {
+        var normalizedSource = sourceTypeName.TrimEnd('?');
+        var normalizedTarget = targetTypeName.TrimEnd('?');
+
+        return (normalizedSource == "string" && normalizedTarget == "System.Uri") ||
+               (normalizedSource == "System.Uri" && normalizedTarget == "string");
+    }
+
+    private static bool IsStringToFromEnumConversion(
+        ITypeSymbol sourceType,
+        ITypeSymbol targetType,
+        string sourceTypeName,
+        string targetTypeName)
+    {
+        var normalizedSource = sourceTypeName.TrimEnd('?');
+        var normalizedTarget = targetTypeName.TrimEnd('?');
+
+        if (normalizedSource == "string" && UnwrapNullable(targetType).TypeKind == TypeKind.Enum)
         {
             return true;
         }
 
-        // bool -> string
-        if (sourceTypeName == "bool" && targetTypeName == "string")
-        {
-            return true;
-        }
-
-        // string -> bool
-        if (sourceTypeName == "string" && targetTypeName == "bool")
+        if (UnwrapNullable(sourceType).TypeKind == TypeKind.Enum && normalizedTarget == "string")
         {
             return true;
         }
@@ -112,8 +157,8 @@ internal static class MappingTypeAnalyzer
         ITypeSymbol sourceType,
         ITypeSymbol targetType)
     {
-        var sourceName = sourceType.ToDisplayString();
-        var targetName = targetType.ToDisplayString();
+        var sourceName = UnwrapNullable(sourceType).ToDisplayString();
+        var targetName = UnwrapNullable(targetType).ToDisplayString();
         return sourceName != targetName && IsNumericType(sourceName) && IsNumericType(targetName);
     }
 

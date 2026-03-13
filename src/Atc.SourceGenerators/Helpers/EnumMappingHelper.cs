@@ -102,7 +102,16 @@ internal static class EnumMappingHelper
             return caseInsensitiveMatch;
         }
 
-        // 3. Try special case mappings
+        // 3. Try match after removing underscores (e.g., Block_DE_L2 -> BlockDEL2 matches BlockDeL2)
+        var normalizedSource = sourceValue.Replace("_", string.Empty);
+        var underscoreMatch = targetValues.FirstOrDefault(t =>
+            t.Replace("_", string.Empty).Equals(normalizedSource, StringComparison.OrdinalIgnoreCase));
+        if (underscoreMatch is not null)
+        {
+            return underscoreMatch;
+        }
+
+        // 4. Try special case mappings
         if (SpecialCaseMappings.TryGetValue(sourceValue, out var specialCases))
         {
             foreach (var specialCase in specialCases)
@@ -116,7 +125,7 @@ internal static class EnumMappingHelper
             }
         }
 
-        // 4. No match found
+        // 5. No match found
         return null;
     }
 
