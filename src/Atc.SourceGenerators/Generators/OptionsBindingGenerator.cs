@@ -13,7 +13,7 @@ public class OptionsBindingGenerator : IIncrementalGenerator
 {
     private const string AttributeNamespace = "Atc.SourceGenerators.Annotations";
     private const string AttributeName = "OptionsBindingAttribute";
-    private const string FullAttributeName = $"{AttributeNamespace}.{AttributeName}";
+    private const string AttributeMetadataName = AttributeName;
 
     // Diagnostic descriptors
     private static readonly DiagnosticDescriptor OptionsClassMustBePartialDescriptor = new(
@@ -154,54 +154,24 @@ public class OptionsBindingGenerator : IIncrementalGenerator
             ctx.AddSource("OptionsBindingAttribute.g.cs", SourceText.From(GenerateAttributeSource(), Encoding.UTF8));
         });
 
-        // Find classes with OptionsBinding attribute
-        var classDeclarations = context.SyntaxProvider
-            .CreateSyntaxProvider(
-                predicate: static (s, _) => IsSyntaxTargetForGeneration(s),
-                transform: static (ctx, _) => GetSemanticTargetForGeneration(ctx))
-            .Where(static m => m is not null)
+        // Find classes with OptionsBinding attribute using ForAttributeWithMetadataName for optimal caching
+        var classSymbols = context.SyntaxProvider
+            .ForAttributeWithMetadataName(
+                $"{AttributeNamespace}.{AttributeMetadataName}",
+                predicate: static (s, _) => s is ClassDeclarationSyntax,
+                transform: static (ctx, _) => (INamedTypeSymbol)ctx.TargetSymbol)
             .Collect();
 
         // Combine with compilation
-        var compilationAndClasses = context.CompilationProvider.Combine(classDeclarations);
+        var compilationAndClasses = context.CompilationProvider.Combine(classSymbols);
 
         // Generate source
         context.RegisterSourceOutput(compilationAndClasses, static (spc, source) => Execute(source.Left, source.Right!, spc));
     }
 
-    private static bool IsSyntaxTargetForGeneration(SyntaxNode node)
-        => node is ClassDeclarationSyntax { AttributeLists.Count: > 0 };
-
-    private static ClassDeclarationSyntax? GetSemanticTargetForGeneration(
-        GeneratorSyntaxContext context)
-    {
-        var classDeclaration = (ClassDeclarationSyntax)context.Node;
-
-        foreach (var attributeListSyntax in classDeclaration.AttributeLists)
-        {
-            foreach (var attributeSyntax in attributeListSyntax.Attributes)
-            {
-                if (context.SemanticModel.GetSymbolInfo(attributeSyntax).Symbol is not IMethodSymbol attributeSymbol)
-                {
-                    continue;
-                }
-
-                var attributeContainingTypeSymbol = attributeSymbol.ContainingType;
-                var fullName = attributeContainingTypeSymbol.ToDisplayString();
-
-                if (fullName == FullAttributeName)
-                {
-                    return classDeclaration;
-                }
-            }
-        }
-
-        return null;
-    }
-
     private static void Execute(
         Compilation compilation,
-        ImmutableArray<ClassDeclarationSyntax> classes,
+        ImmutableArray<INamedTypeSymbol> classes,
         SourceProductionContext context)
     {
         if (classes.IsDefaultOrEmpty)
@@ -211,12 +181,13 @@ public class OptionsBindingGenerator : IIncrementalGenerator
 
         var optionsToGenerate = new List<OptionsInfo>();
 
-        foreach (var classDeclaration in classes.Distinct())
+        // Deduplicate (ForAttributeWithMetadataName emits once per attribute instance)
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var classSymbol in classes)
         {
             context.CancellationToken.ThrowIfCancellationRequested();
 
-            var semanticModel = compilation.GetSemanticModel(classDeclaration.SyntaxTree);
-            if (semanticModel.GetDeclaredSymbol(classDeclaration) is not { } classSymbol)
+            if (!seen.Add(classSymbol.ToDisplayString()))
             {
                 continue;
             }
@@ -238,8 +209,7 @@ public class OptionsBindingGenerator : IIncrementalGenerator
 
         // Group by assembly
         var groupedByAssembly = optionsToGenerate
-            .GroupBy(x => x.AssemblyName, StringComparer.Ordinal)
-            .ToList();
+            .GroupBy(x => x.AssemblyName, StringComparer.Ordinal);
 
         foreach (var assemblyGroup in groupedByAssembly)
         {
@@ -261,7 +231,7 @@ public class OptionsBindingGenerator : IIncrementalGenerator
             context.ReportDiagnostic(
                 Diagnostic.Create(
                     OptionsClassMustBePartialDescriptor,
-                    classSymbol.Locations.First(),
+                    classSymbol.Locations.FirstOrDefault() ?? Location.None,
                     classSymbol.Name));
             return result;
         }
@@ -269,7 +239,7 @@ public class OptionsBindingGenerator : IIncrementalGenerator
         // Get ALL attributes (support for AllowMultiple = true)
         var attributes = classSymbol
             .GetAttributes()
-            .Where(a => a.AttributeClass?.ToDisplayString() == FullAttributeName)
+            .Where(a => IsOptionsBindingAttribute(a.AttributeClass))
             .ToList();
 
         if (attributes.Count == 0)
@@ -298,7 +268,7 @@ public class OptionsBindingGenerator : IIncrementalGenerator
                 context.ReportDiagnostic(
                     Diagnostic.Create(
                         ConfigureAllRequiresMultipleNamedOptionsDescriptor,
-                        classSymbol.Locations.First(),
+                        classSymbol.Locations.FirstOrDefault() ?? Location.None,
                         configureAllOption.ConfigureAll));
 
                 // Remove ConfigureAll from all instances to prevent code generation issues
@@ -319,7 +289,7 @@ public class OptionsBindingGenerator : IIncrementalGenerator
                     context.ReportDiagnostic(
                         Diagnostic.Create(
                             ConfigureAllCallbackNotFoundDescriptor,
-                            classSymbol.Locations.First(),
+                            classSymbol.Locations.FirstOrDefault() ?? Location.None,
                             configureAllOption.ConfigureAll,
                             classSymbol.Name));
 
@@ -335,7 +305,7 @@ public class OptionsBindingGenerator : IIncrementalGenerator
                     context.ReportDiagnostic(
                         Diagnostic.Create(
                             ConfigureAllCallbackInvalidSignatureDescriptor,
-                            classSymbol.Locations.First(),
+                            classSymbol.Locations.FirstOrDefault() ?? Location.None,
                             configureAllOption.ConfigureAll,
                             classSymbol.Name));
 
@@ -376,7 +346,7 @@ public class OptionsBindingGenerator : IIncrementalGenerator
                     context.ReportDiagnostic(
                         Diagnostic.Create(
                             ConstSectionNameCannotBeEmptyDescriptor,
-                            classSymbol.Locations.First(),
+                            classSymbol.Locations.FirstOrDefault() ?? Location.None,
                             classSymbol.Name,
                             constFieldName));
                     return null;
@@ -397,7 +367,7 @@ public class OptionsBindingGenerator : IIncrementalGenerator
             context.ReportDiagnostic(
                 Diagnostic.Create(
                     SectionNameCannotBeEmptyDescriptor,
-                    classSymbol.Locations.First(),
+                    classSymbol.Locations.FirstOrDefault() ?? Location.None,
                     classSymbol.Name));
             return null;
         }
@@ -808,7 +778,7 @@ public class OptionsBindingGenerator : IIncrementalGenerator
                 result.Add(new ReferencedAssemblyInfo(
                     assemblyName,
                     SanitizeForMethodName(assemblyName),
-                    assemblyName.Substring(assemblyName.LastIndexOf('.') + 1)));
+                    GetAssemblySuffix(assemblyName)));
 
                 // Collect options from this referenced assembly
                 var options = CollectOptionsFromAssembly(assemblySymbol);
@@ -858,7 +828,7 @@ public class OptionsBindingGenerator : IIncrementalGenerator
                 // Check if type has OptionsBinding attribute
                 var optionsAttributes = namedType
                     .GetAttributes()
-                    .Where(a => a.AttributeClass?.ToDisplayString() == FullAttributeName)
+                    .Where(a => IsOptionsBindingAttribute(a.AttributeClass))
                     .ToList();
 
                 if (optionsAttributes.Count <= 0)
@@ -932,6 +902,18 @@ public class OptionsBindingGenerator : IIncrementalGenerator
             AlsoRegisterDirectType: false);
     }
 
+    private static bool IsOptionsBindingAttribute(
+        INamedTypeSymbol? attributeClass)
+    {
+        if (attributeClass is null)
+        {
+            return false;
+        }
+
+        return attributeClass.MetadataName == AttributeMetadataName &&
+               attributeClass.ContainingNamespace?.ToDisplayString() == AttributeNamespace;
+    }
+
     private static bool HasOptionsBindingAttributeInNamespace(
         IAssemblySymbol assemblySymbol)
     {
@@ -952,7 +934,7 @@ public class OptionsBindingGenerator : IIncrementalGenerator
                 }
 
                 // Check if type has OptionsBinding attribute
-                if (namedType.GetAttributes().Any(a => a.AttributeClass?.ToDisplayString() == FullAttributeName))
+                if (namedType.GetAttributes().Any(a => IsOptionsBindingAttribute(a.AttributeClass)))
                 {
                     return true;
                 }
@@ -1813,16 +1795,14 @@ public static class OptionsBindingExtensions{{methodSuffix}}
         List<string> allAssembliesInContext)
     {
         // Get the suffix (last segment after final dot) of the target assembly
-        var parts = assemblyName.Split('.');
-        var suffix = parts[parts.Length - 1];
+        var suffix = GetAssemblySuffix(assemblyName);
 
         // Check how many assemblies in the context have this same suffix
         int count = 0;
 
         foreach (var asmName in allAssembliesInContext)
         {
-            var asmParts = asmName.Split('.');
-            var asmSuffix = asmParts[asmParts.Length - 1];
+            var asmSuffix = GetAssemblySuffix(asmName);
 
             if (asmSuffix.Equals(suffix, StringComparison.OrdinalIgnoreCase))
             {
@@ -1836,8 +1816,14 @@ public static class OptionsBindingExtensions{{methodSuffix}}
             return SanitizeForMethodName(suffix);
         }
 
-        // Multiple assemblies have this suffix, useful sanitized name to avoid conflicts
+        // Multiple assemblies have this suffix, use full sanitized name to avoid conflicts
         return SanitizeForMethodName(assemblyName);
+    }
+
+    private static string GetAssemblySuffix(string assemblyName)
+    {
+        var lastDotIndex = assemblyName.LastIndexOf('.');
+        return lastDotIndex >= 0 ? assemblyName.Substring(lastDotIndex + 1) : assemblyName;
     }
 
     private static string GenerateAttributeSource()

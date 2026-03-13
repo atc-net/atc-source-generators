@@ -17,44 +17,47 @@ public class AnnotationConstantsGenerator : IIncrementalGenerator
     private const string ConfigKeyPrefix = "build_property.atc_annotation_constants.";
     private const string IncludeUnannotatedKey = ConfigKeyPrefix + "include_unannotated_properties";
 
-    // Supported Microsoft DataAnnotation attribute full names
+    private const string DataAnnotationsNamespace = "System.ComponentModel.DataAnnotations";
+    private const string AtcNamespace = "Atc";
+
+    // Supported Microsoft DataAnnotation attribute metadata names
     private static readonly HashSet<string> SupportedMicrosoftAnnotations = new(StringComparer.Ordinal)
     {
-        "System.ComponentModel.DataAnnotations.DisplayAttribute",
-        "System.ComponentModel.DataAnnotations.RequiredAttribute",
-        "System.ComponentModel.DataAnnotations.StringLengthAttribute",
-        "System.ComponentModel.DataAnnotations.RangeAttribute",
-        "System.ComponentModel.DataAnnotations.MinLengthAttribute",
-        "System.ComponentModel.DataAnnotations.MaxLengthAttribute",
-        "System.ComponentModel.DataAnnotations.RegularExpressionAttribute",
-        "System.ComponentModel.DataAnnotations.EmailAddressAttribute",
-        "System.ComponentModel.DataAnnotations.PhoneAttribute",
-        "System.ComponentModel.DataAnnotations.UrlAttribute",
-        "System.ComponentModel.DataAnnotations.CreditCardAttribute",
-        "System.ComponentModel.DataAnnotations.DataTypeAttribute",
-        "System.ComponentModel.DataAnnotations.CompareAttribute",
-        "System.ComponentModel.DataAnnotations.KeyAttribute",
-        "System.ComponentModel.DataAnnotations.EditableAttribute",
-        "System.ComponentModel.DataAnnotations.ScaffoldColumnAttribute",
-        "System.ComponentModel.DataAnnotations.TimestampAttribute",
+        "DisplayAttribute",
+        "RequiredAttribute",
+        "StringLengthAttribute",
+        "RangeAttribute",
+        "MinLengthAttribute",
+        "MaxLengthAttribute",
+        "RegularExpressionAttribute",
+        "EmailAddressAttribute",
+        "PhoneAttribute",
+        "UrlAttribute",
+        "CreditCardAttribute",
+        "DataTypeAttribute",
+        "CompareAttribute",
+        "KeyAttribute",
+        "EditableAttribute",
+        "ScaffoldColumnAttribute",
+        "TimestampAttribute",
     };
 
-    // Supported Atc attribute full names (from Atc namespace)
+    // Supported Atc attribute metadata names (from Atc namespace)
     private static readonly HashSet<string> SupportedAtcAnnotations = new(StringComparer.Ordinal)
     {
-        "Atc.IgnoreDisplayAttribute",
-        "Atc.EnumGuidAttribute",
-        "Atc.CasingStyleDescriptionAttribute",
+        "IgnoreDisplayAttribute",
+        "EnumGuidAttribute",
+        "CasingStyleDescriptionAttribute",
     };
 
-    // Supported Atc validation attribute full names (from System.ComponentModel.DataAnnotations namespace, but in Atc assembly)
+    // Supported Atc validation attribute metadata names (from System.ComponentModel.DataAnnotations namespace, but in Atc assembly)
     private static readonly HashSet<string> SupportedAtcValidationAnnotations = new(StringComparer.Ordinal)
     {
-        "System.ComponentModel.DataAnnotations.IPAddressAttribute",
-        "System.ComponentModel.DataAnnotations.IsoCurrencySymbolAttribute",
-        "System.ComponentModel.DataAnnotations.StringAttribute",
-        "System.ComponentModel.DataAnnotations.KeyStringAttribute",
-        "System.ComponentModel.DataAnnotations.UriAttribute",
+        "IPAddressAttribute",
+        "IsoCurrencySymbolAttribute",
+        "StringAttribute",
+        "KeyStringAttribute",
+        "UriAttribute",
     };
 
     public void Initialize(IncrementalGeneratorInitializationContext context)
@@ -185,8 +188,9 @@ public class AnnotationConstantsGenerator : IIncrementalGenerator
 
         foreach (var attribute in propertySymbol.GetAttributes())
         {
-            var attrFullName = attribute.AttributeClass?.ToDisplayString();
-            if (attrFullName is null || !SupportedMicrosoftAnnotations.Contains(attrFullName))
+            var attrName = attribute.AttributeClass?.MetadataName;
+            var attrNs = attribute.AttributeClass?.ContainingNamespace?.ToDisplayString();
+            if (attrName is null || attrNs != DataAnnotationsNamespace || !SupportedMicrosoftAnnotations.Contains(attrName))
             {
                 continue;
             }
@@ -194,19 +198,19 @@ public class AnnotationConstantsGenerator : IIncrementalGenerator
             hasAnyAnnotation = true;
 
             // Extract based on attribute type
-            switch (attrFullName)
+            switch (attrName)
             {
-                case "System.ComponentModel.DataAnnotations.DisplayAttribute":
+                case "DisplayAttribute":
                     display = ExtractDisplayAttribute(attribute);
                     break;
 
-                case "System.ComponentModel.DataAnnotations.RequiredAttribute":
+                case "RequiredAttribute":
                     validation.IsRequired = true;
                     validation.AllowEmptyStrings = GetNamedArg<bool?>(attribute, "AllowEmptyStrings");
                     validation.RequiredErrorMessage = GetNamedArg<string>(attribute, "ErrorMessage");
                     break;
 
-                case "System.ComponentModel.DataAnnotations.StringLengthAttribute":
+                case "StringLengthAttribute":
                     // First constructor argument is MaximumLength
                     if (attribute.ConstructorArguments.Length > 0 &&
                         attribute.ConstructorArguments[0].Value is int maxLen)
@@ -218,11 +222,11 @@ public class AnnotationConstantsGenerator : IIncrementalGenerator
                     validation.StringLengthErrorMessage = GetNamedArg<string>(attribute, "ErrorMessage");
                     break;
 
-                case "System.ComponentModel.DataAnnotations.RangeAttribute":
+                case "RangeAttribute":
                     ExtractRangeAttribute(attribute, validation);
                     break;
 
-                case "System.ComponentModel.DataAnnotations.MinLengthAttribute":
+                case "MinLengthAttribute":
                     if (attribute.ConstructorArguments.Length > 0 &&
                         attribute.ConstructorArguments[0].Value is int minLenVal)
                     {
@@ -231,7 +235,7 @@ public class AnnotationConstantsGenerator : IIncrementalGenerator
 
                     break;
 
-                case "System.ComponentModel.DataAnnotations.MaxLengthAttribute":
+                case "MaxLengthAttribute":
                     if (attribute.ConstructorArguments.Length > 0 &&
                         attribute.ConstructorArguments[0].Value is int maxLenVal)
                     {
@@ -240,7 +244,7 @@ public class AnnotationConstantsGenerator : IIncrementalGenerator
 
                     break;
 
-                case "System.ComponentModel.DataAnnotations.RegularExpressionAttribute":
+                case "RegularExpressionAttribute":
                     if (attribute.ConstructorArguments.Length > 0 &&
                         attribute.ConstructorArguments[0].Value is string pattern)
                     {
@@ -250,23 +254,23 @@ public class AnnotationConstantsGenerator : IIncrementalGenerator
                     validation.RegularExpressionErrorMessage = GetNamedArg<string>(attribute, "ErrorMessage");
                     break;
 
-                case "System.ComponentModel.DataAnnotations.EmailAddressAttribute":
+                case "EmailAddressAttribute":
                     validation.IsEmailAddress = true;
                     break;
 
-                case "System.ComponentModel.DataAnnotations.PhoneAttribute":
+                case "PhoneAttribute":
                     validation.IsPhone = true;
                     break;
 
-                case "System.ComponentModel.DataAnnotations.UrlAttribute":
+                case "UrlAttribute":
                     validation.IsUrl = true;
                     break;
 
-                case "System.ComponentModel.DataAnnotations.CreditCardAttribute":
+                case "CreditCardAttribute":
                     validation.IsCreditCard = true;
                     break;
 
-                case "System.ComponentModel.DataAnnotations.DataTypeAttribute":
+                case "DataTypeAttribute":
                     if (attribute.ConstructorArguments.Length > 0 &&
                         attribute.ConstructorArguments[0].Value is int dataType)
                     {
@@ -275,7 +279,7 @@ public class AnnotationConstantsGenerator : IIncrementalGenerator
 
                     break;
 
-                case "System.ComponentModel.DataAnnotations.CompareAttribute":
+                case "CompareAttribute":
                     if (attribute.ConstructorArguments.Length > 0 &&
                         attribute.ConstructorArguments[0].Value is string otherProp)
                     {
@@ -284,11 +288,11 @@ public class AnnotationConstantsGenerator : IIncrementalGenerator
 
                     break;
 
-                case "System.ComponentModel.DataAnnotations.KeyAttribute":
+                case "KeyAttribute":
                     validation.IsKey = true;
                     break;
 
-                case "System.ComponentModel.DataAnnotations.EditableAttribute":
+                case "EditableAttribute":
                     if (attribute.ConstructorArguments.Length > 0 &&
                         attribute.ConstructorArguments[0].Value is bool editable)
                     {
@@ -297,7 +301,7 @@ public class AnnotationConstantsGenerator : IIncrementalGenerator
 
                     break;
 
-                case "System.ComponentModel.DataAnnotations.ScaffoldColumnAttribute":
+                case "ScaffoldColumnAttribute":
                     if (attribute.ConstructorArguments.Length > 0 &&
                         attribute.ConstructorArguments[0].Value is bool scaffold)
                     {
@@ -306,7 +310,7 @@ public class AnnotationConstantsGenerator : IIncrementalGenerator
 
                     break;
 
-                case "System.ComponentModel.DataAnnotations.TimestampAttribute":
+                case "TimestampAttribute":
                     validation.IsTimestamp = true;
                     break;
             }
@@ -324,29 +328,31 @@ public class AnnotationConstantsGenerator : IIncrementalGenerator
 
         foreach (var attribute in propertySymbol.GetAttributes())
         {
-            var attrFullName = attribute.AttributeClass?.ToDisplayString();
-            if (attrFullName is null)
+            var attrName = attribute.AttributeClass?.MetadataName;
+            if (attrName is null)
             {
                 continue;
             }
 
+            var attrNs = attribute.AttributeClass?.ContainingNamespace?.ToDisplayString();
+
             // Check if it's an Atc namespace attribute
-            if (SupportedAtcAnnotations.Contains(attrFullName))
+            if (attrNs == AtcNamespace && SupportedAtcAnnotations.Contains(attrName))
             {
                 hasAnyAnnotation = true;
-                ExtractAtcNamespaceAttribute(attribute, attrFullName, atc);
+                ExtractAtcNamespaceAttribute(attribute, attrName, atc);
                 continue;
             }
 
             // Check if it's an Atc validation attribute (in System.ComponentModel.DataAnnotations namespace but from Atc assembly)
-            if (SupportedAtcValidationAnnotations.Contains(attrFullName))
+            if (attrNs == DataAnnotationsNamespace && SupportedAtcValidationAnnotations.Contains(attrName))
             {
                 // Verify it's from the Atc assembly, not Microsoft's
                 var assemblyName = attribute.AttributeClass?.ContainingAssembly?.Name;
                 if (assemblyName is not null && assemblyName.StartsWith("Atc", StringComparison.Ordinal))
                 {
                     hasAnyAnnotation = true;
-                    ExtractAtcValidationAttribute(attribute, attrFullName, atc);
+                    ExtractAtcValidationAttribute(attribute, attrName, atc);
                 }
             }
         }
@@ -356,16 +362,16 @@ public class AnnotationConstantsGenerator : IIncrementalGenerator
 
     private static void ExtractAtcNamespaceAttribute(
         AttributeData attribute,
-        string attrFullName,
+        string attrName,
         AtcAnnotationBuilder atc)
     {
-        switch (attrFullName)
+        switch (attrName)
         {
-            case "Atc.IgnoreDisplayAttribute":
+            case "IgnoreDisplayAttribute":
                 atc.IsIgnoreDisplay = true;
                 break;
 
-            case "Atc.EnumGuidAttribute":
+            case "EnumGuidAttribute":
                 if (attribute.ConstructorArguments.Length > 0 &&
                     attribute.ConstructorArguments[0].Value is string guidStr)
                 {
@@ -374,7 +380,7 @@ public class AnnotationConstantsGenerator : IIncrementalGenerator
 
                 break;
 
-            case "Atc.CasingStyleDescriptionAttribute":
+            case "CasingStyleDescriptionAttribute":
                 atc.CasingStyleDefault = GetNamedArg<object>(attribute, "Default")?.ToString();
                 atc.CasingStylePrefix = GetNamedArg<string>(attribute, "Prefix");
                 break;
@@ -384,34 +390,34 @@ public class AnnotationConstantsGenerator : IIncrementalGenerator
     [SuppressMessage("Meziantou.Analyzer", "MA0051:Method is too long", Justification = "OK - attribute extraction logic")]
     private static void ExtractAtcValidationAttribute(
         AttributeData attribute,
-        string attrFullName,
+        string attrName,
         AtcAnnotationBuilder atc)
     {
-        switch (attrFullName)
+        switch (attrName)
         {
-            case "System.ComponentModel.DataAnnotations.IPAddressAttribute":
+            case "IPAddressAttribute":
                 atc.IsIPAddress = true;
                 atc.IPAddressRequired = GetBoolConstructorArgOrNamedArg(attribute, "Required");
                 break;
 
-            case "System.ComponentModel.DataAnnotations.IsoCurrencySymbolAttribute":
+            case "IsoCurrencySymbolAttribute":
                 atc.IsIsoCurrencySymbol = true;
                 atc.IsoCurrencySymbolRequired = GetNamedArg<bool?>(attribute, "Required");
                 atc.IsoCurrencySymbols = GetNamedArgStringArray(attribute, "IsoCurrencySymbols");
                 break;
 
-            case "System.ComponentModel.DataAnnotations.StringAttribute":
+            case "StringAttribute":
                 atc.IsAtcString = true;
                 ExtractAtcStringAttributeProperties(attribute, atc);
                 break;
 
-            case "System.ComponentModel.DataAnnotations.KeyStringAttribute":
+            case "KeyStringAttribute":
                 atc.IsKeyString = true;
                 atc.IsAtcString = true;
                 ExtractAtcStringAttributeProperties(attribute, atc);
                 break;
 
-            case "System.ComponentModel.DataAnnotations.UriAttribute":
+            case "UriAttribute":
                 atc.IsAtcUri = true;
                 ExtractAtcUriAttributeProperties(attribute, atc);
                 break;

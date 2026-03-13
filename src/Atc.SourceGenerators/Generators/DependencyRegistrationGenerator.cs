@@ -16,9 +16,7 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
 {
     private const string AttributeNamespace = "Atc.DependencyInjection";
     private const string AttributeName = "RegistrationAttribute";
-    private const string AttributeFullName = $"{AttributeNamespace}.{AttributeName}";
     private const string FilterAttributeName = "RegistrationFilterAttribute";
-    private const string FilterAttributeFullName = $"{AttributeNamespace}.{FilterAttributeName}";
 
     private static readonly DiagnosticDescriptor AsTypeMustBeInterfaceDescriptor = new(
         id: RuleIdentifierConstants.DependencyInjection.AsTypeMustBeInterface,
@@ -108,16 +106,18 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
             ctx.AddSource("RegistrationAttribute.g.cs", SourceText.From(GenerateAttributeCode(), Encoding.UTF8));
         });
 
-        // Find all classes with the [Registration] attribute
-        var classDeclarations = context.SyntaxProvider
-            .CreateSyntaxProvider(
-                predicate: static (node, _) => IsCandidateClass(node),
-                transform: static (ctx, _) => GetSemanticTargetForGeneration(ctx))
+        // Find all classes with the [Registration] attribute using ForAttributeWithMetadataName
+        // for better Roslyn-level caching
+        var classSymbols = context.SyntaxProvider
+            .ForAttributeWithMetadataName(
+                AttributeNamespace + "." + AttributeName,
+                predicate: static (s, _) => s is ClassDeclarationSyntax,
+                transform: static (ctx, _) => GetRegistrationInfoForAttribute(ctx))
             .Where(static m => m is not null)
             .Collect();
 
         // Combine with compilation to generate the registration code
-        var compilationAndClasses = context.CompilationProvider.Combine(classDeclarations);
+        var compilationAndClasses = context.CompilationProvider.Combine(classSymbols);
 
         context.RegisterSourceOutput(compilationAndClasses, (spc, source) =>
         {
@@ -125,8 +125,19 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
         });
     }
 
-    private static bool IsCandidateClass(SyntaxNode node)
-        => node is ClassDeclarationSyntax { AttributeLists.Count: > 0 };
+    private static bool IsAttributeMatch(
+        INamedTypeSymbol? attributeClass,
+        string expectedMetadataName,
+        string expectedNamespace)
+    {
+        if (attributeClass is null)
+        {
+            return false;
+        }
+
+        return attributeClass.MetadataName == expectedMetadataName &&
+               attributeClass.ContainingNamespace?.ToDisplayString() == expectedNamespace;
+    }
 
     private static bool IsSystemInterface(ITypeSymbol interfaceSymbol)
     {
@@ -172,127 +183,126 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
         return false;
     }
 
-    private static ServiceRegistrationInfo? GetSemanticTargetForGeneration(
-        GeneratorSyntaxContext context)
+    private static ServiceRegistrationInfo? GetRegistrationInfoForAttribute(
+        GeneratorAttributeSyntaxContext context)
     {
-        var classDeclaration = (ClassDeclarationSyntax)context.Node;
-        var classSymbol = context.SemanticModel.GetDeclaredSymbol(classDeclaration);
+        var classSymbol = (INamedTypeSymbol)context.TargetSymbol;
 
-        if (classSymbol is null)
+        // Find the matching [Registration] attribute from the attributes provided by the context
+        AttributeData? attributeData = null;
+        foreach (var attr in context.Attributes)
+        {
+            if (IsAttributeMatch(attr.AttributeClass, AttributeName, AttributeNamespace))
+            {
+                attributeData = attr;
+                break;
+            }
+        }
+
+        if (attributeData is null)
         {
             return null;
         }
 
-        // Look for the [Registration] attribute
-        foreach (var attributeData in classSymbol.GetAttributes())
+        // Parse attribute arguments
+        var lifetime = ServiceLifetime.Singleton; // default
+        ITypeSymbol? explicitAsType = null;
+        var asSelf = false;
+        object? key = null;
+        string? factoryMethodName = null;
+        var tryAdd = false;
+        var decorator = false;
+        string? instanceMemberName = null;
+        string? condition = null;
+
+        // Constructor argument (lifetime)
+        if (attributeData.ConstructorArguments.Length > 0)
         {
-            if (attributeData.AttributeClass?.ToDisplayString() != AttributeFullName)
+            var lifetimeValue = attributeData.ConstructorArguments[0].Value;
+            if (lifetimeValue is int intValue)
             {
-                continue;
+                lifetime = (ServiceLifetime)intValue;
             }
-
-            // Parse attribute arguments
-            var lifetime = ServiceLifetime.Singleton; // default
-            ITypeSymbol? explicitAsType = null;
-            var asSelf = false;
-            object? key = null;
-            string? factoryMethodName = null;
-            var tryAdd = false;
-            var decorator = false;
-            string? instanceMemberName = null;
-            string? condition = null;
-
-            // Constructor argument (lifetime)
-            if (attributeData.ConstructorArguments.Length > 0)
-            {
-                var lifetimeValue = attributeData.ConstructorArguments[0].Value;
-                if (lifetimeValue is int intValue)
-                {
-                    lifetime = (ServiceLifetime)intValue;
-                }
-            }
-
-            // Named arguments (As, AsSelf, Key, Factory, TryAdd, Decorator, Instance, Condition)
-            foreach (var namedArg in attributeData.NamedArguments)
-            {
-                switch (namedArg.Key)
-                {
-                    case "As":
-                        explicitAsType = namedArg.Value.Value as ITypeSymbol;
-                        break;
-                    case "AsSelf":
-                        if (namedArg.Value.Value is bool selfValue)
-                        {
-                            asSelf = selfValue;
-                        }
-
-                        break;
-                    case "Key":
-                        key = namedArg.Value.Value;
-                        break;
-                    case "Factory":
-                        factoryMethodName = namedArg.Value.Value as string;
-                        break;
-                    case "TryAdd":
-                        if (namedArg.Value.Value is bool tryAddValue)
-                        {
-                            tryAdd = tryAddValue;
-                        }
-
-                        break;
-                    case "Decorator":
-                        if (namedArg.Value.Value is bool decoratorValue)
-                        {
-                            decorator = decoratorValue;
-                        }
-
-                        break;
-                    case "Instance":
-                        instanceMemberName = namedArg.Value.Value as string;
-                        break;
-                    case "Condition":
-                        condition = namedArg.Value.Value as string;
-                        break;
-                }
-            }
-
-            // Determine which types to register against
-            ImmutableArray<ITypeSymbol> asTypes;
-            if (explicitAsType is not null)
-            {
-                // Explicit As parameter takes precedence
-                asTypes = [explicitAsType];
-            }
-            else
-            {
-                // Auto-detect interfaces - get all non-system interfaces
-                var interfaces = classSymbol.AllInterfaces
-                    .Where(i => !IsSystemInterface(i))
-                    .Cast<ITypeSymbol>()
-                    .ToImmutableArray();
-
-                asTypes = interfaces;
-            }
-
-            // Check if this is a hosted service
-            var isHostedService = IsHostedService(classSymbol);
-
-            return new ServiceRegistrationInfo(
-                classSymbol,
-                lifetime,
-                asTypes,
-                asSelf,
-                isHostedService,
-                key,
-                factoryMethodName,
-                tryAdd,
-                decorator,
-                instanceMemberName,
-                condition,
-                classDeclaration.GetLocation());
         }
 
-        return null;
+        // Named arguments (As, AsSelf, Key, Factory, TryAdd, Decorator, Instance, Condition)
+        foreach (var namedArg in attributeData.NamedArguments)
+        {
+            switch (namedArg.Key)
+            {
+                case "As":
+                    explicitAsType = namedArg.Value.Value as ITypeSymbol;
+                    break;
+                case "AsSelf":
+                    if (namedArg.Value.Value is bool selfValue)
+                    {
+                        asSelf = selfValue;
+                    }
+
+                    break;
+                case "Key":
+                    key = namedArg.Value.Value;
+                    break;
+                case "Factory":
+                    factoryMethodName = namedArg.Value.Value as string;
+                    break;
+                case "TryAdd":
+                    if (namedArg.Value.Value is bool tryAddValue)
+                    {
+                        tryAdd = tryAddValue;
+                    }
+
+                    break;
+                case "Decorator":
+                    if (namedArg.Value.Value is bool decoratorValue)
+                    {
+                        decorator = decoratorValue;
+                    }
+
+                    break;
+                case "Instance":
+                    instanceMemberName = namedArg.Value.Value as string;
+                    break;
+                case "Condition":
+                    condition = namedArg.Value.Value as string;
+                    break;
+            }
+        }
+
+        // Determine which types to register against
+        ImmutableArray<ITypeSymbol> asTypes;
+        if (explicitAsType is not null)
+        {
+            // Explicit As parameter takes precedence
+            asTypes = [explicitAsType];
+        }
+        else
+        {
+            // Auto-detect interfaces - get all non-system interfaces
+            var interfaces = classSymbol.AllInterfaces
+                .Where(i => !IsSystemInterface(i))
+                .Cast<ITypeSymbol>()
+                .ToImmutableArray();
+
+            asTypes = interfaces;
+        }
+
+        // Check if this is a hosted service
+        var isHostedService = IsHostedService(classSymbol);
+
+        return new ServiceRegistrationInfo(
+            classSymbol,
+            lifetime,
+            asTypes,
+            asSelf,
+            isHostedService,
+            key,
+            factoryMethodName,
+            tryAdd,
+            decorator,
+            instanceMemberName,
+            condition,
+            context.TargetNode.GetLocation());
     }
 
     private static string GetAssemblyPrefix(string assemblyName)
@@ -329,8 +339,7 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
             // Extract assembly information
             var assemblyName = assemblySymbol.Name;
             var sanitizedName = SanitizeAssemblyName(assemblyName);
-            var parts = assemblyName.Split('.');
-            var shortName = parts[parts.Length - 1];
+            var shortName = GetAssemblySuffix(assemblyName);
 
             result.Add(new ReferencedAssemblyInfo(assemblyName, sanitizedName, shortName));
         }
@@ -347,7 +356,7 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
         // Get all RegistrationFilter attributes on the assembly
         foreach (var attribute in assemblySymbol.GetAttributes())
         {
-            if (attribute.AttributeClass?.ToDisplayString() != FilterAttributeFullName)
+            if (!IsAttributeMatch(attribute.AttributeClass, FilterAttributeName, AttributeNamespace))
             {
                 continue;
             }
@@ -425,7 +434,7 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
                     // Check if this type has the [Registration] attribute
                     foreach (var attribute in typeSymbol.GetAttributes())
                     {
-                        if (attribute.AttributeClass?.ToDisplayString() == AttributeFullName &&
+                        if (IsAttributeMatch(attribute.AttributeClass, AttributeName, AttributeNamespace) &&
                             !filterRules.ShouldExclude(typeSymbol))
                         {
                             // Check if this type should be excluded by filter rules
@@ -455,6 +464,10 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
             return;
         }
 
+        // Deduplicate by fully qualified class name since ForAttributeWithMetadataName
+        // may emit once per attribute instance
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+
         // Parse filter rules from the current assembly
         var filterRules = ParseFilterRules(compilation.Assembly);
 
@@ -463,6 +476,11 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
         // Validate and emit diagnostics, and apply filters
         foreach (var service in services)
         {
+            if (!seen.Add(service.ClassSymbol.ToDisplayString()))
+            {
+                continue;
+            }
+
             // Check if service should be excluded by filter rules
             if (filterRules.ShouldExclude(service.ClassSymbol))
             {
@@ -542,10 +560,11 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
             {
                 // Original interface check logic
                 // For generic types, we need to compare the original definitions
+                var allInterfaces = service.ClassSymbol.AllInterfaces;
                 if (asType is INamedTypeSymbol { IsGenericType: true } asNamedType)
                 {
                     var asTypeOriginal = asNamedType.OriginalDefinition;
-                    implementsInterfaceOrInheritsAbstractClass = service.ClassSymbol.AllInterfaces.Any(i =>
+                    implementsInterfaceOrInheritsAbstractClass = allInterfaces.Any(i =>
                     {
                         if (i is INamedTypeSymbol { IsGenericType: true } iNamedType)
                         {
@@ -557,7 +576,7 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
                 }
                 else
                 {
-                    implementsInterfaceOrInheritsAbstractClass = service.ClassSymbol.AllInterfaces.Any(i =>
+                    implementsInterfaceOrInheritsAbstractClass = allInterfaces.Any(i =>
                         SymbolEqualityComparer.Default.Equals(i, asType));
                 }
             }
@@ -825,16 +844,14 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
         List<string> allAssembliesInContext)
     {
         // Get the suffix (last segment after final dot) of the target assembly
-        var parts = assemblyName.Split('.');
-        var suffix = parts[parts.Length - 1];
+        var suffix = GetAssemblySuffix(assemblyName);
 
         // Check how many assemblies in the context have this same suffix
         int count = 0;
 
         foreach (var asmName in allAssembliesInContext)
         {
-            var asmParts = asmName.Split('.');
-            var asmSuffix = asmParts[asmParts.Length - 1];
+            var asmSuffix = GetAssemblySuffix(asmName);
 
             if (asmSuffix.Equals(suffix, StringComparison.OrdinalIgnoreCase))
             {
@@ -850,6 +867,12 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
 
         // Multiple assemblies have this suffix, use full sanitized name to avoid conflicts
         return SanitizeAssemblyName(assemblyName);
+    }
+
+    private static string GetAssemblySuffix(string assemblyName)
+    {
+        var lastDotIndex = assemblyName.LastIndexOf('.');
+        return lastDotIndex >= 0 ? assemblyName.Substring(lastDotIndex + 1) : assemblyName;
     }
 
     private static string GenerateExtensionMethod(
@@ -1246,8 +1269,7 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
 
         // Generate if-blocks for each referenced assembly (with prefix filtering)
         var filteredAssemblies = referencedAssemblies
-            .Where(a => a.AssemblyName.StartsWith(assemblyPrefix, StringComparison.Ordinal))
-            .ToList();
+            .Where(a => a.AssemblyName.StartsWith(assemblyPrefix, StringComparison.Ordinal));
 
         foreach (var refAssembly in filteredAssemblies)
         {
@@ -1358,10 +1380,8 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
         bool includeRuntimeFiltering = false)
     {
         // Separate decorators from base services
-        var nonDecoratorServices = services.Where(s => !s.Decorator);
-        var baseServices = nonDecoratorServices.ToList();
-        var decoratorServices = services.Where(s => s.Decorator);
-        var decorators = decoratorServices.ToList();
+        var baseServices = services.Where(s => !s.Decorator);
+        var decorators = services.Where(s => s.Decorator);
 
         // Determine base indentation level based on runtime filtering
         var baseIndent = includeRuntimeFiltering ? "            " : "        ";
@@ -1733,23 +1753,27 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
         // Check if expectedType is an interface and returnType implements it
         if (expectedType.TypeKind == TypeKind.Interface)
         {
+            if (returnType is not INamedTypeSymbol returnNamedType)
+            {
+                return false;
+            }
+
+            var allInterfaces = returnNamedType.AllInterfaces;
             if (expectedType is INamedTypeSymbol { IsGenericType: true } expectedNamedType)
             {
                 var expectedTypeOriginal = expectedNamedType.OriginalDefinition;
-                return returnType is INamedTypeSymbol returnNamedType &&
-                       returnNamedType.AllInterfaces.Any(i =>
-                       {
-                           if (i is INamedTypeSymbol { IsGenericType: true } iNamedType)
-                           {
-                               return SymbolEqualityComparer.Default.Equals(iNamedType.OriginalDefinition, expectedTypeOriginal);
-                           }
+                return allInterfaces.Any(i =>
+                {
+                    if (i is INamedTypeSymbol { IsGenericType: true } iNamedType)
+                    {
+                        return SymbolEqualityComparer.Default.Equals(iNamedType.OriginalDefinition, expectedTypeOriginal);
+                    }
 
-                           return SymbolEqualityComparer.Default.Equals(i, expectedType);
-                       });
+                    return SymbolEqualityComparer.Default.Equals(i, expectedType);
+                });
             }
 
-            return returnType is INamedTypeSymbol returnTypeNamed &&
-                   returnTypeNamed.AllInterfaces.Any(i => SymbolEqualityComparer.Default.Equals(i, expectedType));
+            return allInterfaces.Any(i => SymbolEqualityComparer.Default.Equals(i, expectedType));
         }
 
         // Check if expectedType is an abstract class and returnType inherits from it (or is the same abstract class)

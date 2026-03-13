@@ -15,16 +15,10 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
 {
     private const string AttributeNamespace = "Atc.SourceGenerators.Annotations";
     private const string MappingConfigurationAttributeName = "MappingConfigurationAttribute";
-    private const string FullMappingConfigurationAttributeName = $"{AttributeNamespace}.{MappingConfigurationAttributeName}";
     private const string MapConfigIgnoreAttributeName = "MapConfigIgnoreAttribute";
-    private const string FullMapConfigIgnoreAttributeName = $"{AttributeNamespace}.{MapConfigIgnoreAttributeName}";
     private const string MapConfigPropertyAttributeName = "MapConfigPropertyAttribute";
-    private const string FullMapConfigPropertyAttributeName = $"{AttributeNamespace}.{MapConfigPropertyAttributeName}";
     private const string MapConfigOptionsAttributeName = "MapConfigOptionsAttribute";
-    private const string FullMapConfigOptionsAttributeName = $"{AttributeNamespace}.{MapConfigOptionsAttributeName}";
     private const string MapTypesAttributeName = "MapTypesAttribute";
-    private const string FullMapTypesAttributeName = $"{AttributeNamespace}.{MapTypesAttributeName}";
-    private const string FullMapToAttributeName = $"{AttributeNamespace}.MapToAttribute";
 
     private static readonly DiagnosticDescriptor ConfigClassMustBeStaticDescriptor = new(
         id: RuleIdentifierConstants.MappingConfiguration.ConfigClassMustBeStatic,
@@ -202,8 +196,9 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
                     continue;
                 }
 
-                var fullName = attributeSymbol.ContainingType.ToDisplayString();
-                if (fullName == FullMappingConfigurationAttributeName || fullName == FullMapTypesAttributeName)
+                var attrType = attributeSymbol.ContainingType;
+                if (MappingTypeAnalyzer.IsAttributeMatch(attrType, MappingConfigurationAttributeName) ||
+                    MappingTypeAnalyzer.IsAttributeMatch(attrType, MapTypesAttributeName))
                 {
                     return classDeclaration;
                 }
@@ -300,7 +295,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
 
                 // Check if this is a [MappingConfiguration] class
                 var hasMappingConfigAttr = classSymbol.GetAttributes()
-                    .Any(a => a.AttributeClass?.ToDisplayString() == FullMappingConfigurationAttributeName);
+                    .Any(a => MappingTypeAnalyzer.IsAttributeMatch(a.AttributeClass, MappingConfigurationAttributeName));
 
                 if (hasMappingConfigAttr)
                 {
@@ -313,7 +308,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
 
                 // Check if this is a class with [MapTypes] attributes
                 var classMapTypesAttrs = classSymbol.GetAttributes()
-                    .Where(a => a.AttributeClass?.ToDisplayString() == FullMapTypesAttributeName)
+                    .Where(a => MappingTypeAnalyzer.IsAttributeMatch(a.AttributeClass, MapTypesAttributeName))
                     .ToList();
 
                 if (classMapTypesAttrs.Count > 0)
@@ -390,7 +385,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
             context.ReportDiagnostic(
                 Diagnostic.Create(
                     ConfigClassMustBeStaticDescriptor,
-                    classSymbol.Locations.First(),
+                    classSymbol.Locations.FirstOrDefault() ?? Location.None,
                     classSymbol.Name));
             return null;
         }
@@ -401,7 +396,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
             context.ReportDiagnostic(
                 Diagnostic.Create(
                     ConfigClassMustBePartialDescriptor,
-                    classSymbol.Locations.First(),
+                    classSymbol.Locations.FirstOrDefault() ?? Location.None,
                     classSymbol.Name));
             return null;
         }
@@ -418,7 +413,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
             context.ReportDiagnostic(
                 Diagnostic.Create(
                     EmptyConfigurationClassDescriptor,
-                    classSymbol.Locations.First(),
+                    classSymbol.Locations.FirstOrDefault() ?? Location.None,
                     classSymbol.Name));
             return null;
         }
@@ -449,7 +444,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
             context.ReportDiagnostic(
                 Diagnostic.Create(
                     MethodMustBeExtensionMethodDescriptor,
-                    method.Locations.First(),
+                    method.Locations.FirstOrDefault() ?? Location.None,
                     method.Name));
             return null;
         }
@@ -457,12 +452,13 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         // Validate return type
         if (method.ReturnsVoid ||
             method.ReturnType is not INamedTypeSymbol targetType ||
-            (targetType.TypeKind != TypeKind.Class && targetType.TypeKind != TypeKind.Struct))
+            (targetType.TypeKind != TypeKind.Class && targetType.TypeKind != TypeKind.Struct) ||
+            targetType.SpecialType != SpecialType.None)
         {
             context.ReportDiagnostic(
                 Diagnostic.Create(
                     MethodReturnTypeInvalidDescriptor,
-                    method.Locations.First(),
+                    method.Locations.FirstOrDefault() ?? Location.None,
                     method.Name));
             return null;
         }
@@ -483,9 +479,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
 
         foreach (var attr in method.GetAttributes())
         {
-            var attrName = attr.AttributeClass?.ToDisplayString();
-
-            if (attrName == FullMapConfigIgnoreAttributeName)
+            if (MappingTypeAnalyzer.IsAttributeMatch(attr.AttributeClass, MapConfigIgnoreAttributeName))
             {
                 if (attr.ConstructorArguments.Length > 0 &&
                     attr.ConstructorArguments[0].Value is string propName)
@@ -493,7 +487,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
                     ignoredProperties.Add(propName);
                 }
             }
-            else if (attrName == FullMapConfigPropertyAttributeName)
+            else if (MappingTypeAnalyzer.IsAttributeMatch(attr.AttributeClass, MapConfigPropertyAttributeName))
             {
                 if (attr.ConstructorArguments.Length >= 2 &&
                     attr.ConstructorArguments[0].Value is string sourcePropName &&
@@ -502,7 +496,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
                     propertyRenames.Add((sourcePropName, targetPropName));
                 }
             }
-            else if (attrName == FullMapConfigOptionsAttributeName)
+            else if (MappingTypeAnalyzer.IsAttributeMatch(attr.AttributeClass, MapConfigOptionsAttributeName))
             {
                 foreach (var namedArg in attr.NamedArguments)
                 {
@@ -532,7 +526,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
                 context.ReportDiagnostic(
                     Diagnostic.Create(
                         IgnoredPropertyNotFoundDescriptor,
-                        method.Locations.First(),
+                        method.Locations.FirstOrDefault() ?? Location.None,
                         ignoredProp,
                         sourceType.Name));
             }
@@ -547,7 +541,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
                 context.ReportDiagnostic(
                     Diagnostic.Create(
                         RenamedSourcePropertyNotFoundDescriptor,
-                        method.Locations.First(),
+                        method.Locations.FirstOrDefault() ?? Location.None,
                         rename.Source,
                         sourceType.Name));
             }
@@ -557,7 +551,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
                 context.ReportDiagnostic(
                     Diagnostic.Create(
                         RenamedTargetPropertyNotFoundDescriptor,
-                        method.Locations.First(),
+                        method.Locations.FirstOrDefault() ?? Location.None,
                         rename.Target,
                         targetType.Name));
             }
@@ -1006,7 +1000,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
 
         var assemblyAttributes = compilation.Assembly
             .GetAttributes()
-            .Where(a => a.AttributeClass?.ToDisplayString() == FullMapTypesAttributeName);
+            .Where(a => MappingTypeAnalyzer.IsAttributeMatch(a.AttributeClass, MapTypesAttributeName));
 
         foreach (var attr in assemblyAttributes)
         {
@@ -1083,8 +1077,8 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
                 if (targetProp is not null)
                 {
                     // Check for collection mapping
-                    var isSourceCollection = IsCollectionType(sourceProp.Type, out var sourceElementType);
-                    var isTargetCollection = IsCollectionType(targetProp.Type, out var targetElementType);
+                    var isSourceCollection = MappingTypeAnalyzer.IsCollectionType(sourceProp.Type, out var sourceElementType);
+                    var isTargetCollection = MappingTypeAnalyzer.IsCollectionType(targetProp.Type, out var targetElementType);
 
                     if (isSourceCollection && isTargetCollection && sourceElementType is not null && targetElementType is not null)
                     {
@@ -1096,7 +1090,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
                             HasEnumMapping: false,
                             IsCollection: true,
                             CollectionElementType: targetElementType,
-                            CollectionTargetType: GetCollectionTargetType(targetProp.Type),
+                            CollectionTargetType: MappingTypeAnalyzer.GetCollectionTargetType(targetProp.Type),
                             IsFlattened: false,
                             FlattenedNestedProperty: null,
                             IsBuiltInTypeConversion: false,
@@ -1105,9 +1099,9 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
                     }
                     else
                     {
-                        var requiresConversion = IsEnumConversion(sourceProp.Type, targetProp.Type);
-                        var isNested = IsNestedMapping(sourceProp.Type, targetProp.Type);
-                        var isBuiltInTypeConversion = IsBuiltInTypeConversion(sourceProp.Type, targetProp.Type);
+                        var requiresConversion = MappingTypeAnalyzer.IsEnumConversion(sourceProp.Type, targetProp.Type);
+                        var isNested = MappingTypeAnalyzer.IsNestedMapping(sourceProp.Type, targetProp.Type);
+                        var isBuiltInTypeConversion = MappingTypeAnalyzer.IsBuiltInTypeConversion(sourceProp.Type, targetProp.Type);
 
                         // Auto-detect enum mapping
                         var hasEnumMapping = false;
@@ -1294,7 +1288,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
                         return false;
                     }
 
-                    if (HasMapIgnoreAttribute(p))
+                    if (MappingTypeAnalyzer.HasMapIgnoreAttribute(p))
                     {
                         return false;
                     }
@@ -1323,18 +1317,6 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         return properties;
     }
 
-    private static bool HasMapIgnoreAttribute(IPropertySymbol property)
-    {
-        const string mapIgnoreAttributeName = "Atc.SourceGenerators.Annotations.MapIgnoreAttribute";
-        return property.GetAttributes().Any(attr =>
-            attr.AttributeClass?.ToDisplayString() == mapIgnoreAttributeName);
-    }
-
-    private static bool IsEnumConversion(
-        ITypeSymbol sourceType,
-        ITypeSymbol targetType)
-        => sourceType.TypeKind == TypeKind.Enum && targetType.TypeKind == TypeKind.Enum;
-
     private static bool HasEnumMappingAttribute(
         ITypeSymbol sourceType,
         ITypeSymbol targetType)
@@ -1347,7 +1329,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         // Check if source enum has [MapTo(typeof(TargetEnum))]
         foreach (var attr in sourceEnum.GetAttributes())
         {
-            if (attr.AttributeClass?.ToDisplayString() != FullMapToAttributeName)
+            if (!MappingTypeAnalyzer.IsAttributeMatch(attr.AttributeClass, "MapToAttribute"))
             {
                 continue;
             }
@@ -1367,7 +1349,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         // Check if target enum has [MapTo(typeof(SourceEnum), Bidirectional = true)]
         foreach (var attr in targetEnum.GetAttributes())
         {
-            if (attr.AttributeClass?.ToDisplayString() != FullMapToAttributeName)
+            if (!MappingTypeAnalyzer.IsAttributeMatch(attr.AttributeClass, "MapToAttribute"))
             {
                 continue;
             }
@@ -1393,140 +1375,6 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         }
 
         return false;
-    }
-
-    private static bool IsNestedMapping(
-        ITypeSymbol sourceType,
-        ITypeSymbol targetType)
-    {
-        var st = sourceType.SpecialType.ToString();
-        var tt = targetType.SpecialType.ToString();
-
-        return sourceType.TypeKind is TypeKind.Class or TypeKind.Struct &&
-               targetType.TypeKind is TypeKind.Class or TypeKind.Struct &&
-               !st.StartsWith("System", StringComparison.Ordinal) &&
-               !tt.StartsWith("System", StringComparison.Ordinal);
-    }
-
-    private static bool IsBuiltInTypeConversion(
-        ITypeSymbol sourceType,
-        ITypeSymbol targetType)
-    {
-        var sourceTypeName = sourceType.ToDisplayString();
-        var targetTypeName = targetType.ToDisplayString();
-
-        if ((sourceTypeName is "System.DateTime" or "System.DateTimeOffset") && targetTypeName == "string")
-        {
-            return true;
-        }
-
-        if (sourceTypeName == "string" && (targetTypeName is "System.DateTime" or "System.DateTimeOffset"))
-        {
-            return true;
-        }
-
-        if (sourceTypeName == "System.Guid" && targetTypeName == "string")
-        {
-            return true;
-        }
-
-        if (sourceTypeName == "string" && targetTypeName == "System.Guid")
-        {
-            return true;
-        }
-
-        if (IsNumericType(sourceTypeName) && targetTypeName == "string")
-        {
-            return true;
-        }
-
-        if (sourceTypeName == "string" && IsNumericType(targetTypeName))
-        {
-            return true;
-        }
-
-        if (sourceTypeName == "bool" && targetTypeName == "string")
-        {
-            return true;
-        }
-
-        if (sourceTypeName == "string" && targetTypeName == "bool")
-        {
-            return true;
-        }
-
-        return false;
-    }
-
-    private static bool IsNumericType(string typeName)
-        => typeName is "int" or "long" or "short" or "byte" or "sbyte" or
-           "uint" or "ulong" or "ushort" or
-           "decimal" or "double" or "float";
-
-    private static bool IsCollectionType(
-        ITypeSymbol type,
-        out ITypeSymbol? elementType)
-    {
-        elementType = null;
-
-        if (type is IArrayTypeSymbol arrayType)
-        {
-            elementType = arrayType.ElementType;
-            return true;
-        }
-
-        if (type is not INamedTypeSymbol namedType)
-        {
-            return false;
-        }
-
-        if (namedType is { IsGenericType: true, TypeArguments.Length: 1 })
-        {
-            var typeName = namedType.ConstructedFrom.ToDisplayString();
-
-            if (typeName.StartsWith("System.Collections.Generic.List<", StringComparison.Ordinal) ||
-                typeName.StartsWith("System.Collections.Generic.IEnumerable<", StringComparison.Ordinal) ||
-                typeName.StartsWith("System.Collections.Generic.ICollection<", StringComparison.Ordinal) ||
-                typeName.StartsWith("System.Collections.Generic.IList<", StringComparison.Ordinal) ||
-                typeName.StartsWith("System.Collections.Generic.IReadOnlyList<", StringComparison.Ordinal) ||
-                typeName.StartsWith("System.Collections.Generic.IReadOnlyCollection<", StringComparison.Ordinal) ||
-                typeName.StartsWith("System.Collections.ObjectModel.Collection<", StringComparison.Ordinal) ||
-                typeName.StartsWith("System.Collections.ObjectModel.ReadOnlyCollection<", StringComparison.Ordinal))
-            {
-                elementType = namedType.TypeArguments[0];
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private static string GetCollectionTargetType(
-        ITypeSymbol targetPropertyType)
-    {
-        if (targetPropertyType is IArrayTypeSymbol)
-        {
-            return "Array";
-        }
-
-        if (targetPropertyType is not INamedTypeSymbol namedType)
-        {
-            return "List";
-        }
-
-        var typeName = namedType.ConstructedFrom.ToDisplayString();
-
-        if (typeName.StartsWith("System.Collections.ObjectModel.Collection<", StringComparison.Ordinal))
-        {
-            return "Collection";
-        }
-
-        if (typeName.StartsWith("System.Collections.ObjectModel.ReadOnlyCollection<", StringComparison.Ordinal))
-        {
-            return "ReadOnlyCollection";
-        }
-
-        return "List";
     }
 
     private static (IMethodSymbol? Constructor, List<string> ParameterNames) FindBestConstructor(
@@ -1600,7 +1448,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
 
                 foreach (var attr in typeSymbol.GetAttributes())
                 {
-                    if (attr.AttributeClass?.ToDisplayString() != FullMapToAttributeName)
+                    if (!MappingTypeAnalyzer.IsAttributeMatch(attr.AttributeClass, "MapToAttribute"))
                     {
                         continue;
                     }
@@ -1818,7 +1666,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         StringBuilder sb,
         ConfiguredMappingInfo mapping)
     {
-        var methodName = $"MapTo{mapping.TargetType.Name}";
+        var methodName = $"MapTo{TypeNameSanitizer.SanitizeForIdentifier(mapping.TargetType.Name)}";
         var targetTypeName = mapping.TargetType.ToDisplayString();
         var sourceTypeName = mapping.SourceType.ToDisplayString();
 
@@ -1918,7 +1766,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         List<AutoDetectedEnumMapping> autoDetectedEnums,
         SourceProductionContext context)
     {
-        var reverseMethodName = $"MapTo{mapping.SourceType.Name}";
+        var reverseMethodName = $"MapTo{TypeNameSanitizer.SanitizeForIdentifier(mapping.SourceType.Name)}";
         var sourceTypeName = mapping.TargetType.ToDisplayString();
         var targetTypeName = mapping.SourceType.ToDisplayString();
 
@@ -1999,7 +1847,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
                 continue;
             }
 
-            var methodName = $"MapTo{enumMapping.TargetEnum.Name}";
+            var methodName = $"MapTo{TypeNameSanitizer.SanitizeForIdentifier(enumMapping.TargetEnum.Name)}";
 
             sb.AppendLineLf("    /// <summary>");
             sb.AppendLineLf($"    /// Maps <see cref=\"{enumMapping.SourceEnum.ToDisplayString()}\"/> to <see cref=\"{enumMapping.TargetEnum.ToDisplayString()}\"/>.");
@@ -2088,7 +1936,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         {
             if (prop.HasEnumMapping)
             {
-                var enumMappingMethodName = $"MapTo{prop.TargetProperty.Type.Name}";
+                var enumMappingMethodName = $"MapTo{TypeNameSanitizer.SanitizeForIdentifier(prop.TargetProperty.Type.Name)}";
                 return $"{sourceVariable}.{prop.SourceProperty.Name}.{enumMappingMethodName}()";
             }
 
@@ -2097,7 +1945,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
 
         if (prop.IsNested)
         {
-            var nestedMethodName = $"MapTo{prop.TargetProperty.Type.Name}";
+            var nestedMethodName = $"MapTo{TypeNameSanitizer.SanitizeForIdentifier(prop.TargetProperty.Type.Name)}";
             return $"{sourceVariable}.{prop.SourceProperty.Name}?.{nestedMethodName}()!";
         }
 
@@ -2137,12 +1985,12 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
             return $"global::System.Guid.Parse({sourcePropertyAccess})";
         }
 
-        if (IsNumericType(sourceTypeName) && targetTypeName == "string")
+        if (MappingTypeAnalyzer.IsNumericType(sourceTypeName) && targetTypeName == "string")
         {
             return $"{sourcePropertyAccess}.ToString(global::System.Globalization.CultureInfo.InvariantCulture)";
         }
 
-        if (sourceTypeName == "string" && IsNumericType(targetTypeName))
+        if (sourceTypeName == "string" && MappingTypeAnalyzer.IsNumericType(targetTypeName))
         {
             var parts = targetTypeName.Split('.');
             var simpleTypeName = parts[parts.Length - 1];
