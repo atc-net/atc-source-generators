@@ -385,4 +385,104 @@ public partial class MappingConfigurationGeneratorTests
         // Should report duplicate and keep only one
         Assert.Contains(diagnostics, d => d.Id == "ATCMAP006");
     }
+
+    [Fact]
+    public void Inline_Should_Error_On_Missing_Lambda()
+    {
+        const string source = """
+                              using System;
+                              using Atc.SourceGenerators.Annotations;
+
+                              namespace MyApp
+                              {
+                                  public static class Startup
+                                  {
+                                      public static void Configure()
+                                      {
+                                          MappingBuilder.Configure(null!);
+                                      }
+                                  }
+                              }
+                              """;
+
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        Assert.Contains(diagnostics, d => d.Id == "ATCMCF013");
+    }
+
+    [Fact]
+    public void Inline_Should_Error_On_Invalid_Map_Arguments()
+    {
+        const string source = """
+                              using System;
+                              using Atc.SourceGenerators.Annotations;
+
+                              namespace MyApp
+                              {
+                                  public class Source
+                                  {
+                                      public int Id { get; set; }
+                                  }
+
+                                  public interface ITarget
+                                  {
+                                      int Id { get; set; }
+                                  }
+
+                                  public static class Startup
+                                  {
+                                      public static void Configure()
+                                      {
+                                          MappingBuilder.Configure(map =>
+                                          {
+                                              map.Map(typeof(Source), typeof(ITarget));
+                                          });
+                                      }
+                                  }
+                              }
+                              """;
+
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        Assert.Contains(diagnostics, d => d.Id == "ATCMAP010");
+    }
+
+    [Fact]
+    public void Inline_Should_Deduplicate_With_Attribute_MapTo()
+    {
+        const string source = """
+                              using System;
+                              using Atc.SourceGenerators.Annotations;
+
+                              namespace MyApp
+                              {
+                                  [MapTo(typeof(Target))]
+                                  public partial class Source
+                                  {
+                                      public int Id { get; set; }
+                                  }
+
+                                  public class Target
+                                  {
+                                      public int Id { get; set; }
+                                  }
+
+                                  public static class Startup
+                                  {
+                                      public static void Configure()
+                                      {
+                                          MappingBuilder.Configure(map =>
+                                          {
+                                              map.Map<Source, Target>();
+                                          });
+                                      }
+                                  }
+                              }
+                              """;
+
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        // Should report duplicate - attribute takes precedence
+        Assert.Contains(diagnostics, d => d.Id == "ATCMAP005");
+    }
 }

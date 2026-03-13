@@ -232,4 +232,60 @@ Console.WriteLine($"  DeliveredAt: {deliveryStatus.DeliveredAt}");
 Console.WriteLine($"  FailureReason: {deliveryStatus.FailureReason ?? "(null)"}");
 Console.WriteLine();
 
+// =============================================================================
+// Section 6: Inline MappingBuilder.Configure() Registration
+// =============================================================================
+
+Console.WriteLine("=== Section 6: Inline MappingBuilder.Configure() Registration ===");
+Console.WriteLine();
+
+// ActivityEvent -> AnalyticsEventDto (configured via MappingBuilder.Configure in InlineMappings.cs)
+var activityEventForDto = new ActivityEvent
+{
+    Id = Guid.NewGuid(),
+    Name = "PageView",
+    Severity = Atc.SourceGenerators.MappingCombinedConfiguration.Domain.ActivitySeverity.Information,
+    Timestamp = DateTimeOffset.UtcNow,
+    UserId = "user-123",
+    Metadata = "{\"page\":\"/home\"}",
+};
+
+Console.WriteLine("--- Source: Domain ActivityEvent ---");
+Console.WriteLine($"  Id: {activityEventForDto.Id}");
+Console.WriteLine($"  Name: {activityEventForDto.Name}");
+Console.WriteLine($"  Severity: {activityEventForDto.Severity}");
+Console.WriteLine();
+
+var analyticsEventDto = activityEventForDto.MapToAnalyticsEventDto();
+
+Console.WriteLine("--- Target: Contract AnalyticsEventDto (via MappingBuilder.Configure) ---");
+Console.WriteLine($"  Id: {analyticsEventDto.Id}");
+Console.WriteLine($"  Name: {analyticsEventDto.Name}");
+Console.WriteLine($"  Severity: {analyticsEventDto.Severity}");
+Console.WriteLine();
+
+// BrowsingSession -> SessionDto (configured via MappingBuilder.Configure in InlineMappings.cs)
+var browsingSessionForDto = new BrowsingSession
+{
+    Id = Guid.NewGuid(),
+    UserId = "user-456",
+    StartTime = DateTimeOffset.UtcNow.AddHours(-1),
+    EndTime = DateTimeOffset.UtcNow,
+    PageViews = 42,
+};
+
+Console.WriteLine("--- Source: Domain BrowsingSession ---");
+Console.WriteLine($"  Id: {browsingSessionForDto.Id}");
+Console.WriteLine($"  UserId: {browsingSessionForDto.UserId}");
+Console.WriteLine($"  PageViews: {browsingSessionForDto.PageViews}");
+Console.WriteLine();
+
+var sessionDto = browsingSessionForDto.MapToSessionDto();
+
+Console.WriteLine("--- Target: Contract SessionDto (via MappingBuilder.Configure) ---");
+Console.WriteLine($"  Id: {sessionDto.Id}");
+Console.WriteLine($"  UserId: {sessionDto.UserId}");
+Console.WriteLine($"  PageViews: {sessionDto.PageViews}");
+Console.WriteLine();
+
 Console.WriteLine("=== Demo Complete ===");
