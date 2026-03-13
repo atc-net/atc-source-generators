@@ -376,4 +376,92 @@ public partial class MappingConfigurationGeneratorTests
         Assert.Contains("this ExternalLib.FeatureType source)", output, StringComparison.Ordinal);
         Assert.Contains("=> source switch", output, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void Config_Should_Use_Partial_Constructor_Match_For_Positional_Record()
+    {
+        const string source = """
+                              using Atc.SourceGenerators.Annotations;
+
+                              namespace ExternalLib
+                              {
+                                  public class SourceProduct
+                                  {
+                                      public string Name { get; set; } = string.Empty;
+                                      public decimal Price { get; set; }
+                                      public string? Description { get; set; }
+                                  }
+                              }
+
+                              namespace MyApp
+                              {
+                                  public sealed record TargetProduct(
+                                      string Name,
+                                      decimal Price,
+                                      string? Description,
+                                      string? ImageUrl,
+                                      int StockCount);
+                              }
+
+                              namespace MyApp.Mappings
+                              {
+                                  [MappingConfiguration]
+                                  public static partial class Mappings
+                                  {
+                                      public static partial MyApp.TargetProduct MapToTargetProduct(this ExternalLib.SourceProduct source);
+                                  }
+                              }
+                              """;
+
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        Assert.Empty(diagnostics);
+        Assert.Contains("new MyApp.TargetProduct(", output, StringComparison.Ordinal);
+        Assert.Contains("source.Name", output, StringComparison.Ordinal);
+        Assert.Contains("source.Price", output, StringComparison.Ordinal);
+        Assert.Contains("source.Description", output, StringComparison.Ordinal);
+        Assert.Contains("null", output, StringComparison.Ordinal);
+        Assert.Contains("default", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Config_Should_Not_Use_Partial_Match_When_Parameterless_Constructor_Exists()
+    {
+        const string source = """
+                              using Atc.SourceGenerators.Annotations;
+
+                              namespace ExternalLib
+                              {
+                                  public class SourceItem
+                                  {
+                                      public string Name { get; set; } = string.Empty;
+                                  }
+                              }
+
+                              namespace MyApp
+                              {
+                                  public class TargetItem
+                                  {
+                                      public string Name { get; set; } = string.Empty;
+                                      public string Extra { get; set; } = string.Empty;
+                                  }
+                              }
+
+                              namespace MyApp.Mappings
+                              {
+                                  [MappingConfiguration]
+                                  public static partial class Mappings
+                                  {
+                                      public static partial MyApp.TargetItem MapToTargetItem(this ExternalLib.SourceItem source);
+                                  }
+                              }
+                              """;
+
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        Assert.Empty(diagnostics);
+        // Should use object initializer, not constructor (class has parameterless constructor)
+        Assert.Contains("new MyApp.TargetItem", output, StringComparison.Ordinal);
+        Assert.Contains("Name = source.Name", output, StringComparison.Ordinal);
+    }
 }

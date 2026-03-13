@@ -10,6 +10,7 @@ internal sealed record ConfiguredMappingInfo(
     bool EnableFlattening,
     IMethodSymbol? Constructor,
     List<string> ConstructorParameterNames,
+    List<ConstructorDefaultParameter> ConstructorDefaultParameters,
     PropertyNameStrategy PropertyNameStrategy,
     List<string> IgnoredProperties,
     List<(string Source, string Target)> PropertyRenames);

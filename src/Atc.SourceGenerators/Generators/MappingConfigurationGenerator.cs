@@ -609,7 +609,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
             context);
 
         // Find best matching constructor
-        var (constructor, constructorParameterNames) = FindBestConstructor(sourceType, targetType);
+        var (constructor, constructorParameterNames, constructorDefaultParameters) = FindBestConstructor(sourceType, targetType);
 
         return new ConfiguredMappingInfo(
             SourceType: sourceType,
@@ -621,6 +621,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
             EnableFlattening: enableFlattening,
             Constructor: constructor,
             ConstructorParameterNames: constructorParameterNames,
+            ConstructorDefaultParameters: constructorDefaultParameters,
             PropertyNameStrategy: propertyNameStrategy,
             IgnoredProperties: ignoredProperties,
             PropertyRenames: propertyRenames);
@@ -830,7 +831,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
             context);
 
         // Find best matching constructor
-        var (constructor, constructorParameterNames) = FindBestConstructor(sourceType, targetType);
+        var (constructor, constructorParameterNames, constructorDefaultParameters) = FindBestConstructor(sourceType, targetType);
 
         return new ConfiguredMappingInfo(
             SourceType: sourceType,
@@ -842,6 +843,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
             EnableFlattening: false,
             Constructor: constructor,
             ConstructorParameterNames: constructorParameterNames,
+            ConstructorDefaultParameters: constructorDefaultParameters,
             PropertyNameStrategy: propertyNameStrategy,
             IgnoredProperties: ignoredProperties,
             PropertyRenames: propertyRenames);
@@ -1011,7 +1013,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
             context);
 
         // Find best matching constructor
-        var (constructor, constructorParameterNames) = FindBestConstructor(sourceType, targetType);
+        var (constructor, constructorParameterNames, constructorDefaultParameters) = FindBestConstructor(sourceType, targetType);
 
         return new ConfiguredMappingInfo(
             SourceType: sourceType,
@@ -1023,6 +1025,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
             EnableFlattening: false,
             Constructor: constructor,
             ConstructorParameterNames: constructorParameterNames,
+            ConstructorDefaultParameters: constructorDefaultParameters,
             PropertyNameStrategy: propertyNameStrategy,
             IgnoredProperties: ignoredProperties,
             PropertyRenames: propertyRenames);
@@ -1468,7 +1471,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         return false;
     }
 
-    private static (IMethodSymbol? Constructor, List<string> ParameterNames) FindBestConstructor(
+    private static (IMethodSymbol? Constructor, List<string> ParameterNames, List<ConstructorDefaultParameter> DefaultParameters) FindBestConstructor(
         INamedTypeSymbol sourceType,
         INamedTypeSymbol targetType)
     {
@@ -1479,11 +1482,12 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
 
         if (constructors.Count == 0)
         {
-            return (null, []);
+            return (null, [], []);
         }
 
         var sourceProperties = GetAllProperties(sourceType, includePrivateMembers: false);
 
+        // First pass: try exact match (all parameters have matching source properties)
         foreach (var constructor in constructors.OrderByDescending(c => c.Parameters.Length))
         {
             var parameterNames = new List<string>();
@@ -1518,11 +1522,82 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
 
             if (allParametersMatch && constructor.Parameters.Length > 0)
             {
-                return (constructor, parameterNames);
+                return (constructor, parameterNames, []);
             }
         }
 
-        return (null, []);
+        // Second pass: partial match for types without parameterless constructor
+        // (e.g., positional records). Fill unmatched parameters with defaults.
+        var hasParameterlessConstructor = constructors.Any(c => c.Parameters.Length == 0);
+        if (!hasParameterlessConstructor)
+        {
+            foreach (var constructor in constructors.OrderByDescending(c => c.Parameters.Length))
+            {
+                var matchedNames = new List<string>();
+                var defaultParams = new List<ConstructorDefaultParameter>();
+                var hasIncompatibleParam = false;
+
+                foreach (var parameter in constructor.Parameters)
+                {
+                    var matchingSourceProperty = sourceProperties.FirstOrDefault(p =>
+                        string.Equals(p.Name, parameter.Name, StringComparison.OrdinalIgnoreCase));
+
+                    if (matchingSourceProperty is null)
+                    {
+                        // Unmatched parameter: will use default value
+                        defaultParams.Add(new ConstructorDefaultParameter(
+                            parameter.Name,
+                            parameter.Type,
+                            GetDefaultExpression(parameter.Type)));
+                        continue;
+                    }
+
+                    var sourcePropertyType = matchingSourceProperty.Type;
+                    var parameterType = parameter.Type;
+                    if (!SymbolEqualityComparer.Default.Equals(sourcePropertyType, parameterType) &&
+                        !MappingTypeAnalyzer.IsImplicitlyConvertible(sourcePropertyType, parameterType) &&
+                        !AreBothCustomOrEnumTypes(sourcePropertyType, parameterType))
+                    {
+                        hasIncompatibleParam = true;
+                        break;
+                    }
+
+                    matchedNames.Add(parameter.Name);
+                }
+
+                // Accept if at least one parameter matched and no type incompatibilities
+                if (!hasIncompatibleParam && matchedNames.Count > 0)
+                {
+                    return (constructor, matchedNames, defaultParams);
+                }
+            }
+        }
+
+        return (null, [], []);
+    }
+
+    private static string GetDefaultExpression(ITypeSymbol type)
+    {
+        // Nullable reference type (string?, object?, etc.)
+        if (type.NullableAnnotation == NullableAnnotation.Annotated)
+        {
+            return "null";
+        }
+
+        // Nullable value type (int?, DateTime?, etc.)
+        if (type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T })
+        {
+            return "null";
+        }
+
+        // Value types (int, bool, enums, structs)
+        if (type.IsValueType)
+        {
+            return "default";
+        }
+
+        // Non-nullable reference types
+        return "default!";
     }
 
     private static bool AreBothCustomOrEnumTypes(
@@ -1827,6 +1902,8 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         if (useConstructor)
         {
             var constructorParamSet = new HashSet<string>(mapping.ConstructorParameterNames, StringComparer.OrdinalIgnoreCase);
+            var defaultParamSet = new HashSet<string>(
+                mapping.ConstructorDefaultParameters.Select(d => d.Name), StringComparer.OrdinalIgnoreCase);
             var constructorProps = new List<PropertyMapping>();
             var initializerProps = new List<PropertyMapping>();
 
@@ -1836,33 +1913,44 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
                 {
                     constructorProps.Add(prop);
                 }
-                else
+                else if (!defaultParamSet.Contains(prop.TargetProperty.Name))
                 {
                     initializerProps.Add(prop);
                 }
             }
 
-            // Order constructor props by parameter order
-            var orderedConstructorProps = new List<PropertyMapping>();
-            foreach (var paramName in mapping.ConstructorParameterNames)
+            // Build ordered list of all constructor arguments (matched + defaults)
+            // by iterating the actual constructor parameters in order
+            var constructorArguments = new List<(string Value, bool IsDefault)>();
+            foreach (var param in mapping.Constructor!.Parameters)
             {
-                var prop = constructorProps.FirstOrDefault(p =>
-                    string.Equals(p.TargetProperty.Name, paramName, StringComparison.OrdinalIgnoreCase));
-                if (prop is not null)
+                var matchedProp = constructorProps.FirstOrDefault(p =>
+                    string.Equals(p.TargetProperty.Name, param.Name, StringComparison.OrdinalIgnoreCase));
+
+                if (matchedProp is not null)
                 {
-                    orderedConstructorProps.Add(prop);
+                    constructorArguments.Add((GeneratePropertyMappingValue(matchedProp, "source"), false));
+                }
+                else
+                {
+                    var defaultParam = mapping.ConstructorDefaultParameters.FirstOrDefault(d =>
+                        string.Equals(d.Name, param.Name, StringComparison.OrdinalIgnoreCase));
+
+                    if (defaultParam is not null)
+                    {
+                        constructorArguments.Add((defaultParam.DefaultExpression, true));
+                    }
                 }
             }
 
             sb.AppendLineLf($"        return new {targetTypeName}(");
 
-            for (var i = 0; i < orderedConstructorProps.Count; i++)
+            for (var i = 0; i < constructorArguments.Count; i++)
             {
-                var prop = orderedConstructorProps[i];
-                var isLast = i == orderedConstructorProps.Count - 1;
+                var (value, _) = constructorArguments[i];
+                var isLast = i == constructorArguments.Count - 1;
                 var comma = isLast && initializerProps.Count == 0 ? string.Empty : ",";
 
-                var value = GeneratePropertyMappingValue(prop, "source");
                 sb.AppendLineLf($"            {value}{comma}");
             }
 
@@ -1907,7 +1995,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
             autoDetectedEnums,
             context);
 
-        var (reverseConstructor, reverseConstructorParams) = FindBestConstructor(mapping.TargetType, mapping.SourceType);
+        var (reverseConstructor, reverseConstructorParams, reverseConstructorDefaults) = FindBestConstructor(mapping.TargetType, mapping.SourceType);
 
         sb.AppendLineLf("    /// <summary>");
         sb.AppendLineLf($"    /// Maps <see cref=\"{sourceTypeName}\"/> to <see cref=\"{targetTypeName}\"/>.");
@@ -1926,6 +2014,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
             EnableFlattening: mapping.EnableFlattening,
             Constructor: reverseConstructor,
             ConstructorParameterNames: reverseConstructorParams,
+            ConstructorDefaultParameters: reverseConstructorDefaults,
             PropertyNameStrategy: mapping.PropertyNameStrategy,
             IgnoredProperties: [],
             PropertyRenames: []);
