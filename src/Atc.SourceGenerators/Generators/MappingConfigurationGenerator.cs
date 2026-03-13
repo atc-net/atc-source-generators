@@ -1140,6 +1140,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
                     HasEnumMapping: false,
                     IsCollection: false,
                     CollectionElementType: null,
+                    SourceCollectionElementType: null,
                     CollectionTargetType: null,
                     IsFlattened: false,
                     FlattenedNestedProperty: null,
@@ -1184,6 +1185,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
                             HasEnumMapping: hasCollectionEnumMapping,
                             IsCollection: true,
                             CollectionElementType: targetElementType,
+                            SourceCollectionElementType: sourceElementType,
                             CollectionTargetType: MappingTypeAnalyzer.GetCollectionTargetType(targetProp.Type),
                             IsFlattened: false,
                             FlattenedNestedProperty: null,
@@ -1198,21 +1200,29 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
                         var isBuiltInTypeConversion = MappingTypeAnalyzer.IsBuiltInTypeConversion(sourceProp.Type, targetProp.Type);
                         var isNumericConversion = MappingTypeAnalyzer.IsNumericTypeConversion(sourceProp.Type, targetProp.Type);
 
-                        // Auto-detect enum mapping
+                        // Auto-detect enum mapping (unwrap nullable for enum checks)
                         var hasEnumMapping = false;
                         if (requiresConversion)
                         {
-                            hasEnumMapping = HasEnumMappingAttribute(sourceProp.Type, targetProp.Type);
+                            var unwrappedSourceType = MappingTypeAnalyzer.UnwrapNullable(sourceProp.Type);
+                            var unwrappedTargetType = MappingTypeAnalyzer.UnwrapNullable(targetProp.Type);
+                            hasEnumMapping = HasEnumMappingAttribute(unwrappedSourceType, unwrappedTargetType);
 
                             // If no explicit mapping, try auto-detection
                             if (!hasEnumMapping &&
-                                sourceProp.Type is INamedTypeSymbol sourceEnumType &&
-                                targetProp.Type is INamedTypeSymbol targetEnumType)
+                                unwrappedSourceType is INamedTypeSymbol sourceEnumType &&
+                                unwrappedTargetType is INamedTypeSymbol targetEnumType)
                             {
                                 var autoMapping = TryAutoDetectEnumMapping(
                                     sourceEnumType, targetEnumType, autoDetectedEnums, context);
                                 hasEnumMapping = autoMapping;
                             }
+                        }
+
+                        // Built-in type conversions take precedence over nested mapping detection
+                        if (isBuiltInTypeConversion)
+                        {
+                            isNested = false;
                         }
 
                         if (requiresConversion || isNested || isBuiltInTypeConversion || isNumericConversion)
@@ -1225,6 +1235,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
                                 HasEnumMapping: hasEnumMapping,
                                 IsCollection: false,
                                 CollectionElementType: null,
+                                SourceCollectionElementType: null,
                                 CollectionTargetType: null,
                                 IsFlattened: false,
                                 FlattenedNestedProperty: null,
@@ -1283,6 +1294,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
                             HasEnumMapping: false,
                             IsCollection: false,
                             CollectionElementType: null,
+                            SourceCollectionElementType: null,
                             CollectionTargetType: null,
                             IsFlattened: true,
                             FlattenedNestedProperty: nestedProp,
@@ -1515,6 +1527,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
                     !MappingTypeAnalyzer.IsImplicitlyConvertible(sourcePropertyType, parameterType) &&
                     !AreBothCustomOrEnumTypes(sourcePropertyType, parameterType) &&
                     !MappingTypeAnalyzer.IsNumericTypeConversion(sourcePropertyType, parameterType) &&
+                    !MappingTypeAnalyzer.IsBuiltInTypeConversion(sourcePropertyType, parameterType) &&
                     !AreBothCollectionTypesWithCompatibleElements(sourcePropertyType, parameterType))
                 {
                     allParametersMatch = false;
@@ -1845,6 +1858,9 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
             // Generate auto-detected enum mapping methods
             GenerateAutoDetectedEnumMethods(sb, autoDetectedEnums, classMappings);
 
+            // Generate nested type mapping methods for collection element types
+            GenerateCollectionElementTypeMappingMethods(sb, classMappings, autoDetectedEnums, context);
+
             sb.AppendLineLf("}");
 
             var fileName = $"{containingClass.Name}.g.cs";
@@ -1898,6 +1914,9 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
 
         // Generate auto-detected enum mapping methods
         GenerateAutoDetectedEnumMethods(sb, autoDetectedEnums, mappings);
+
+        // Generate nested type mapping methods for collection element types
+        GenerateCollectionElementTypeMappingMethods(sb, mappings, autoDetectedEnums, context);
 
         sb.AppendLineLf("}");
 
@@ -2116,12 +2135,13 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
 
             // Check if any mapping in this scope references this enum pair
             // (either as a direct property conversion or as a collection element type)
+            // Unwrap nullable types when comparing to handle Nullable<EnumType> properties
             var isReferenced = mappings.Any(m =>
                 m.PropertyMappings.Any(p =>
                     (p.RequiresConversion &&
                      p.HasEnumMapping &&
-                     SymbolEqualityComparer.Default.Equals(p.SourceProperty.Type, enumMapping.SourceEnum) &&
-                     SymbolEqualityComparer.Default.Equals(p.TargetProperty.Type, enumMapping.TargetEnum)) ||
+                     SymbolEqualityComparer.Default.Equals(MappingTypeAnalyzer.UnwrapNullable(p.SourceProperty.Type), enumMapping.SourceEnum) &&
+                     SymbolEqualityComparer.Default.Equals(MappingTypeAnalyzer.UnwrapNullable(p.TargetProperty.Type), enumMapping.TargetEnum)) ||
                     (p.IsCollection &&
                      p.HasEnumMapping &&
                      MappingTypeAnalyzer.IsCollectionType(p.SourceProperty.Type, out var srcElem) &&
@@ -2155,6 +2175,137 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
             sb.AppendLineLf("            _ => throw new global::System.ArgumentOutOfRangeException(nameof(source), source, \"Unmapped enum value\"),");
             sb.AppendLineLf("        };");
             sb.AppendLineLf();
+        }
+    }
+
+    private static void GenerateCollectionElementTypeMappingMethods(
+        StringBuilder sb,
+        List<ConfiguredMappingInfo> mappings,
+        List<AutoDetectedEnumMapping> autoDetectedEnums,
+        SourceProductionContext context)
+    {
+        var generated = new HashSet<string>(StringComparer.Ordinal);
+
+        // Collect all top-level mapping pairs (source -> target) so we don't duplicate them
+        var topLevelMappingPairs = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var mapping in mappings)
+        {
+            topLevelMappingPairs.Add($"{mapping.SourceType.ToDisplayString()}->{mapping.TargetType.ToDisplayString()}");
+        }
+
+        // Use a queue for recursive processing of nested type pairs
+        var queue = new Queue<(INamedTypeSymbol Source, INamedTypeSymbol Target)>();
+        CollectNestedTypePairs(mappings, queue);
+
+        // Track sub-mappings for enum method generation
+        var subMappings = new List<ConfiguredMappingInfo>();
+
+        while (queue.Count > 0)
+        {
+            var (sourceElementType, targetElementType) = queue.Dequeue();
+
+            // Strip nullable annotation from display strings to match top-level pairs correctly
+            var sourceDisplay = sourceElementType.ToDisplayString().TrimEnd('?');
+            var targetDisplay = targetElementType.ToDisplayString().TrimEnd('?');
+            var key = $"{sourceDisplay}->{targetDisplay}";
+
+            // Skip if already generated or if there's already a top-level mapping for this pair
+            if (!generated.Add(key) || topLevelMappingPairs.Contains(key))
+            {
+                continue;
+            }
+
+            // Generate a nested mapping method for this type pair
+            var methodName = $"MapTo{TypeNameSanitizer.SanitizeForIdentifier(targetElementType.Name)}";
+            var elementPropertyMappings = GetPropertyMappingsWithConfig(
+                sourceElementType,
+                targetElementType,
+                enableFlattening: false,
+                PropertyNameStrategy.PascalCase,
+                [],
+                [],
+                autoDetectedEnums,
+                context);
+
+            var (constructor, constructorParameterNames, constructorDefaultParameters) = FindBestConstructor(sourceElementType, targetElementType);
+
+            var elementMapping = new ConfiguredMappingInfo(
+                SourceType: sourceElementType,
+                TargetType: targetElementType,
+                Method: null,
+                ContainingClass: null,
+                PropertyMappings: elementPropertyMappings,
+                Bidirectional: false,
+                EnableFlattening: false,
+                Constructor: constructor,
+                ConstructorParameterNames: constructorParameterNames,
+                ConstructorDefaultParameters: constructorDefaultParameters,
+                PropertyNameStrategy: PropertyNameStrategy.PascalCase,
+                IgnoredProperties: [],
+                PropertyRenames: []);
+
+            sb.AppendLineLf("    /// <summary>");
+            sb.AppendLineLf($"    /// Maps <see cref=\"{sourceElementType.ToDisplayString()}\"/> to <see cref=\"{targetElementType.ToDisplayString()}\"/>.");
+            sb.AppendLineLf("    /// </summary>");
+            sb.AppendLineLf($"    private static {targetElementType.ToDisplayString()} {methodName}(");
+            sb.AppendLineLf($"        this {sourceElementType.ToDisplayString()} source)");
+            sb.AppendLineLf("    {");
+
+            GenerateMethodContent(sb, elementMapping);
+
+            sb.AppendLineLf("    }");
+            sb.AppendLineLf();
+
+            subMappings.Add(elementMapping);
+
+            // Recursively discover nested types within this sub-method's properties
+            CollectNestedTypePairs([elementMapping], queue);
+        }
+
+        // Generate enum mapping methods discovered during sub-method generation
+        if (subMappings.Count > 0)
+        {
+            GenerateAutoDetectedEnumMethods(sb, autoDetectedEnums, subMappings);
+        }
+    }
+
+    private static void CollectNestedTypePairs(
+        List<ConfiguredMappingInfo> mappings,
+        Queue<(INamedTypeSymbol Source, INamedTypeSymbol Target)> queue)
+    {
+        foreach (var mapping in mappings)
+        {
+            foreach (var prop in mapping.PropertyMappings)
+            {
+                // Collection element type pairs
+                if (prop.IsCollection &&
+                    prop.SourceCollectionElementType is not null &&
+                    prop.CollectionElementType is not null &&
+                    !SymbolEqualityComparer.Default.Equals(prop.SourceCollectionElementType, prop.CollectionElementType) &&
+                    !prop.HasEnumMapping &&
+                    prop.SourceCollectionElementType is INamedTypeSymbol sourceElem &&
+                    prop.CollectionElementType is INamedTypeSymbol targetElem &&
+                    sourceElem.SpecialType == SpecialType.None &&
+                    targetElem.SpecialType == SpecialType.None)
+                {
+                    queue.Enqueue((sourceElem, targetElem));
+                }
+
+                // Non-collection nested property type pairs
+                if (prop.IsNested)
+                {
+                    var unwrappedSource = MappingTypeAnalyzer.UnwrapNullable(prop.SourceProperty.Type) as INamedTypeSymbol;
+                    var unwrappedTarget = MappingTypeAnalyzer.UnwrapNullable(prop.TargetProperty.Type) as INamedTypeSymbol;
+
+                    if (unwrappedSource is not null &&
+                        unwrappedTarget is not null &&
+                        unwrappedSource.SpecialType == SpecialType.None &&
+                        unwrappedTarget.SpecialType == SpecialType.None)
+                    {
+                        queue.Enqueue((unwrappedSource, unwrappedTarget));
+                    }
+                }
+            }
         }
     }
 
@@ -2197,48 +2348,103 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
 
         if (prop.IsCollection)
         {
+            var collectionType = prop.CollectionTargetType!;
+            var sourceAccess = $"{sourceVariable}.{prop.SourceProperty.Name}";
+
+            // Check if source and target element types are the same - skip Select if so
+            var sameElementType = prop.SourceCollectionElementType is not null &&
+                                  prop.CollectionElementType is not null &&
+                                  SymbolEqualityComparer.Default.Equals(prop.SourceCollectionElementType, prop.CollectionElementType);
+
+            if (sameElementType)
+            {
+                // Same element type - just convert the collection type
+                if (collectionType == "Array")
+                {
+                    return $"{sourceAccess}?.ToArray()!";
+                }
+
+                if (collectionType == "Collection")
+                {
+                    return $"new global::System.Collections.ObjectModel.Collection<{prop.CollectionElementType!.ToDisplayString()}>({sourceAccess}?.ToList()!)";
+                }
+
+                if (collectionType == "ReadOnlyCollection")
+                {
+                    return $"new global::System.Collections.ObjectModel.ReadOnlyCollection<{prop.CollectionElementType!.ToDisplayString()}>({sourceAccess}?.ToList()!)";
+                }
+
+                return $"{sourceAccess}?.ToList()!";
+            }
+
             var elementTypeName = prop.CollectionElementType!.Name;
             var mappingMethodName = $"MapTo{elementTypeName}";
-            var collectionType = prop.CollectionTargetType!;
 
             if (collectionType == "Array")
             {
-                return $"{sourceVariable}.{prop.SourceProperty.Name}?.Select(x => x.{mappingMethodName}()).ToArray()!";
+                return $"{sourceAccess}?.Select(x => x.{mappingMethodName}()).ToArray()!";
             }
 
             if (collectionType == "Collection")
             {
-                return $"new global::System.Collections.ObjectModel.Collection<{prop.CollectionElementType.ToDisplayString()}>({sourceVariable}.{prop.SourceProperty.Name}?.Select(x => x.{mappingMethodName}()).ToList()!)";
+                return $"new global::System.Collections.ObjectModel.Collection<{prop.CollectionElementType.ToDisplayString()}>({sourceAccess}?.Select(x => x.{mappingMethodName}()).ToList()!)";
             }
 
             if (collectionType == "ReadOnlyCollection")
             {
-                return $"new global::System.Collections.ObjectModel.ReadOnlyCollection<{prop.CollectionElementType.ToDisplayString()}>({sourceVariable}.{prop.SourceProperty.Name}?.Select(x => x.{mappingMethodName}()).ToList()!)";
+                return $"new global::System.Collections.ObjectModel.ReadOnlyCollection<{prop.CollectionElementType.ToDisplayString()}>({sourceAccess}?.Select(x => x.{mappingMethodName}()).ToList()!)";
             }
 
-            return $"{sourceVariable}.{prop.SourceProperty.Name}?.Select(x => x.{mappingMethodName}()).ToList()!";
+            return $"{sourceAccess}?.Select(x => x.{mappingMethodName}()).ToList()!";
         }
 
         if (prop.RequiresConversion)
         {
             if (prop.HasEnumMapping)
             {
-                var enumMappingMethodName = $"MapTo{TypeNameSanitizer.SanitizeForIdentifier(prop.TargetProperty.Type.Name)}";
+                var sourceIsNullable = MappingTypeAnalyzer.IsNullableValueType(prop.SourceProperty.Type);
+                var targetIsNullable = MappingTypeAnalyzer.IsNullableValueType(prop.TargetProperty.Type);
+                var unwrappedTarget = MappingTypeAnalyzer.UnwrapNullable(prop.TargetProperty.Type);
+                var enumMappingMethodName = $"MapTo{TypeNameSanitizer.SanitizeForIdentifier(unwrappedTarget.Name)}";
+
+                if (sourceIsNullable && targetIsNullable)
+                {
+                    var varName = $"__{char.ToLowerInvariant(prop.SourceProperty.Name[0])}{prop.SourceProperty.Name.Substring(1)}";
+                    return $"{sourceVariable}.{prop.SourceProperty.Name} is {{ }} {varName} ? {varName}.{enumMappingMethodName}() : null";
+                }
+
+                if (sourceIsNullable)
+                {
+                    return $"{sourceVariable}.{prop.SourceProperty.Name}!.Value.{enumMappingMethodName}()";
+                }
+
                 return $"{sourceVariable}.{prop.SourceProperty.Name}.{enumMappingMethodName}()";
             }
 
+            // Numeric conversion - handle nullable wrapping
             return $"({prop.TargetProperty.Type.ToDisplayString()}){sourceVariable}.{prop.SourceProperty.Name}";
         }
 
         if (prop.IsNested)
         {
-            var nestedMethodName = $"MapTo{TypeNameSanitizer.SanitizeForIdentifier(prop.TargetProperty.Type.Name)}";
-            if (prop.SourceProperty.Type.IsValueType)
+            var unwrappedSourceType = MappingTypeAnalyzer.UnwrapNullable(prop.SourceProperty.Type);
+            var unwrappedTargetType = MappingTypeAnalyzer.UnwrapNullable(prop.TargetProperty.Type);
+            var nestedMethodName = $"MapTo{TypeNameSanitizer.SanitizeForIdentifier(unwrappedTargetType.Name)}";
+            var sourceIsNullable = MappingTypeAnalyzer.IsNullableValueType(prop.SourceProperty.Type);
+            var targetIsNullable = MappingTypeAnalyzer.IsNullableValueType(prop.TargetProperty.Type);
+
+            if (sourceIsNullable && targetIsNullable)
+            {
+                var varName = $"__{char.ToLowerInvariant(prop.SourceProperty.Name[0])}{prop.SourceProperty.Name.Substring(1)}";
+                return $"{sourceVariable}.{prop.SourceProperty.Name} is {{ }} {varName} ? {varName}.{nestedMethodName}() : null";
+            }
+
+            if (prop.SourceProperty.Type.IsValueType && !sourceIsNullable)
             {
                 return $"{sourceVariable}.{prop.SourceProperty.Name}.{nestedMethodName}()";
             }
 
-            if (prop.TargetProperty.Type.IsValueType)
+            if (prop.TargetProperty.Type.IsValueType && !targetIsNullable)
             {
                 return $"{sourceVariable}.{prop.SourceProperty.Name} is not null ? {sourceVariable}.{prop.SourceProperty.Name}.{nestedMethodName}() : default";
             }
@@ -2256,6 +2462,14 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         var sourceTypeName = prop.SourceProperty.Type.ToDisplayString();
         var targetTypeName = prop.TargetProperty.Type.ToDisplayString();
         var sourcePropertyAccess = $"{sourceVariable}.{prop.SourceProperty.Name}";
+
+        // Normalize type names by stripping nullable annotation for matching
+        var normalizedSource = sourceTypeName.TrimEnd('?');
+        var normalizedTarget = targetTypeName.TrimEnd('?');
+        var sourceIsNullableRef = sourceTypeName.EndsWith("?", StringComparison.Ordinal) &&
+                                  !prop.SourceProperty.Type.IsValueType;
+        var targetIsNullableRef = targetTypeName.EndsWith("?", StringComparison.Ordinal) &&
+                                  !prop.TargetProperty.Type.IsValueType;
 
         if (sourceTypeName is "System.DateTime" or "System.DateTimeOffset" && targetTypeName == "string")
         {
@@ -2302,6 +2516,58 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         if (sourceTypeName == "string" && targetTypeName == "bool")
         {
             return $"bool.Parse({sourcePropertyAccess})";
+        }
+
+        // string <-> Uri conversions
+        if (normalizedSource == "string" && normalizedTarget == "System.Uri")
+        {
+            if (sourceIsNullableRef || targetIsNullableRef)
+            {
+                return $"{sourcePropertyAccess} is not null ? new global::System.Uri({sourcePropertyAccess}) : null";
+            }
+
+            return $"new global::System.Uri({sourcePropertyAccess})";
+        }
+
+        if (normalizedSource == "System.Uri" && normalizedTarget == "string")
+        {
+            if (sourceIsNullableRef)
+            {
+                return $"{sourcePropertyAccess}?.ToString()";
+            }
+
+            return $"{sourcePropertyAccess}.ToString()";
+        }
+
+        // string <-> enum conversions
+        var unwrappedSourceType = MappingTypeAnalyzer.UnwrapNullable(prop.SourceProperty.Type);
+        var unwrappedTargetType = MappingTypeAnalyzer.UnwrapNullable(prop.TargetProperty.Type);
+
+        if (normalizedSource == "string" && unwrappedTargetType.TypeKind == TypeKind.Enum)
+        {
+            var enumType = unwrappedTargetType.ToDisplayString();
+            var sourceIsNullable = sourceIsNullableRef ||
+                                   prop.SourceProperty.Type.NullableAnnotation == NullableAnnotation.Annotated;
+            var targetIsNullableValue = MappingTypeAnalyzer.IsNullableValueType(prop.TargetProperty.Type);
+
+            if (sourceIsNullable && targetIsNullableValue)
+            {
+                var varName = $"__{char.ToLowerInvariant(prop.SourceProperty.Name[0])}{prop.SourceProperty.Name.Substring(1)}";
+                return $"{sourcePropertyAccess} is {{ }} {varName} ? (global::System.Enum.TryParse<global::{enumType}>({varName}, out var __parsed) ? __parsed : default({enumType}?)) : null";
+            }
+
+            return $"global::System.Enum.TryParse<global::{enumType}>({sourcePropertyAccess}, out var __parsed) ? __parsed : default(global::{enumType})";
+        }
+
+        if (unwrappedSourceType.TypeKind == TypeKind.Enum && normalizedTarget == "string")
+        {
+            var sourceIsNullableValue = MappingTypeAnalyzer.IsNullableValueType(prop.SourceProperty.Type);
+            if (sourceIsNullableValue)
+            {
+                return $"{sourcePropertyAccess}?.ToString()";
+            }
+
+            return $"{sourcePropertyAccess}.ToString()";
         }
 
         return sourcePropertyAccess;
