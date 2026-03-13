@@ -17,3 +17,5 @@ ATCENUM004 | EnumMapping | Warning | Auto-detected enum mapping has partial matc
 ATCENUM005 | EnumMapping | Warning | Enum types have no matching values
 ATCMCF011 | MappingConfiguration | Error | Map() requires exactly two type arguments
 ATCMCF013 | MappingConfiguration | Error | AddMappings() requires a lambda expression argument
+ATCENUM006 | EnumMapping | Warning | Flag enum mapping may produce incorrect results for combined values
+ATCMAP011 | ObjectMapping | Warning | Collection element type has no mapping method
