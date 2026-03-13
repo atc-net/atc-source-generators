@@ -1825,6 +1825,11 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                 return $"{propertyAccess} is {{ }} __nested ? __nested.{nestedMethodName}() : default!";
             }
 
+            if (prop.SourceProperty.Type.IsValueType)
+            {
+                return $"{propertyAccess}.{nestedMethodName}()";
+            }
+
             return $"{propertyAccess}?.{nestedMethodName}()!";
         }
 

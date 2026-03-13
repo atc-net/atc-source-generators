@@ -2199,6 +2199,11 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         if (prop.IsNested)
         {
             var nestedMethodName = $"MapTo{TypeNameSanitizer.SanitizeForIdentifier(prop.TargetProperty.Type.Name)}";
+            if (prop.SourceProperty.Type.IsValueType)
+            {
+                return $"{sourceVariable}.{prop.SourceProperty.Name}.{nestedMethodName}()";
+            }
+
             return $"{sourceVariable}.{prop.SourceProperty.Name}?.{nestedMethodName}()!";
         }
 
