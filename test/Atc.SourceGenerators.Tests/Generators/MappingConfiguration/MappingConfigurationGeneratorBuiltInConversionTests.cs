@@ -119,7 +119,7 @@ public partial class MappingConfigurationGeneratorTests
         var (diagnostics, output) = GetGeneratedOutput(source);
 
         Assert.Empty(diagnostics);
-        Assert.Contains("is not null ? new global::System.Uri(source.Link) : null", output, StringComparison.Ordinal);
+        Assert.Contains("!string.IsNullOrEmpty(source.Link) ? new global::System.Uri(source.Link) : null", output, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -643,5 +643,165 @@ public partial class MappingConfigurationGeneratorTests
         // Should use constructor invocation with TryParse for enum and cast for decimal->double
         Assert.Contains("Enum.TryParse<global::TargetNs.StatusType>(source.Status, out var __parsed)", output, StringComparison.Ordinal);
         Assert.Contains("(double)source.Value", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Config_Should_Map_DateTimeOffset_To_DateTime()
+    {
+        const string source = """
+                              using System;
+                              using Atc.SourceGenerators.Annotations;
+
+                              namespace SourceNs
+                              {
+                                  public class Item
+                                  {
+                                      public DateTimeOffset Timestamp { get; set; }
+                                  }
+                              }
+
+                              namespace TargetNs
+                              {
+                                  public class Item
+                                  {
+                                      public DateTime Timestamp { get; set; }
+                                  }
+                              }
+
+                              namespace Mappings
+                              {
+                                  [MappingConfiguration]
+                                  public static partial class ItemMappings
+                                  {
+                                      public static partial TargetNs.Item MapToItem(this SourceNs.Item source);
+                                  }
+                              }
+                              """;
+
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        Assert.Empty(diagnostics);
+        Assert.Contains("source.Timestamp.DateTime", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Config_Should_Map_DateTime_To_DateTimeOffset()
+    {
+        const string source = """
+                              using System;
+                              using Atc.SourceGenerators.Annotations;
+
+                              namespace SourceNs
+                              {
+                                  public class Item
+                                  {
+                                      public DateTime Timestamp { get; set; }
+                                  }
+                              }
+
+                              namespace TargetNs
+                              {
+                                  public class Item
+                                  {
+                                      public DateTimeOffset Timestamp { get; set; }
+                                  }
+                              }
+
+                              namespace Mappings
+                              {
+                                  [MappingConfiguration]
+                                  public static partial class ItemMappings
+                                  {
+                                      public static partial TargetNs.Item MapToItem(this SourceNs.Item source);
+                                  }
+                              }
+                              """;
+
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        Assert.Empty(diagnostics);
+        Assert.Contains("new global::System.DateTimeOffset(source.Timestamp)", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Config_Should_Map_Nullable_DateTimeOffset_To_Nullable_DateTime()
+    {
+        const string source = """
+                              using System;
+                              using Atc.SourceGenerators.Annotations;
+
+                              #nullable enable
+
+                              namespace SourceNs
+                              {
+                                  public class Item
+                                  {
+                                      public DateTimeOffset? Timestamp { get; set; }
+                                  }
+                              }
+
+                              namespace TargetNs
+                              {
+                                  public class Item
+                                  {
+                                      public DateTime? Timestamp { get; set; }
+                                  }
+                              }
+
+                              namespace Mappings
+                              {
+                                  [MappingConfiguration]
+                                  public static partial class ItemMappings
+                                  {
+                                      public static partial TargetNs.Item MapToItem(this SourceNs.Item source);
+                                  }
+                              }
+                              """;
+
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        Assert.Empty(diagnostics);
+        Assert.Contains("source.Timestamp?.DateTime", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Config_Should_Map_Nullable_DateTime_To_Nullable_DateTimeOffset()
+    {
+        const string source = """
+                              using System;
+                              using Atc.SourceGenerators.Annotations;
+
+                              #nullable enable
+
+                              namespace SourceNs
+                              {
+                                  public class Item
+                                  {
+                                      public DateTime? Timestamp { get; set; }
+                                  }
+                              }
+
+                              namespace TargetNs
+                              {
+                                  public class Item
+                                  {
+                                      public DateTimeOffset? Timestamp { get; set; }
+                                  }
+                              }
+
+                              namespace Mappings
+                              {
+                                  [MappingConfiguration]
+                                  public static partial class ItemMappings
+                                  {
+                                      public static partial TargetNs.Item MapToItem(this SourceNs.Item source);
+                                  }
+                              }
+                              """;
+
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        Assert.Empty(diagnostics);
+        Assert.Contains("is { } __timestamp ? new global::System.DateTimeOffset(__timestamp) : null", output, StringComparison.Ordinal);
     }
 }
