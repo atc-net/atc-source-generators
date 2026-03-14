@@ -760,6 +760,15 @@ public class ObjectMappingGenerator : IIncrementalGenerator
             return true;
         }
 
+        // DateTimeOffset <-> DateTime
+        var normalizedSource = sourceTypeName.TrimEnd('?');
+        var normalizedTarget = targetTypeName.TrimEnd('?');
+        if ((normalizedSource == "System.DateTimeOffset" && normalizedTarget == "System.DateTime") ||
+            (normalizedSource == "System.DateTime" && normalizedTarget == "System.DateTimeOffset"))
+        {
+            return true;
+        }
+
         return false;
     }
 
@@ -1915,6 +1924,18 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         if (sourceTypeName == "string" && targetTypeName == "bool")
         {
             return $"bool.Parse({sourcePropertyAccess})";
+        }
+
+        // DateTimeOffset -> DateTime
+        if (sourceTypeName == "System.DateTimeOffset" && targetTypeName == "System.DateTime")
+        {
+            return $"{sourcePropertyAccess}.DateTime";
+        }
+
+        // DateTime -> DateTimeOffset
+        if (sourceTypeName == "System.DateTime" && targetTypeName == "System.DateTimeOffset")
+        {
+            return $"new global::System.DateTimeOffset({sourcePropertyAccess})";
         }
 
         // Fallback (should not reach here if IsBuiltInTypeConversion is correct)

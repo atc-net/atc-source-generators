@@ -2518,12 +2518,50 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
             return $"bool.Parse({sourcePropertyAccess})";
         }
 
+        // DateTimeOffset <-> DateTime conversions
+        if (normalizedSource == "System.DateTimeOffset" && normalizedTarget == "System.DateTime")
+        {
+            var sourceIsNullableValue = MappingTypeAnalyzer.IsNullableValueType(prop.SourceProperty.Type);
+            var targetIsNullableValue = MappingTypeAnalyzer.IsNullableValueType(prop.TargetProperty.Type);
+
+            if (sourceIsNullableValue && targetIsNullableValue)
+            {
+                return $"{sourcePropertyAccess}?.DateTime";
+            }
+
+            if (sourceIsNullableValue)
+            {
+                return $"{sourcePropertyAccess}!.Value.DateTime";
+            }
+
+            return $"{sourcePropertyAccess}.DateTime";
+        }
+
+        if (normalizedSource == "System.DateTime" && normalizedTarget == "System.DateTimeOffset")
+        {
+            var sourceIsNullableValue = MappingTypeAnalyzer.IsNullableValueType(prop.SourceProperty.Type);
+            var targetIsNullableValue = MappingTypeAnalyzer.IsNullableValueType(prop.TargetProperty.Type);
+
+            if (sourceIsNullableValue && targetIsNullableValue)
+            {
+                var varName = $"__{char.ToLowerInvariant(prop.SourceProperty.Name[0])}{prop.SourceProperty.Name.Substring(1)}";
+                return $"{sourcePropertyAccess} is {{ }} {varName} ? new global::System.DateTimeOffset({varName}) : null";
+            }
+
+            if (sourceIsNullableValue)
+            {
+                return $"new global::System.DateTimeOffset({sourcePropertyAccess}!.Value)";
+            }
+
+            return $"new global::System.DateTimeOffset({sourcePropertyAccess})";
+        }
+
         // string <-> Uri conversions
         if (normalizedSource == "string" && normalizedTarget == "System.Uri")
         {
             if (sourceIsNullableRef || targetIsNullableRef)
             {
-                return $"{sourcePropertyAccess} is not null ? new global::System.Uri({sourcePropertyAccess}) : null";
+                return $"!string.IsNullOrEmpty({sourcePropertyAccess}) ? new global::System.Uri({sourcePropertyAccess}) : null";
             }
 
             return $"new global::System.Uri({sourcePropertyAccess})";

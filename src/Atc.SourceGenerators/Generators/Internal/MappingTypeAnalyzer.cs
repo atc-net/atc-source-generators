@@ -71,7 +71,8 @@ internal static class MappingTypeAnalyzer
 
         return IsStringToFromSystemTypeConversion(sourceTypeName, targetTypeName) ||
                IsStringToFromUriConversion(sourceTypeName, targetTypeName) ||
-               IsStringToFromEnumConversion(sourceType, targetType, sourceTypeName, targetTypeName);
+               IsStringToFromEnumConversion(sourceType, targetType, sourceTypeName, targetTypeName) ||
+               IsDateTimeOffsetToFromDateTimeConversion(sourceTypeName, targetTypeName);
     }
 
     private static bool IsStringToFromSystemTypeConversion(
@@ -124,6 +125,17 @@ internal static class MappingTypeAnalyzer
 
         return (normalizedSource == "string" && normalizedTarget == "System.Uri") ||
                (normalizedSource == "System.Uri" && normalizedTarget == "string");
+    }
+
+    private static bool IsDateTimeOffsetToFromDateTimeConversion(
+        string sourceTypeName,
+        string targetTypeName)
+    {
+        var normalizedSource = sourceTypeName.TrimEnd('?');
+        var normalizedTarget = targetTypeName.TrimEnd('?');
+
+        return (normalizedSource == "System.DateTimeOffset" && normalizedTarget == "System.DateTime") ||
+               (normalizedSource == "System.DateTime" && normalizedTarget == "System.DateTimeOffset");
     }
 
     private static bool IsStringToFromEnumConversion(
