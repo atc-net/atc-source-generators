@@ -1199,6 +1199,13 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
                         var isNested = MappingTypeAnalyzer.IsNestedMapping(sourceProp.Type, targetProp.Type);
                         var isBuiltInTypeConversion = MappingTypeAnalyzer.IsBuiltInTypeConversion(sourceProp.Type, targetProp.Type);
                         var isNumericConversion = MappingTypeAnalyzer.IsNumericTypeConversion(sourceProp.Type, targetProp.Type);
+                        var isNullableValueTypeWrapping = MappingTypeAnalyzer.IsNullableValueTypeWrapping(sourceProp.Type, targetProp.Type);
+
+                        // Same value type with only nullability differing (e.g. Guid? → Guid) is a direct assignment
+                        if (isNullableValueTypeWrapping)
+                        {
+                            isNested = false;
+                        }
 
                         // Auto-detect enum mapping (unwrap nullable for enum checks)
                         var hasEnumMapping = false;
@@ -1225,7 +1232,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
                             isNested = false;
                         }
 
-                        if (requiresConversion || isNested || isBuiltInTypeConversion || isNumericConversion)
+                        if (requiresConversion || isNested || isBuiltInTypeConversion || isNumericConversion || isNullableValueTypeWrapping)
                         {
                             mappings.Add(new PropertyMapping(
                                 SourceProperty: sourceProp,
@@ -2450,6 +2457,12 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
             }
 
             return $"{sourceVariable}.{prop.SourceProperty.Name}?.{nestedMethodName}()!";
+        }
+
+        // T? → T for value types (e.g. Guid? → Guid): fall back to default when null
+        if (MappingTypeAnalyzer.IsNullableToNonNullableValueType(prop.SourceProperty.Type, prop.TargetProperty.Type))
+        {
+            return $"{sourceVariable}.{prop.SourceProperty.Name} ?? default";
         }
 
         return $"{sourceVariable}.{prop.SourceProperty.Name}";
