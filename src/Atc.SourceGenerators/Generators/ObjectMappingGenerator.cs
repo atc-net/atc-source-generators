@@ -464,8 +464,15 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                         var isNested = IsNestedMapping(sourceProp.Type, targetProp.Type);
                         var hasEnumMapping = requiresConversion && HasEnumMappingAttribute(sourceProp.Type, targetProp.Type);
                         var isBuiltInTypeConversion = IsBuiltInTypeConversion(sourceProp.Type, targetProp.Type);
+                        var isNullableValueTypeWrapping = MappingTypeAnalyzer.IsNullableValueTypeWrapping(sourceProp.Type, targetProp.Type);
 
-                        if (requiresConversion || isNested || isBuiltInTypeConversion)
+                        // Same value type with only nullability differing (e.g. Guid? → Guid) is a direct assignment
+                        if (isNullableValueTypeWrapping)
+                        {
+                            isNested = false;
+                        }
+
+                        if (requiresConversion || isNested || isBuiltInTypeConversion || isNullableValueTypeWrapping)
                         {
                             mappings.Add(new PropertyMapping(
                                 SourceProperty: sourceProp,
@@ -693,15 +700,10 @@ public class ObjectMappingGenerator : IIncrementalGenerator
     private static bool IsNestedMapping(
         ITypeSymbol sourceType,
         ITypeSymbol targetType)
-    {
-        var st = sourceType.SpecialType.ToString();
-        var tt = targetType.SpecialType.ToString();
-
-        return sourceType.TypeKind is TypeKind.Class or TypeKind.Struct &&
-               targetType.TypeKind is TypeKind.Class or TypeKind.Struct &&
-               !st.StartsWith("System", StringComparison.Ordinal) &&
-               !tt.StartsWith("System", StringComparison.Ordinal);
-    }
+        => sourceType.TypeKind is TypeKind.Class or TypeKind.Struct &&
+           targetType.TypeKind is TypeKind.Class or TypeKind.Struct &&
+           !MappingTypeAnalyzer.IsSystemType(sourceType) &&
+           !MappingTypeAnalyzer.IsSystemType(targetType);
 
     private static bool IsBuiltInTypeConversion(
         ITypeSymbol sourceType,
@@ -1699,6 +1701,11 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                 // Enum conversion - use simple cast (works in expressions)
                 sb.AppendLineLf($"            {prop.TargetProperty.Name} = ({prop.TargetProperty.Type.ToDisplayString()})source.{prop.SourceProperty.Name}{comma}");
             }
+            else if (MappingTypeAnalyzer.IsNullableToNonNullableValueType(prop.SourceProperty.Type, prop.TargetProperty.Type))
+            {
+                // T? → T for value types (e.g. Guid? → Guid) - coalesce works in expressions
+                sb.AppendLineLf($"            {prop.TargetProperty.Name} = source.{prop.SourceProperty.Name} ?? default{comma}");
+            }
             else
             {
                 // Direct property mapping
@@ -1849,6 +1856,12 @@ public class ObjectMappingGenerator : IIncrementalGenerator
             }
 
             return $"{propertyAccess}?.{nestedMethodName}()!";
+        }
+
+        // T? → T for value types (e.g. Guid? → Guid): fall back to default when null
+        if (MappingTypeAnalyzer.IsNullableToNonNullableValueType(prop.SourceProperty.Type, prop.TargetProperty.Type))
+        {
+            return $"{GenerateSourcePropertyAccess(prop, sourceVariable, sourceType)} ?? default";
         }
 
         // Direct property mapping

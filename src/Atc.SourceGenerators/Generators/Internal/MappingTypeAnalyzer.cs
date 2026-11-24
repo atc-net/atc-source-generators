@@ -53,14 +53,59 @@ internal static class MappingTypeAnalyzer
     {
         var unwrappedSource = UnwrapNullable(sourceType);
         var unwrappedTarget = UnwrapNullable(targetType);
-        var st = unwrappedSource.SpecialType.ToString();
-        var tt = unwrappedTarget.SpecialType.ToString();
 
         return unwrappedSource.TypeKind is TypeKind.Class or TypeKind.Struct &&
                unwrappedTarget.TypeKind is TypeKind.Class or TypeKind.Struct &&
-               !st.StartsWith("System", StringComparison.Ordinal) &&
-               !tt.StartsWith("System", StringComparison.Ordinal);
+               !IsSystemType(unwrappedSource) &&
+               !IsSystemType(unwrappedTarget);
     }
+
+    /// <summary>
+    /// Checks if a type (after unwrapping <see cref="Nullable{T}"/>) is a BCL type, i.e. a special type
+    /// (int, string, DateTime, ...) or a type declared in the System namespace or one of its sub-namespaces
+    /// (Guid, DateTimeOffset, TimeSpan, DateOnly, ...). Such types are never treated as nested mappings.
+    /// </summary>
+    internal static bool IsSystemType(ITypeSymbol type)
+    {
+        var unwrapped = UnwrapNullable(type);
+        if (unwrapped.SpecialType != SpecialType.None)
+        {
+            return true;
+        }
+
+        var ns = unwrapped.ContainingNamespace?.ToDisplayString() ?? string.Empty;
+        return ns == "System" ||
+               ns.StartsWith("System.", StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Checks if the source and target are the same non-enum value type where exactly one side is
+    /// <see cref="Nullable{T}"/> (e.g. <c>Guid?</c> → <c>Guid</c> or <c>Guid</c> → <c>Guid?</c>).
+    /// </summary>
+    internal static bool IsNullableValueTypeWrapping(
+        ITypeSymbol sourceType,
+        ITypeSymbol targetType)
+    {
+        if (IsNullableValueType(sourceType) == IsNullableValueType(targetType))
+        {
+            return false;
+        }
+
+        var unwrappedSource = UnwrapNullable(sourceType);
+        return unwrappedSource.TypeKind != TypeKind.Enum &&
+               SymbolEqualityComparer.Default.Equals(unwrappedSource, UnwrapNullable(targetType));
+    }
+
+    /// <summary>
+    /// Checks if the source is <c>T?</c> and the target is <c>T</c> for the same value type,
+    /// meaning the generated assignment needs <c>?? default</c>.
+    /// </summary>
+    internal static bool IsNullableToNonNullableValueType(
+        ITypeSymbol sourceType,
+        ITypeSymbol targetType)
+        => IsNullableValueType(sourceType) &&
+           !IsNullableValueType(targetType) &&
+           SymbolEqualityComparer.Default.Equals(UnwrapNullable(sourceType), targetType);
 
     internal static bool IsBuiltInTypeConversion(
         ITypeSymbol sourceType,

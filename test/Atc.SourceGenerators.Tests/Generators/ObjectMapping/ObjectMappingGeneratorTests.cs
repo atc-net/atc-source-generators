@@ -6,7 +6,8 @@ public partial class ObjectMappingGeneratorTests
 {
     [SuppressMessage("", "S1854:Remove this useless assignment to local variable 'driver'", Justification = "OK")]
     private static (ImmutableArray<Diagnostic> Diagnostics, string Output) GetGeneratedOutput(
-        string source)
+        string source,
+        string? diagnosticPrefix = null)
     {
         var syntaxTree = CSharpSyntaxTree.ParseText(source);
         var references = AppDomain
@@ -33,11 +34,12 @@ public partial class ObjectMappingGeneratorTests
             out var outputCompilation,
             out var generatorDiagnostics);
 
+        var prefix = diagnosticPrefix ?? "ATCMAP";
         var allDiagnostics = outputCompilation
             .GetDiagnostics()
             .Concat(generatorDiagnostics)
             .Where(d => d.Severity >= DiagnosticSeverity.Warning &&
-                        d.Id.StartsWith("ATCMAP", StringComparison.Ordinal))
+                        d.Id.StartsWith(prefix, StringComparison.Ordinal))
             .ToImmutableArray();
 
         var output = string.Join(
