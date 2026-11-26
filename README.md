@@ -73,10 +73,14 @@ app.MapGet("/pets/{id}", async (Guid id, IPetService service) =>
 dotnet add package Atc.SourceGenerators
 ```
 
-Optional (recommended for better IntelliSense):
+That's the only package you need: the attributes (`[Registration]`, `[OptionsBinding]`, `[MapTo]`, `[MappingConfiguration]`, …) are generated into your project by the package itself.
 
-```bash
-dotnet add package Atc.SourceGenerators.Annotations
+When several of your projects use the generators and reference each other, each project gets its own copy of the attributes. The compiler then reports warning CS0436, which is expected and can be suppressed:
+
+```xml
+<PropertyGroup>
+  <NoWarn>$(NoWarn);CS0436</NoWarn>
+</PropertyGroup>
 ```
 
 ## ⚙️ Requirements
