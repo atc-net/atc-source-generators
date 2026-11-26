@@ -148,6 +148,14 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 
+    private static readonly DiagnosticDescriptor PropertyTypesNotCompatibleDescriptor = new(
+        id: RuleIdentifierConstants.MappingConfiguration.PropertyTypesNotCompatible,
+        title: "Property types are not compatible",
+        messageFormat: "Property '{0}' is not mapped from '{1}' to '{2}': type '{3}' cannot be converted to '{4}'",
+        category: RuleCategoryConstants.MappingConfiguration,
+        DiagnosticSeverity.Warning,
+        isEnabledByDefault: true);
+
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         // Generate fallback attribute definitions
@@ -606,7 +614,8 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
             ignoredProperties,
             propertyRenames,
             autoDetectedEnums,
-            context);
+            context,
+            method.Locations.FirstOrDefault());
 
         // Find best matching constructor
         var (constructor, constructorParameterNames, constructorDefaultParameters) = FindBestConstructor(sourceType, targetType, propertyRenames);
@@ -828,7 +837,8 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
             ignoredProperties,
             propertyRenames,
             autoDetectedEnums,
-            context);
+            context,
+            mapCall.GetLocation());
 
         // Find best matching constructor
         var (constructor, constructorParameterNames, constructorDefaultParameters) = FindBestConstructor(sourceType, targetType, propertyRenames);
@@ -1010,7 +1020,8 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
             ignoredProperties,
             propertyRenames,
             autoDetectedEnums,
-            context);
+            context,
+            attr.ApplicationSyntaxReference?.GetSyntax().GetLocation());
 
         // Find best matching constructor
         var (constructor, constructorParameterNames, constructorDefaultParameters) = FindBestConstructor(sourceType, targetType, propertyRenames);
@@ -1101,7 +1112,8 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         List<string> ignoredProperties,
         List<(string Source, string Target)> propertyRenames,
         List<AutoDetectedEnumMapping> autoDetectedEnums,
-        SourceProductionContext context)
+        SourceProductionContext context,
+        Location? diagnosticLocation = null)
     {
         var mappings = new List<PropertyMapping>();
 
@@ -1154,7 +1166,29 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
                 targetProp = targetProperties.FirstOrDefault(t =>
                     string.Equals(t.Name, targetPropertyName, StringComparison.OrdinalIgnoreCase));
 
-                if (targetProp is not null)
+                if (targetProp is not null &&
+                    MappingTypeAnalyzer.AreCompatibleDictionaryTypes(sourceProp.Type, targetProp.Type))
+                {
+                    // Dictionary with the same key and value types but a different dictionary type
+                    // (e.g. IReadOnlyDictionary<K, V> → Dictionary<K, V>): copied with ToDictionary
+                    mappings.Add(new PropertyMapping(
+                        SourceProperty: sourceProp,
+                        TargetProperty: targetProp,
+                        RequiresConversion: false,
+                        IsNested: false,
+                        HasEnumMapping: false,
+                        IsCollection: false,
+                        CollectionElementType: null,
+                        SourceCollectionElementType: null,
+                        CollectionTargetType: null,
+                        IsFlattened: false,
+                        FlattenedNestedProperty: null,
+                        IsBuiltInTypeConversion: false,
+                        SourceRequiresUnsafeAccessor: false,
+                        TargetRequiresUnsafeAccessor: false,
+                        IsDictionary: true));
+                }
+                else if (targetProp is not null)
                 {
                     // Check for collection mapping
                     var isSourceCollection = MappingTypeAnalyzer.IsCollectionType(sourceProp.Type, out var sourceElementType);
@@ -1249,6 +1283,20 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
                                 IsBuiltInTypeConversion: isBuiltInTypeConversion,
                                 SourceRequiresUnsafeAccessor: false,
                                 TargetRequiresUnsafeAccessor: false));
+                        }
+                        else
+                        {
+                            // Same name, but no conversion between the types: say so instead of
+                            // leaving the property out silently (which also breaks constructor calls).
+                            context.ReportDiagnostic(
+                                Diagnostic.Create(
+                                    PropertyTypesNotCompatibleDescriptor,
+                                    diagnosticLocation ?? Location.None,
+                                    sourceProp.Name,
+                                    sourceType.Name,
+                                    targetType.Name,
+                                    sourceProp.Type.ToDisplayString(),
+                                    targetProp.Type.ToDisplayString()));
                         }
                     }
                 }
@@ -1535,7 +1583,8 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
                     !AreBothCustomOrEnumTypes(sourcePropertyType, parameterType) &&
                     !MappingTypeAnalyzer.IsNumericTypeConversion(sourcePropertyType, parameterType) &&
                     !MappingTypeAnalyzer.IsBuiltInTypeConversion(sourcePropertyType, parameterType) &&
-                    !AreBothCollectionTypesWithCompatibleElements(sourcePropertyType, parameterType))
+                    !AreBothCollectionTypesWithCompatibleElements(sourcePropertyType, parameterType) &&
+                    !MappingTypeAnalyzer.AreCompatibleDictionaryTypes(sourcePropertyType, parameterType))
                 {
                     allParametersMatch = false;
                     break;
@@ -1582,7 +1631,8 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
                         !MappingTypeAnalyzer.IsImplicitlyConvertible(sourcePropertyType, parameterType) &&
                         !AreBothCustomOrEnumTypes(sourcePropertyType, parameterType) &&
                         !MappingTypeAnalyzer.IsNumericTypeConversion(sourcePropertyType, parameterType) &&
-                        !AreBothCollectionTypesWithCompatibleElements(sourcePropertyType, parameterType))
+                        !AreBothCollectionTypesWithCompatibleElements(sourcePropertyType, parameterType) &&
+                        !MappingTypeAnalyzer.AreCompatibleDictionaryTypes(sourcePropertyType, parameterType))
                     {
                         hasIncompatibleParam = true;
                         break;
@@ -2040,7 +2090,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
             {
                 var (value, _) = constructorArguments[i];
                 var isLast = i == constructorArguments.Count - 1;
-                var comma = isLast && initializerProps.Count == 0 ? string.Empty : ",";
+                var comma = isLast ? string.Empty : ",";
 
                 sb.AppendLineLf($"            {value}{comma}");
             }
@@ -2084,7 +2134,8 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
             [],
             [],
             autoDetectedEnums,
-            context);
+            context,
+            mapping.Method?.Locations.FirstOrDefault());
 
         var (reverseConstructor, reverseConstructorParams, reverseConstructorDefaults) = FindBestConstructor(mapping.TargetType, mapping.SourceType);
 
@@ -2354,6 +2405,11 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         if (prop.IsBuiltInTypeConversion)
         {
             return GenerateBuiltInTypeConversion(prop, sourceVariable);
+        }
+
+        if (prop.IsDictionary)
+        {
+            return $"{sourceVariable}.{prop.SourceProperty.Name}?.ToDictionary(x => x.Key, x => x.Value)!";
         }
 
         if (prop.IsCollection)

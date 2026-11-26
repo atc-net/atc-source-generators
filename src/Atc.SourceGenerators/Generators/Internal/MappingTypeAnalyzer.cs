@@ -261,6 +261,88 @@ internal static class MappingTypeAnalyzer
                    name is "Collection`1" or "ReadOnlyCollection`1");
     }
 
+    /// <summary>
+    /// Checks whether a dictionary on the source side can be copied into a dictionary on the target side
+    /// with <c>ToDictionary(x =&gt; x.Key, x =&gt; x.Value)</c>: the target is <c>Dictionary&lt;K, V&gt;</c>,
+    /// <c>IDictionary&lt;K, V&gt;</c> or <c>IReadOnlyDictionary&lt;K, V&gt;</c>, the source is an
+    /// <c>IEnumerable&lt;KeyValuePair&lt;K, V&gt;&gt;</c>, and key and value types are the same on both sides
+    /// (nullable reference annotations are ignored).
+    /// </summary>
+    internal static bool AreCompatibleDictionaryTypes(
+        ITypeSymbol sourceType,
+        ITypeSymbol targetType)
+    {
+        if (!IsKnownDictionaryTargetType(targetType, out var targetKey, out var targetValue) ||
+            !TryGetKeyValuePairTypes(sourceType, out var sourceKey, out var sourceValue))
+        {
+            return false;
+        }
+
+        return SymbolEqualityComparer.Default.Equals(sourceKey, targetKey) &&
+               SymbolEqualityComparer.Default.Equals(sourceValue, targetValue);
+    }
+
+    private static bool IsKnownDictionaryTargetType(
+        ITypeSymbol type,
+        out ITypeSymbol? keyType,
+        out ITypeSymbol? valueType)
+    {
+        keyType = null;
+        valueType = null;
+
+        if (type is not INamedTypeSymbol { IsGenericType: true, TypeArguments.Length: 2 } namedType)
+        {
+            return false;
+        }
+
+        var originalDefinition = namedType.ConstructedFrom;
+        if (originalDefinition.ContainingNamespace?.ToDisplayString() != "System.Collections.Generic" ||
+            originalDefinition.MetadataName is not ("Dictionary`2" or "IDictionary`2" or "IReadOnlyDictionary`2"))
+        {
+            return false;
+        }
+
+        keyType = namedType.TypeArguments[0];
+        valueType = namedType.TypeArguments[1];
+        return true;
+    }
+
+    private static bool TryGetKeyValuePairTypes(
+        ITypeSymbol type,
+        out ITypeSymbol? keyType,
+        out ITypeSymbol? valueType)
+    {
+        keyType = null;
+        valueType = null;
+
+        if (type is not INamedTypeSymbol namedType)
+        {
+            return false;
+        }
+
+        var candidates = namedType.TypeKind == TypeKind.Interface
+            ? namedType.AllInterfaces.Add(namedType)
+            : namedType.AllInterfaces;
+
+        foreach (var candidate in candidates)
+        {
+            if (candidate is not { IsGenericType: true, TypeArguments.Length: 1 } ||
+                candidate.ConstructedFrom.SpecialType != SpecialType.System_Collections_Generic_IEnumerable_T ||
+                candidate.TypeArguments[0] is not INamedTypeSymbol { IsGenericType: true, TypeArguments.Length: 2 } pair ||
+                pair.ConstructedFrom.MetadataName != "KeyValuePair`2" ||
+                pair.ConstructedFrom.ContainingNamespace?.ToDisplayString() != "System.Collections.Generic")
+            {
+                continue;
+            }
+
+            keyType = pair.TypeArguments[0];
+            valueType = pair.TypeArguments[1];
+            return true;
+        }
+
+        return false;
+    }
+
     internal static string GetCollectionTargetType(
         ITypeSymbol targetPropertyType)
     {

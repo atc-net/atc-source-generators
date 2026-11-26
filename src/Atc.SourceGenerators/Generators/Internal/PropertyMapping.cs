@@ -14,4 +14,5 @@ internal sealed record PropertyMapping(
     IPropertySymbol? FlattenedNestedProperty,
     bool IsBuiltInTypeConversion,
     bool SourceRequiresUnsafeAccessor,
-    bool TargetRequiresUnsafeAccessor);
+    bool TargetRequiresUnsafeAccessor,
+    bool IsDictionary = false);
