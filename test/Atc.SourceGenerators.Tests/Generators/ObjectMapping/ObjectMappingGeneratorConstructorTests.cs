@@ -360,4 +360,33 @@ public partial class ObjectMappingGeneratorTests
         Assert.Contains("source.Id,", output, StringComparison.Ordinal);
         Assert.Contains("source.Name", output, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void Generator_Should_Not_Emit_Trailing_Comma_When_Constructor_And_Initializer_Are_Mixed()
+    {
+        const string source = """
+                              using Atc.SourceGenerators.Annotations;
+
+                              namespace TestNamespace;
+
+                              public record ProductDto(int Id, string Name)
+                              {
+                                  public string Description { get; init; } = string.Empty;
+                              }
+
+                              [MapTo(typeof(ProductDto))]
+                              public partial class Product
+                              {
+                                  public int Id { get; set; }
+                                  public string Name { get; set; } = string.Empty;
+                                  public string Description { get; set; } = string.Empty;
+                              }
+                              """;
+
+        var (diagnostics, output) = GetGeneratedOutput(source, "CS");
+
+        Assert.Empty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+        Assert.DoesNotContain("source.Name,", output, StringComparison.Ordinal);
+        Assert.Contains("Description = source.Description", output, StringComparison.Ordinal);
+    }
 }

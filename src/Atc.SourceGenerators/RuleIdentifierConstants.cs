@@ -299,6 +299,11 @@ internal static class RuleIdentifierConstants
         /// ATCMCF014: Type could not be resolved (possibly produced by another source generator).
         /// </summary>
         internal const string TypeNotResolved = "ATCMCF014";
+
+        /// <summary>
+        /// ATCMCF015: Property with a matching name is not mapped because the types are not compatible.
+        /// </summary>
+        internal const string PropertyTypesNotCompatible = "ATCMCF015";
     }
 
     /// <summary>

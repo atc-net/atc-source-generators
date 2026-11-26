@@ -1491,7 +1491,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                 {
                     var prop = orderedConstructorProps[i];
                     var isLast = i == orderedConstructorProps.Count - 1;
-                    var comma = isLast && initializerProps.Count == 0 ? string.Empty : ",";
+                    var comma = isLast ? string.Empty : ",";
 
                     var value = GeneratePropertyMappingValue(prop, "source", mapping.SourceType);
                     sb.AppendLineLf($"            {value}{comma}");

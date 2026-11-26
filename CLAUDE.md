@@ -1005,6 +1005,7 @@ PetStatus (API)
 - Four complementary approaches: Mapper Class Pattern (primary), Assembly-Level `[MapTypes]`, Class-Level `[MapTypes]`, and Inline `AddMappings()`/`MappingBuilder.Configure()`
 - Enum auto-detection - automatically generates switch expression mappings when properties have different enum types
 - Property renaming, ignoring, nested mapping, constructor support, collection mapping
+- Dictionary copying - `IReadOnlyDictionary<K, V>` / `IDictionary<K, V>` / `Dictionary<K, V>` with the same key and value types are copied with `ToDictionary(x => x.Key, x => x.Value)`
 - Mixed mode - attribute-based `[MapTo]` and configuration-based mappings coexist (attribute always wins)
 
 **Mapper Class Pattern (Primary):**
@@ -1082,6 +1083,7 @@ When mapping properties with different enum types (e.g., `ContactType` → `Cust
 - `ATCMCF011` - Map() requires exactly two type arguments (Error)
 - `ATCMCF013` - AddMappings() requires a lambda expression argument (Error)
 - `ATCMCF014` - Type could not be resolved, possibly from sibling source generator (Warning)
+- `ATCMCF015` - Property with a matching name is not mapped because the types are not compatible (Warning)
 - `ATCMAP005` - Duplicate mapping: attribute-based [MapTo] takes precedence over configuration (Warning)
 - `ATCMAP006` - Duplicate configuration mapping for same source→target pair (Warning)
 
