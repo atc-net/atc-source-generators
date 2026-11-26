@@ -470,7 +470,7 @@ public partial class MappingConfigurationGeneratorTests
         var (diagnostics, output) = GetGeneratedOutput(source);
 
         Assert.Empty(diagnostics);
-        Assert.Contains(".Select(x => x.MapToItem()).ToList()", output, StringComparison.Ordinal);
+        Assert.Contains(".Select(x => MapToItem(x)).ToList()", output, StringComparison.Ordinal);
     }
 
     [Fact]

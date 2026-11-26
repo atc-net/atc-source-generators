@@ -1825,7 +1825,8 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
             var sb = new StringBuilder();
             var namespaces = new HashSet<string>(StringComparer.Ordinal);
 
-            // Collect namespaces
+            // Collect namespaces (System.Linq for the collection Select/ToList/ToArray calls)
+            namespaces.Add("System.Linq");
             foreach (var mapping in classMappings)
             {
                 namespaces.Add(mapping.SourceType.ContainingNamespace.ToDisplayString());
@@ -1881,7 +1882,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         SourceProductionContext context)
     {
         var sb = new StringBuilder();
-        var namespaces = new HashSet<string>(StringComparer.Ordinal);
+        var namespaces = new HashSet<string>(StringComparer.Ordinal) { "System.Linq" };
 
         foreach (var mapping in mappings)
         {
@@ -2301,8 +2302,10 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
                 // Non-collection nested property type pairs
                 if (prop.IsNested)
                 {
-                    var unwrappedSource = MappingTypeAnalyzer.UnwrapNullable(prop.SourceProperty.Type) as INamedTypeSymbol;
-                    var unwrappedTarget = MappingTypeAnalyzer.UnwrapNullable(prop.TargetProperty.Type) as INamedTypeSymbol;
+                    var unwrappedSource = MappingTypeAnalyzer.UnwrapNullable(prop.SourceProperty.Type)
+                        .WithNullableAnnotation(NullableAnnotation.NotAnnotated) as INamedTypeSymbol;
+                    var unwrappedTarget = MappingTypeAnalyzer.UnwrapNullable(prop.TargetProperty.Type)
+                        .WithNullableAnnotation(NullableAnnotation.NotAnnotated) as INamedTypeSymbol;
 
                     if (unwrappedSource is not null &&
                         unwrappedTarget is not null &&
@@ -2387,22 +2390,29 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
             var elementTypeName = prop.CollectionElementType!.Name;
             var mappingMethodName = $"MapTo{elementTypeName}";
 
+            // Element mappers for nested types are generated into the same class and are called with a
+            // simple name (see the nested-property case below). Enum mappers can come from the enum
+            // mapping generator ([MapTo] on the enum), so they keep extension syntax.
+            var elementMapCall = prop.HasEnumMapping
+                ? $"x.{mappingMethodName}()"
+                : $"{mappingMethodName}(x)";
+
             if (collectionType == "Array")
             {
-                return $"{sourceAccess}?.Select(x => x.{mappingMethodName}()).ToArray()!";
+                return $"{sourceAccess}?.Select(x => {elementMapCall}).ToArray()!";
             }
 
             if (collectionType == "Collection")
             {
-                return $"new global::System.Collections.ObjectModel.Collection<{prop.CollectionElementType.ToDisplayString()}>({sourceAccess}?.Select(x => x.{mappingMethodName}()).ToList()!)";
+                return $"new global::System.Collections.ObjectModel.Collection<{prop.CollectionElementType.ToDisplayString()}>({sourceAccess}?.Select(x => {elementMapCall}).ToList()!)";
             }
 
             if (collectionType == "ReadOnlyCollection")
             {
-                return $"new global::System.Collections.ObjectModel.ReadOnlyCollection<{prop.CollectionElementType.ToDisplayString()}>({sourceAccess}?.Select(x => x.{mappingMethodName}()).ToList()!)";
+                return $"new global::System.Collections.ObjectModel.ReadOnlyCollection<{prop.CollectionElementType.ToDisplayString()}>({sourceAccess}?.Select(x => {elementMapCall}).ToList()!)";
             }
 
-            return $"{sourceAccess}?.Select(x => x.{mappingMethodName}()).ToList()!";
+            return $"{sourceAccess}?.Select(x => {elementMapCall}).ToList()!";
         }
 
         if (prop.RequiresConversion)
@@ -2440,23 +2450,28 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
             var sourceIsNullable = MappingTypeAnalyzer.IsNullableValueType(prop.SourceProperty.Type);
             var targetIsNullable = MappingTypeAnalyzer.IsNullableValueType(prop.TargetProperty.Type);
 
-            if (sourceIsNullable && targetIsNullable)
-            {
-                var varName = $"__{char.ToLowerInvariant(prop.SourceProperty.Name[0])}{prop.SourceProperty.Name.Substring(1)}";
-                return $"{sourceVariable}.{prop.SourceProperty.Name} is {{ }} {varName} ? {varName}.{nestedMethodName}() : null";
-            }
+            var sourceAccess = $"{sourceVariable}.{prop.SourceProperty.Name}";
 
+            // Nested mappers are generated into the same class, so they are called with a simple name
+            // (not extension syntax). That way a public mapper for the same type pair in another
+            // mapping class of the same namespace can't make the call ambiguous (CS0121).
             if (prop.SourceProperty.Type.IsValueType && !sourceIsNullable)
             {
-                return $"{sourceVariable}.{prop.SourceProperty.Name}.{nestedMethodName}()";
+                return $"{nestedMethodName}({sourceAccess})";
             }
 
-            if (prop.TargetProperty.Type.IsValueType && !targetIsNullable)
+            var varName = $"__{char.ToLowerInvariant(prop.SourceProperty.Name[0])}{prop.SourceProperty.Name.Substring(1)}";
+            var whenNull = "null!";
+            if (targetIsNullable)
             {
-                return $"{sourceVariable}.{prop.SourceProperty.Name} is not null ? {sourceVariable}.{prop.SourceProperty.Name}.{nestedMethodName}() : default";
+                whenNull = "null";
+            }
+            else if (prop.TargetProperty.Type.IsValueType)
+            {
+                whenNull = "default";
             }
 
-            return $"{sourceVariable}.{prop.SourceProperty.Name}?.{nestedMethodName}()!";
+            return $"{sourceAccess} is {{ }} {varName} ? {nestedMethodName}({varName}) : {whenNull}";
         }
 
         // T? → T for value types (e.g. Guid? → Guid): fall back to default when null
