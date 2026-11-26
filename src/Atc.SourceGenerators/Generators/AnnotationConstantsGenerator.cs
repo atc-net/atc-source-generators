@@ -153,11 +153,20 @@ public class AnnotationConstantsGenerator : IIncrementalGenerator
             return null;
         }
 
+        // Containing types, outermost first, so nested types are generated as AnnotationConstants.Outer.Inner
+        var containingTypeNames = new List<string>();
+        for (var containingType = typeSymbol.ContainingType; containingType is not null; containingType = containingType.ContainingType)
+        {
+            containingTypeNames.Insert(0, containingType.Name);
+        }
+
         return new TypeAnnotationInfo(
             typeSymbol.Name,
             typeSymbol.ContainingNamespace.ToDisplayString(),
             typeSymbol.ContainingAssembly.Name,
-            [.. annotatedProperties]);
+            [.. annotatedProperties],
+            typeSymbol.ToDisplayString(),
+            [.. containingTypeNames]);
     }
 
     private static PropertyAnnotationInfo? ExtractAllPropertyAnnotations(
@@ -709,11 +718,13 @@ public class AnnotationConstantsGenerator : IIncrementalGenerator
             return;
         }
 
-        // Group types by namespace for generation
+        // A partial type is reported once per declaration, each with all its properties:
+        // keep one per type (record equality doesn't work here, because ImmutableArray compares by reference)
         var distinctTypes = types
             .Where(t => t is not null)
             .Cast<TypeAnnotationInfo>()
-            .Distinct()
+            .GroupBy(t => t.FullName, StringComparer.Ordinal)
+            .Select(g => g.First())
             .ToList();
 
         foreach (var typeInfo in distinctTypes)
@@ -741,12 +752,64 @@ public class AnnotationConstantsGenerator : IIncrementalGenerator
         sb.AppendLineLf("public static partial class AnnotationConstants");
         sb.AppendLineLf("{");
 
-        GenerateTypeConstants(sb, typeInfo);
+        if (typeInfo.ContainingTypeNames.IsDefaultOrEmpty)
+        {
+            GenerateTypeConstants(sb, typeInfo);
+        }
+        else
+        {
+            // Nested type: mirror the containing types (AnnotationConstants.Outer.Inner),
+            // so nested types with the same name in different containers don't collide
+            var typeSb = new StringBuilder();
+            GenerateTypeConstants(typeSb, typeInfo);
+
+            var depth = typeInfo.ContainingTypeNames.Length;
+            for (var i = 0; i < depth; i++)
+            {
+                var indent = new string(' ', 4 * (i + 1));
+                sb.AppendLineLf($"{indent}public static partial class {typeInfo.ContainingTypeNames[i]}");
+                sb.AppendLineLf($"{indent}{{");
+            }
+
+            var extraIndent = new string(' ', 4 * depth);
+            foreach (var line in typeSb.ToString().TrimEnd('\n').Split('\n'))
+            {
+                if (line.Length == 0)
+                {
+                    sb.AppendLineLf();
+                    continue;
+                }
+
+                sb.AppendLineLf($"{extraIndent}{line}");
+            }
+
+            for (var i = depth - 1; i >= 0; i--)
+            {
+                sb.AppendLineLf($"{new string(' ', 4 * (i + 1))}}}");
+            }
+        }
 
         sb.AppendLineLf("}");
 
-        var fileName = $"AnnotationConstants.{typeInfo.Namespace}.{typeInfo.TypeName}.g.cs";
+        var fileName = $"AnnotationConstants.{ToHintNamePart(typeInfo.FullName)}.g.cs";
         context.AddSource(fileName, SourceText.From(sb.ToString(), Encoding.UTF8));
+    }
+
+    /// <summary>
+    /// Replaces characters that are not allowed in a generated file (hint) name, e.g. '&lt;' in generic type names.
+    /// </summary>
+    private static string ToHintNamePart(string value)
+    {
+        var chars = value.ToCharArray();
+        for (var i = 0; i < chars.Length; i++)
+        {
+            if (!char.IsLetterOrDigit(chars[i]) && chars[i] != '.' && chars[i] != '_')
+            {
+                chars[i] = '_';
+            }
+        }
+
+        return new string(chars);
     }
 
     private static void GenerateTypeConstants(
