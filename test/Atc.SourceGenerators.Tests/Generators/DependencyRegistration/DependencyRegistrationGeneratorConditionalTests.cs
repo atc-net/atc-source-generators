@@ -174,4 +174,28 @@ public partial class DependencyRegistrationGeneratorTests
         Assert.Contains("if (configuration.GetValue<bool>(\"Features:UseScoped\"))", output, StringComparison.Ordinal);
         Assert.Contains("services.AddScoped<TestNamespace.ICache, TestNamespace.ScopedCache>()", output, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void Generator_Should_Escape_Condition_Key()
+    {
+        const string source = """
+                              using Atc.DependencyInjection;
+
+                              namespace TestNamespace;
+
+                              public interface ICache
+                              {
+                              }
+
+                              [Registration(As = typeof(ICache), Condition = "Features:\"Redis\"")]
+                              public class RedisCache : ICache
+                              {
+                              }
+                              """;
+
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        Assert.Empty(diagnostics);
+        Assert.Contains("if (configuration.GetValue<bool>(\"Features:\\\"Redis\\\"\"))", output, StringComparison.Ordinal);
+    }
 }

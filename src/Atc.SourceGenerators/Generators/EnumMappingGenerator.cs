@@ -304,7 +304,7 @@ public class EnumMappingGenerator : IIncrementalGenerator
             if (valueMapping.IsMapped &&
                 valueMapping.TargetValue is not null)
             {
-                sb.AppendLineLf($"            {mapping.SourceEnum.ToGlobalDisplayString()}.{valueMapping.SourceValue} => {mapping.TargetEnum.ToGlobalDisplayString()}.{valueMapping.TargetValue},");
+                sb.AppendLineLf($"            {mapping.SourceEnum.ToGlobalDisplayString()}.{CSharpIdentifier.Escape(valueMapping.SourceValue)} => {mapping.TargetEnum.ToGlobalDisplayString()}.{CSharpIdentifier.Escape(valueMapping.TargetValue)},");
             }
         }
 

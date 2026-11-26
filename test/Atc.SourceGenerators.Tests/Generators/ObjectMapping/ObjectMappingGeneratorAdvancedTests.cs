@@ -481,4 +481,42 @@ public partial class ObjectMappingGeneratorTests
         Assert.Contains("MapToSquare()", output, StringComparison.Ordinal);
         Assert.Contains("MapToTriangle()", output, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void Generator_Should_Generate_Polymorphic_Mapping_For_Derived_Types_Named_Like_Keywords()
+    {
+        // The switch arm variable is derived from the type name: "Event" must not become the keyword "event"
+        const string source = """
+            using Atc.SourceGenerators.Annotations;
+
+            namespace TestNamespace;
+
+            [MapTo(typeof(EventDto))]
+            public partial class Event : Message
+            {
+                public string Name { get; set; } = string.Empty;
+            }
+
+            [MapTo(typeof(OperatorDto))]
+            public partial class Operator : Message
+            {
+                public int Level { get; set; }
+            }
+
+            [MapTo(typeof(MessageDto))]
+            [MapDerivedType(typeof(Event), typeof(EventDto))]
+            [MapDerivedType(typeof(Operator), typeof(OperatorDto))]
+            public abstract partial class Message { }
+
+            public abstract class MessageDto { }
+            public class EventDto : MessageDto { public string Name { get; set; } = string.Empty; }
+            public class OperatorDto : MessageDto { public int Level { get; set; } }
+            """;
+
+        var (diagnostics, output) = GetGeneratedOutput(source, "CS");
+
+        Assert.Empty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+        Assert.Contains("@event => @event.MapToEventDto()", output, StringComparison.Ordinal);
+        Assert.Contains("@operator => @operator.MapToOperatorDto()", output, StringComparison.Ordinal);
+    }
 }

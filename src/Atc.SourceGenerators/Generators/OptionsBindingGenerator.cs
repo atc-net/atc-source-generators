@@ -1230,11 +1230,11 @@ public static class OptionsBindingExtensions{{methodSuffix}}
             sb.AppendLineLf($"        // Configure {option.ClassName} (Named: \"{option.Name}\") - Inject using IOptionsSnapshot<T>.Get(\"{option.Name}\")");
             sb.Append("        services.Configure<");
             sb.Append(optionsType);
-            sb.Append(">(\"");
-            sb.Append(option.Name);
-            sb.Append("\", configuration.GetSection(\"");
-            sb.Append(sectionName);
-            sb.AppendLineLf("\"));");
+            sb.Append(">(");
+            sb.Append(CSharpLiteral.FromString(option.Name!));
+            sb.Append(", configuration.GetSection(");
+            sb.Append(CSharpLiteral.FromString(sectionName));
+            sb.AppendLineLf("));");
         }
         else
         {
@@ -1248,15 +1248,13 @@ public static class OptionsBindingExtensions{{methodSuffix}}
             sb.Append(">(");
             if (isNamed)
             {
-                sb.Append('"');
-                sb.Append(option.Name);
-                sb.Append('"');
+                sb.Append(CSharpLiteral.FromString(option.Name!));
             }
 
             sb.AppendLineLf(")");
-            sb.Append("            .Bind(configuration.GetSection(\"");
-            sb.Append(sectionName);
-            sb.Append("\"))");
+            sb.Append("            .Bind(configuration.GetSection(");
+            sb.Append(CSharpLiteral.FromString(sectionName));
+            sb.Append("))");
 
             if (option.ValidateDataAnnotations)
             {
@@ -1269,11 +1267,11 @@ public static class OptionsBindingExtensions{{methodSuffix}}
                 sb.AppendLineLf();
                 sb.AppendLineLf("            .Validate(options =>");
                 sb.AppendLineLf("            {");
-                sb.AppendLineLf($"                var section = configuration.GetSection(\"{sectionName}\");");
+                sb.AppendLineLf($"                var section = configuration.GetSection({CSharpLiteral.FromString(sectionName)});");
                 sb.AppendLineLf("                if (!section.Exists())");
                 sb.AppendLineLf("                {");
                 sb.AppendLineLf("                    throw new global::System.InvalidOperationException(");
-                sb.AppendLineLf($"                        \"Configuration section '{sectionName}' is missing. \" +");
+                sb.AppendLineLf($"                        {CSharpLiteral.FromString($"Configuration section '{sectionName}' is missing. ")} +");
                 sb.AppendLineLf("                        \"Ensure the section exists in your appsettings.json or other configuration sources.\");");
                 sb.AppendLineLf("                }");
                 sb.AppendLineLf();
@@ -1466,9 +1464,9 @@ public static class OptionsBindingExtensions{{methodSuffix}}
         sb.Append("        var options = new ");
         sb.Append(optionsType);
         sb.AppendLineLf("();");
-        sb.Append("        var section = configuration.GetSection(\"");
-        sb.Append(sectionName);
-        sb.AppendLineLf("\");");
+        sb.Append("        var section = configuration.GetSection(");
+        sb.Append(CSharpLiteral.FromString(sectionName));
+        sb.AppendLineLf(");");
         sb.AppendLineLf("        section.Bind(options);");
         sb.AppendLineLf();
 
@@ -1479,9 +1477,9 @@ public static class OptionsBindingExtensions{{methodSuffix}}
             sb.AppendLineLf("        if (!section.Exists())");
             sb.AppendLineLf("        {");
             sb.AppendLineLf("            throw new global::System.InvalidOperationException(");
-            sb.Append("                \"Configuration section '");
-            sb.Append(sectionName);
-            sb.AppendLineLf("' is missing. \" +");
+            sb.Append("                ");
+            sb.Append(CSharpLiteral.FromString($"Configuration section '{sectionName}' is missing. "));
+            sb.AppendLineLf(" +");
             sb.AppendLineLf("                \"Ensure the section exists in your appsettings.json or other configuration sources.\");");
             sb.AppendLineLf("        }");
             sb.AppendLineLf();
@@ -1569,9 +1567,9 @@ public static class OptionsBindingExtensions{{methodSuffix}}
         sb.Append("        var options = new ");
         sb.Append(optionsType);
         sb.AppendLineLf("();");
-        sb.Append("        var section = configuration.GetSection(\"");
-        sb.Append(sectionName);
-        sb.AppendLineLf("\");");
+        sb.Append("        var section = configuration.GetSection(");
+        sb.Append(CSharpLiteral.FromString(sectionName));
+        sb.AppendLineLf(");");
         sb.AppendLineLf("        section.Bind(options);");
         sb.AppendLineLf();
 
@@ -1582,9 +1580,9 @@ public static class OptionsBindingExtensions{{methodSuffix}}
             sb.AppendLineLf("        if (!section.Exists())");
             sb.AppendLineLf("        {");
             sb.AppendLineLf("            throw new global::System.InvalidOperationException(");
-            sb.Append("                \"Configuration section '");
-            sb.Append(sectionName);
-            sb.AppendLineLf("' is missing. \" +");
+            sb.Append("                ");
+            sb.Append(CSharpLiteral.FromString($"Configuration section '{sectionName}' is missing. "));
+            sb.AppendLineLf(" +");
             sb.AppendLineLf("                \"Ensure the section exists in your appsettings.json or other configuration sources.\");");
             sb.AppendLineLf("        }");
             sb.AppendLineLf();

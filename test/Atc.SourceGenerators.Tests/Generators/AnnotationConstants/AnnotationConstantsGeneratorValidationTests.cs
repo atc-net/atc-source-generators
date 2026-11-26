@@ -504,4 +504,37 @@ public partial class AnnotationConstantsGeneratorTests
         Assert.Contains("public const int MaximumLength = 100;", output, StringComparison.Ordinal);
         Assert.Contains("public const int MinimumLength = 1;", output, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void Generator_Should_Format_Double_Range_Values_With_Invariant_Culture()
+    {
+        const string source = """
+                              using System.ComponentModel.DataAnnotations;
+
+                              namespace TestNamespace;
+
+                              public class Product
+                              {
+                                  [Range(0.5, 9.5)]
+                                  public double Weight { get; set; }
+                              }
+                              """;
+
+        // A culture with ',' as decimal separator must not leak into the generated constants
+        var originalCulture = CultureInfo.CurrentCulture;
+        try
+        {
+            CultureInfo.CurrentCulture = new CultureInfo("da-DK");
+
+            var (diagnostics, output) = GetGeneratedOutput(source);
+
+            Assert.Empty(diagnostics);
+            Assert.Contains("public const string Minimum = \"0.5\";", output, StringComparison.Ordinal);
+            Assert.Contains("public const string Maximum = \"9.5\";", output, StringComparison.Ordinal);
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = originalCulture;
+        }
+    }
 }

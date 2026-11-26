@@ -6,7 +6,7 @@ internal sealed record ServiceRegistrationInfo(
     ImmutableArray<ITypeSymbol> AsTypes,
     bool AsSelf,
     bool IsHostedService,
-    object? Key,
+    string? Key,
     string? FactoryMethodName,
     bool TryAdd,
     bool Decorator,

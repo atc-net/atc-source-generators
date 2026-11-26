@@ -1783,7 +1783,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         {
             var sourceDerivedTypeName = derivedMapping.SourceDerivedType.ToGlobalDisplayString();
             var targetDerivedTypeName = derivedMapping.TargetDerivedType.Name;
-            var variableName = char.ToLowerInvariant(derivedMapping.SourceDerivedType.Name[0]) + derivedMapping.SourceDerivedType.Name.Substring(1);
+            var variableName = CSharpIdentifier.Escape(char.ToLowerInvariant(derivedMapping.SourceDerivedType.Name[0]) + derivedMapping.SourceDerivedType.Name.Substring(1));
 
             sb.AppendLineLf($"            {sourceDerivedTypeName} {variableName} => {variableName}.MapTo{targetDerivedTypeName}(),");
         }
