@@ -110,4 +110,33 @@ public partial class EnumMappingGeneratorTests
         Assert.Contains("global::DataAccess.Entities.StatusEntity.Active => global::Domain.Models.Status.Active,", output, StringComparison.Ordinal);
         Assert.Contains("global::DataAccess.Entities.StatusEntity.Inactive => global::Domain.Models.Status.Inactive,", output, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void Generator_Should_Escape_Enum_Members_Named_Like_Keywords()
+    {
+        const string source = """
+                              using Atc.SourceGenerators.Annotations;
+
+                              namespace TestNamespace;
+
+                              public enum TargetKind
+                              {
+                                  @class,
+                                  @event,
+                              }
+
+                              [MapTo(typeof(TargetKind))]
+                              public enum SourceKind
+                              {
+                                  @class,
+                                  @event,
+                              }
+                              """;
+
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        Assert.Empty(diagnostics);
+        Assert.Contains("global::TestNamespace.SourceKind.@class => global::TestNamespace.TargetKind.@class,", output, StringComparison.Ordinal);
+        Assert.Contains("global::TestNamespace.SourceKind.@event => global::TestNamespace.TargetKind.@event,", output, StringComparison.Ordinal);
+    }
 }

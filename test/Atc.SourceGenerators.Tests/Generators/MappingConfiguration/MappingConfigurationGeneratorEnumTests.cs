@@ -146,4 +146,40 @@ public partial class MappingConfigurationGeneratorTests
         // Should map None → Unknown via special case detection
         Assert.Contains("global::ExternalLib.ExternalStatus.None => global::MyApp.InternalStatus.Unknown", output, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void Config_Should_Escape_AutoDetected_Enum_Members_Named_Like_Keywords()
+    {
+        const string source = """
+                              using Atc.SourceGenerators.Annotations;
+
+                              namespace TestNamespace
+                              {
+                                  public enum TargetKind { @class, @event }
+
+                                  public enum SourceKind { @class, @event }
+
+                                  public class Source
+                                  {
+                                      public SourceKind Kind { get; set; }
+                                  }
+
+                                  public class Target
+                                  {
+                                      public TargetKind Kind { get; set; }
+                                  }
+
+                                  [MappingConfiguration]
+                                  public static partial class Mappings
+                                  {
+                                      public static partial Target MapToTarget(this Source source);
+                                  }
+                              }
+                              """;
+
+        var (diagnostics, output) = GetGeneratedOutput(source, "CS");
+
+        Assert.Empty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+        Assert.Contains("SourceKind.@class => global::TestNamespace.TargetKind.@class,", output, StringComparison.Ordinal);
+    }
 }

@@ -637,6 +637,15 @@ public class AnnotationConstantsGenerator : IIncrementalGenerator
             Prompt: GetNamedArg<string>(attribute, "Prompt"),
             Order: GetNamedArg<int?>(attribute, "Order"));
 
+    /// <summary>
+    /// Formats an attribute value with the invariant culture, so the generated constants don't depend on the
+    /// culture of the machine that builds the code (e.g. 0.5 must not become "0,5").
+    /// </summary>
+    private static string? FormatInvariant(object? value)
+        => value is IFormattable formattable
+            ? formattable.ToString(null, CultureInfo.InvariantCulture)
+            : value?.ToString();
+
     private static void ExtractRangeAttribute(
         AttributeData attribute,
         ValidationAnnotationBuilder validation)
@@ -649,17 +658,17 @@ public class AnnotationConstantsGenerator : IIncrementalGenerator
             if (args[0].Value is INamedTypeSymbol typeSymbol)
             {
                 validation.RangeOperandType = typeSymbol.ToDisplayString();
-                validation.RangeMinimum = args[1].Value?.ToString();
+                validation.RangeMinimum = FormatInvariant(args[1].Value);
                 if (args.Length > 2)
                 {
-                    validation.RangeMaximum = args[2].Value?.ToString();
+                    validation.RangeMaximum = FormatInvariant(args[2].Value);
                 }
             }
             else
             {
                 // Range(int, int) or Range(double, double) overloads
-                validation.RangeMinimum = args[0].Value?.ToString();
-                validation.RangeMaximum = args[1].Value?.ToString();
+                validation.RangeMinimum = FormatInvariant(args[0].Value);
+                validation.RangeMaximum = FormatInvariant(args[1].Value);
 
                 // Infer operand type from the argument type
                 if (args[0].Type is { } argType)

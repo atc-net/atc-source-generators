@@ -306,4 +306,49 @@ public partial class OptionsBindingGeneratorTests
         var validateDataAnnotationsCount = Regex.Count(generatedCode, "ValidateDataAnnotations");
         Assert.Equal(1, validateDataAnnotationsCount);
     }
+
+    [Fact]
+    public void Generator_Should_Escape_Section_Name_And_Options_Name()
+    {
+        // Arrange
+        const string source = """
+                              using Atc.SourceGenerators.Annotations;
+
+                              namespace MyApp.Configuration;
+
+                              [OptionsBinding("App\"Settings\\Email", Name = "Pri\"mary", ValidateDataAnnotations = true, ErrorOnMissingKeys = true)]
+                              public partial class EmailOptions
+                              {
+                                  public string SmtpServer { get; set; } = string.Empty;
+                              }
+
+                              [OptionsBinding("Plain\"Section")]
+                              public partial class PlainOptions
+                              {
+                                  public string Value { get; set; } = string.Empty;
+                              }
+                              """;
+
+        // Act
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        // Assert
+        Assert.Empty(diagnostics);
+
+        var generatedCode = GetGeneratedExtensionMethod(output);
+        Assert.NotNull(generatedCode);
+
+        Assert.Contains("services.AddOptions<global::MyApp.Configuration.EmailOptions>(\"Pri\\\"mary\")", generatedCode, StringComparison.Ordinal);
+        Assert.Contains(".Bind(configuration.GetSection(\"App\\\"Settings\\\\Email\"))", generatedCode, StringComparison.Ordinal);
+        Assert.Contains("var section = configuration.GetSection(\"App\\\"Settings\\\\Email\");", generatedCode, StringComparison.Ordinal);
+        Assert.Contains("\"Configuration section 'App\\\"Settings\\\\Email' is missing. \" +", generatedCode, StringComparison.Ordinal);
+        Assert.Contains(".Bind(configuration.GetSection(\"Plain\\\"Section\"))", generatedCode, StringComparison.Ordinal);
+
+        // The generated code must parse
+        Assert.DoesNotContain(
+            CSharpSyntaxTree
+                .ParseText(generatedCode, cancellationToken: TestContext.Current.CancellationToken)
+                .GetDiagnostics(TestContext.Current.CancellationToken),
+            d => d.Severity == DiagnosticSeverity.Error);
+    }
 }

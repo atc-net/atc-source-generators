@@ -208,7 +208,7 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
         var lifetime = ServiceLifetime.Singleton; // default
         ITypeSymbol? explicitAsType = null;
         var asSelf = false;
-        object? key = null;
+        string? key = null;
         string? factoryMethodName = null;
         var tryAdd = false;
         var decorator = false;
@@ -241,7 +241,8 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
 
                     break;
                 case "Key":
-                    key = namedArg.Value.Value;
+                    // Keep the key as a C# expression with its exact type (escaped string, enum member, typed literal)
+                    key = namedArg.Value.IsNull ? null : CSharpLiteral.FromTypedConstant(namedArg.Value);
                     break;
                 case "Factory":
                     factoryMethodName = namedArg.Value.Value as string;
@@ -1392,7 +1393,7 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
             var isGeneric = service.ClassSymbol.IsGenericType;
             var implementationType = service.ClassSymbol.ToDisplayString();
             var hasKey = service.Key is not null;
-            var keyString = FormatKeyValue(service.Key);
+            var keyString = service.Key ?? "null";
 
             var hasFactory = !string.IsNullOrEmpty(service.FactoryMethodName);
             var hasInstance = !string.IsNullOrEmpty(service.InstanceMemberName);
@@ -1418,8 +1419,8 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
                 var isNegated = condition.StartsWith("!", StringComparison.Ordinal);
                 var configKey = isNegated ? condition.Substring(1) : condition;
                 var conditionCheck = isNegated
-                    ? $"!configuration.GetValue<bool>(\"{configKey}\")"
-                    : $"configuration.GetValue<bool>(\"{configKey}\")";
+                    ? $"!configuration.GetValue<bool>({CSharpLiteral.FromString(configKey)})"
+                    : $"configuration.GetValue<bool>({CSharpLiteral.FromString(configKey)})";
 
                 sb.AppendLineLf();
                 sb.AppendLineLf($"{baseIndent}// Conditional registration for {service.ClassSymbol.Name}");
@@ -1663,8 +1664,8 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
                 var isNegated = condition.StartsWith("!", StringComparison.Ordinal);
                 var configKey = isNegated ? condition.Substring(1) : condition;
                 var conditionCheck = isNegated
-                    ? $"!configuration.GetValue<bool>(\"{configKey}\")"
-                    : $"configuration.GetValue<bool>(\"{configKey}\")";
+                    ? $"!configuration.GetValue<bool>({CSharpLiteral.FromString(configKey)})"
+                    : $"configuration.GetValue<bool>({CSharpLiteral.FromString(configKey)})";
 
                 sb.AppendLineLf();
                 sb.AppendLineLf($"{baseIndent}// Conditional registration for decorator {decorator.ClassSymbol.Name}");
@@ -1814,19 +1815,6 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
 
         return false;
     }
-
-    /// <summary>
-    /// Formats a key value for code generation.
-    /// String keys are wrapped in quotes, type keys use typeof() syntax.
-    /// </summary>
-    private static string FormatKeyValue(object? key)
-        => key switch
-        {
-            null => "null",
-            string stringKey => $"\"{stringKey}\"",
-            ITypeSymbol typeKey => $"typeof({typeKey.ToDisplayString()})",
-            _ => key.ToString() ?? "null",
-        };
 
     /// <summary>
     /// Gets the open generic type name for a generic type symbol.

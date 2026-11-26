@@ -186,4 +186,113 @@ public partial class DependencyRegistrationGeneratorTests
         Assert.Contains("services.AddKeyedScoped<TestNamespace.IPaymentProcessor, TestNamespace.StripePaymentProcessor>(\"Stripe\")", output, StringComparison.Ordinal);
         Assert.Contains("services.AddScoped<TestNamespace.IUserService, TestNamespace.UserService>()", output, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void Generator_Should_Escape_String_Key()
+    {
+        const string source = """
+                              using Atc.DependencyInjection;
+
+                              namespace TestNamespace;
+
+                              public interface IPaymentProcessor
+                              {
+                              }
+
+                              [Registration(Lifetime.Scoped, As = typeof(IPaymentProcessor), Key = "Pay\"Pal\\EU")]
+                              public class PayPalProcessor : IPaymentProcessor
+                              {
+                              }
+                              """;
+
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        Assert.Empty(diagnostics);
+        Assert.Contains("services.AddKeyedScoped<TestNamespace.IPaymentProcessor, TestNamespace.PayPalProcessor>(\"Pay\\\"Pal\\\\EU\")", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generator_Should_Emit_Bool_And_Numeric_Keys_As_Invariant_Literals()
+    {
+        const string source = """
+                              using Atc.DependencyInjection;
+
+                              namespace TestNamespace;
+
+                              public interface IA
+                              {
+                              }
+
+                              public interface IB
+                              {
+                              }
+
+                              public interface IC
+                              {
+                              }
+
+                              [Registration(As = typeof(IA), Key = true)]
+                              public class BoolKeyed : IA
+                              {
+                              }
+
+                              [Registration(As = typeof(IB), Key = 1.5)]
+                              public class DoubleKeyed : IB
+                              {
+                              }
+
+                              [Registration(As = typeof(IC), Key = 42L)]
+                              public class LongKeyed : IC
+                              {
+                              }
+                              """;
+
+        // A culture with ',' as decimal separator must not leak into the generated code
+        var originalCulture = CultureInfo.CurrentCulture;
+        try
+        {
+            CultureInfo.CurrentCulture = new CultureInfo("da-DK");
+
+            var (diagnostics, output) = GetGeneratedOutput(source);
+
+            Assert.Empty(diagnostics);
+            Assert.Contains("services.AddKeyedSingleton<TestNamespace.IA, TestNamespace.BoolKeyed>(true)", output, StringComparison.Ordinal);
+            Assert.Contains("services.AddKeyedSingleton<TestNamespace.IB, TestNamespace.DoubleKeyed>(1.5D)", output, StringComparison.Ordinal);
+            Assert.Contains("services.AddKeyedSingleton<TestNamespace.IC, TestNamespace.LongKeyed>(42L)", output, StringComparison.Ordinal);
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = originalCulture;
+        }
+    }
+
+    [Fact]
+    public void Generator_Should_Emit_Enum_Key_With_Its_Enum_Type()
+    {
+        const string source = """
+                              using Atc.DependencyInjection;
+
+                              namespace TestNamespace;
+
+                              public enum PaymentKind
+                              {
+                                  Card,
+                                  Invoice,
+                              }
+
+                              public interface IPaymentProcessor
+                              {
+                              }
+
+                              [Registration(As = typeof(IPaymentProcessor), Key = PaymentKind.Invoice)]
+                              public class InvoiceProcessor : IPaymentProcessor
+                              {
+                              }
+                              """;
+
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        Assert.Empty(diagnostics);
+        Assert.Contains("services.AddKeyedSingleton<TestNamespace.IPaymentProcessor, TestNamespace.InvoiceProcessor>(global::TestNamespace.PaymentKind.Invoice)", output, StringComparison.Ordinal);
+    }
 }
