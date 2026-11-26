@@ -1235,7 +1235,10 @@ public class ObjectMappingGenerator : IIncrementalGenerator
     private static string GenerateMappingExtensions(List<MappingInfo> mappings)
     {
         var sb = new StringBuilder();
-        var namespaces = new HashSet<string>(StringComparer.Ordinal);
+
+        // System.Linq for the collection and dictionary Select/ToList/ToArray/ToDictionary calls,
+        // so the generated code also compiles in projects without implicit usings
+        var namespaces = new HashSet<string>(StringComparer.Ordinal) { "System.Linq" };
 
         // Collect all namespaces (skip global/empty namespaces)
         foreach (var mapping in mappings)
