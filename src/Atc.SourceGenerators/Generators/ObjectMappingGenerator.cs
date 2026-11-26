@@ -568,9 +568,8 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                     continue;
                 }
 
-                // Skip if the property type is from System namespace (e.g., string, DateTime)
-                var typeStr = namedType.SpecialType.ToString();
-                if (typeStr.StartsWith("System", StringComparison.Ordinal))
+                // Skip BCL types (string, DateTime, Guid, DateTimeOffset, List<T>, ...)
+                if (MappingTypeAnalyzer.IsSystemType(namedType))
                 {
                     continue;
                 }
@@ -1938,10 +1937,15 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                                    (!prop.FlattenedNestedProperty.Type.IsValueType &&
                                     prop.FlattenedNestedProperty.Type.NullableAnnotation != NullableAnnotation.NotAnnotated);
 
-            var accessOperator = isIntermediateNullable ? "?." : ".";
-            var nullForgiving = isIntermediateNullable || isNestedNullable ? "!" : string.Empty;
+            if (isIntermediateNullable)
+            {
+                // source.Address?.ZipCode is int? for an int member: coalesce for an int target (not '!')
+                var suffix = MappingTypeAnalyzer.GetNullConditionalSuffix(prop.FlattenedNestedProperty.Type, prop.TargetProperty.Type);
+                return $"{sourceVariable}.{prop.SourceProperty.Name}?.{prop.FlattenedNestedProperty.Name}{suffix}";
+            }
 
-            return $"{sourceVariable}.{prop.SourceProperty.Name}{accessOperator}{prop.FlattenedNestedProperty.Name}{nullForgiving}";
+            var nullForgiving = isNestedNullable ? "!" : string.Empty;
+            return $"{sourceVariable}.{prop.SourceProperty.Name}.{prop.FlattenedNestedProperty.Name}{nullForgiving}";
         }
 
         if (prop.IsBuiltInTypeConversion)
