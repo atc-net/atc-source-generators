@@ -185,14 +185,45 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
             .Where(static m => m is not null)
             .Collect();
 
+        // [MapTo] (source, target) pairs, used to report config mappings that duplicate an attribute mapping.
+        // Plain string pairs are equatable, so Roslyn can cache them per file instead of the generator
+        // walking every syntax tree of the compilation.
+        var attributeMappedPairs = context.SyntaxProvider
+            .ForAttributeWithMetadataName(
+                $"{AttributeNamespace}.MapToAttribute",
+                predicate: static (s, _) => s is TypeDeclarationSyntax,
+                transform: static (ctx, _) => GetAttributeMappedPairs(ctx))
+            .WithTrackingName("MappingConfiguration.AttributeMappedPairs")
+            .SelectMany(static (pairs, _) => pairs)
+            .Collect();
+
         // Combine with compilation
         var compilationAndClasses = context.CompilationProvider
             .Combine(classDeclarations)
-            .Combine(inlineInvocations);
+            .Combine(inlineInvocations)
+            .Combine(attributeMappedPairs);
 
         // Generate source
         context.RegisterSourceOutput(compilationAndClasses, static (spc, source) =>
-            Execute(source.Left.Left, source.Left.Right!, source.Right!, spc));
+            Execute(source.Left.Left.Left, source.Left.Left.Right!, source.Left.Right!, source.Right, spc));
+    }
+
+    private static EquatableArray<(string Source, string Target)> GetAttributeMappedPairs(
+        GeneratorAttributeSyntaxContext context)
+    {
+        var sourceName = context.TargetSymbol.ToDisplayString();
+        var builder = new List<(string Source, string Target)>();
+
+        foreach (var attribute in context.Attributes)
+        {
+            if (attribute.ConstructorArguments.Length > 0 &&
+                attribute.ConstructorArguments[0].Value is INamedTypeSymbol targetType)
+            {
+                builder.Add((sourceName, targetType.ToDisplayString()));
+            }
+        }
+
+        return new EquatableArray<(string Source, string Target)>(builder);
     }
 
     private static bool IsSyntaxTargetForGeneration(SyntaxNode node)
@@ -296,6 +327,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         Compilation compilation,
         ImmutableArray<ClassDeclarationSyntax> classes,
         ImmutableArray<InvocationExpressionSyntax> inlineInvocations,
+        ImmutableArray<(string Source, string Target)> attributeMappedPairs,
         SourceProductionContext context)
     {
         var configuredMappings = new List<ConfiguredMappingInfo>();
@@ -382,7 +414,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         }
 
         // Check for duplicates with attribute-based mappings
-        DetectDuplicatesWithAttributeMappings(compilation, configuredMappings, context);
+        DetectDuplicatesWithAttributeMappings(attributeMappedPairs, configuredMappings, context);
 
         // Deduplicate within config-based mappings
         DeduplicateConfigMappings(configuredMappings, context);
@@ -1800,43 +1832,14 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
     }
 
     private static void DetectDuplicatesWithAttributeMappings(
-        Compilation compilation,
+        ImmutableArray<(string Source, string Target)> attributeMappedPairs,
         List<ConfiguredMappingInfo> configuredMappings,
         SourceProductionContext context)
     {
-        // Scan for all types with [MapTo] attribute in the compilation
+        // [MapTo] (source, target) pairs of the compilation, collected by the incremental pipeline
         var attributeMappedTypes = new HashSet<(string Source, string Target)>(
+            attributeMappedPairs,
             new TypePairComparer());
-
-        foreach (var syntaxTree in compilation.SyntaxTrees)
-        {
-            var semanticModel = compilation.GetSemanticModel(syntaxTree);
-            var root = syntaxTree.GetRoot(context.CancellationToken);
-
-            foreach (var typeDecl in root.DescendantNodes().OfType<TypeDeclarationSyntax>())
-            {
-                if (semanticModel.GetDeclaredSymbol(typeDecl, context.CancellationToken) is not INamedTypeSymbol typeSymbol)
-                {
-                    continue;
-                }
-
-                foreach (var attr in typeSymbol.GetAttributes())
-                {
-                    if (!MappingTypeAnalyzer.IsAttributeMatch(attr.AttributeClass, "MapToAttribute"))
-                    {
-                        continue;
-                    }
-
-                    if (attr.ConstructorArguments.Length > 0 &&
-                        attr.ConstructorArguments[0].Value is INamedTypeSymbol targetType)
-                    {
-                        attributeMappedTypes.Add((
-                            typeSymbol.ToDisplayString(),
-                            targetType.ToDisplayString()));
-                    }
-                }
-            }
-        }
 
         // Check config mappings against attribute mappings
         foreach (var mapping in configuredMappings)
