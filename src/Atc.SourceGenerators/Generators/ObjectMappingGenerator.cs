@@ -50,7 +50,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
     private static readonly DiagnosticDescriptor CollectionElementMappingNotFoundDescriptor = new(
         id: RuleIdentifierConstants.ObjectMapping.CollectionElementMappingNotFound,
         title: "Collection element type has no mapping method",
-        messageFormat: "Property '{0}' is a collection of '{1}' but element type has no [MapTo] attribute targeting '{2}'. The property will be skipped.",
+        messageFormat: "Property '{0}' contains elements of type '{1}' (collection items or dictionary values) but that type has no [MapTo] attribute targeting '{2}'. The property will be skipped.",
         category: RuleCategoryConstants.ObjectMapping,
         DiagnosticSeverity.Warning,
         isEnabledByDefault: true);
@@ -417,7 +417,46 @@ public class ObjectMappingGenerator : IIncrementalGenerator
             {
                 // Check if types are different but might be mappable (nested objects, enums, or collections)
                 targetProp = targetProperties.FirstOrDefault(t => string.Equals(t.Name, targetPropertyName, StringComparison.OrdinalIgnoreCase));
-                if (targetProp is not null)
+                if (targetProp is not null &&
+                    MappingTypeAnalyzer.TryGetDictionaryMapping(sourceProp.Type, targetProp.Type, out var sourceValueType, out var targetValueType))
+                {
+                    // Dictionary with the same key type: copied with ToDictionary, converting each value
+                    if (MappingTypeAnalyzer.AreDictionaryValuesDirectlyConvertible(sourceValueType!, targetValueType!) ||
+                        HasObjectMappingToType(sourceValueType!, targetValueType!))
+                    {
+                        var hasDictionaryEnumMapping = MappingTypeAnalyzer.IsDictionaryValueEnumConversion(sourceValueType!, targetValueType!) &&
+                                                       HasEnumMappingAttribute(sourceValueType!, targetValueType!);
+
+                        mappings.Add(new PropertyMapping(
+                            SourceProperty: sourceProp,
+                            TargetProperty: targetProp,
+                            RequiresConversion: false,
+                            IsNested: false,
+                            HasEnumMapping: hasDictionaryEnumMapping,
+                            IsCollection: false,
+                            CollectionElementType: targetValueType,
+                            SourceCollectionElementType: sourceValueType,
+                            CollectionTargetType: null,
+                            IsFlattened: false,
+                            FlattenedNestedProperty: null,
+                            IsBuiltInTypeConversion: false,
+                            SourceRequiresUnsafeAccessor: includePrivateMembers && RequiresUnsafeAccessorForReading(sourceProp),
+                            TargetRequiresUnsafeAccessor: includePrivateMembers && RequiresUnsafeAccessorForWriting(targetProp),
+                            IsDictionary: true));
+                    }
+                    else if (context is not null)
+                    {
+                        // No mapping method found for the dictionary value type - report diagnostic and skip
+                        context.Value.ReportDiagnostic(
+                            Diagnostic.Create(
+                                CollectionElementMappingNotFoundDescriptor,
+                                sourceProp.Locations.FirstOrDefault() ?? Location.None,
+                                sourceProp.Name,
+                                sourceValueType!.ToDisplayString(),
+                                targetValueType!.ToDisplayString()));
+                    }
+                }
+                else if (targetProp is not null)
                 {
                     // Check for collection mapping
                     var isSourceCollection = IsCollectionType(sourceProp.Type, out var sourceElementType);
@@ -637,6 +676,17 @@ public class ObjectMappingGenerator : IIncrementalGenerator
 
         return false;
     }
+
+    /// <summary>
+    /// Checks if a source dictionary can be copied into a target dictionary: same key type, and value types
+    /// that are the same, two enums, or mapped with [MapTo].
+    /// </summary>
+    private static bool IsMappableDictionary(
+        ITypeSymbol sourceType,
+        ITypeSymbol targetType)
+        => MappingTypeAnalyzer.TryGetDictionaryMapping(sourceType, targetType, out var sourceValueType, out var targetValueType) &&
+           (MappingTypeAnalyzer.AreDictionaryValuesDirectlyConvertible(sourceValueType!, targetValueType!) ||
+            HasObjectMappingToType(sourceValueType!, targetValueType!));
 
     /// <summary>
     /// Checks if sourceElementType has a [MapTo] attribute targeting targetElementType,
@@ -1125,7 +1175,8 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                 var parameterType = parameter.Type;
                 if (!SymbolEqualityComparer.Default.Equals(sourcePropertyType, parameterType) &&
                     !IsImplicitlyConvertible(sourcePropertyType, parameterType) &&
-                    !AreBothCustomOrEnumTypes(sourcePropertyType, parameterType))
+                    !AreBothCustomOrEnumTypes(sourcePropertyType, parameterType) &&
+                    !IsMappableDictionary(sourcePropertyType, parameterType))
                 {
                     allParametersMatch = false;
                     break;
@@ -1675,9 +1726,9 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         var methodName = $"ProjectTo{mapping.TargetType.Name}";
 
         // Filter properties that can be used in projections
-        // Only simple properties (no nested objects, no collections, no built-in type conversions)
+        // Only simple properties (no nested objects, no collections or dictionaries, no built-in type conversions)
         var projectionProperties = mapping.PropertyMappings
-            .Where(p => !p.IsNested && !p.IsCollection && !p.IsBuiltInTypeConversion && !p.IsFlattened)
+            .Where(p => !p.IsNested && !p.IsCollection && !p.IsDictionary && !p.IsBuiltInTypeConversion && !p.IsFlattened)
             .ToList();
 
         sb.AppendLineLf("    /// <summary>");
@@ -1767,6 +1818,36 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         }
     }
 
+    private static string GenerateDictionaryValueConversion(
+        PropertyMapping prop)
+    {
+        var sourceValueType = prop.SourceCollectionElementType;
+        var targetValueType = prop.CollectionElementType;
+
+        if (sourceValueType is null ||
+            targetValueType is null ||
+            SymbolEqualityComparer.Default.Equals(sourceValueType, targetValueType))
+        {
+            return "x.Value";
+        }
+
+        var methodName = $"MapTo{TypeNameSanitizer.SanitizeForIdentifier(targetValueType.Name)}";
+
+        if (MappingTypeAnalyzer.IsDictionaryValueEnumConversion(sourceValueType, targetValueType))
+        {
+            // Use the enum mapping method when the enums are mapped with [MapTo]; otherwise fall back to a cast
+            return prop.HasEnumMapping
+                ? $"x.Value.{methodName}()"
+                : $"({targetValueType.ToDisplayString()})x.Value";
+        }
+
+        // Value type mapped with [MapTo]: the generated extension method returns default for a null source,
+        // so a nullable reference value only needs '!'
+        return sourceValueType.NullableAnnotation == NullableAnnotation.Annotated && !sourceValueType.IsValueType
+            ? $"x.Value!.{methodName}()"
+            : $"x.Value.{methodName}()";
+    }
+
     private static string GeneratePropertyMappingValue(
         PropertyMapping prop,
         string sourceVariable,
@@ -1793,6 +1874,13 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         {
             // Built-in type conversion (DateTime ↔ string, Guid ↔ string, numeric ↔ string, bool ↔ string)
             return GenerateBuiltInTypeConversion(prop, sourceVariable);
+        }
+
+        if (prop.IsDictionary)
+        {
+            // Dictionary mapping: copy with ToDictionary, converting each value
+            var propertyAccess = GenerateSourcePropertyAccess(prop, sourceVariable, sourceType);
+            return $"{propertyAccess}?.ToDictionary(x => x.Key, x => {GenerateDictionaryValueConversion(prop)})!";
         }
 
         if (prop.IsCollection)
