@@ -5,7 +5,8 @@ public partial class AnnotationConstantsGeneratorTests
 {
     [SuppressMessage("", "S1854:Remove this useless assignment to local variable 'driver'", Justification = "OK")]
     private static (ImmutableArray<Diagnostic> Diagnostics, string Output) GetGeneratedOutput(
-        string source)
+        string source,
+        string? diagnosticPrefix = null)
     {
         var syntaxTree = CSharpSyntaxTree.ParseText(source);
 
@@ -43,7 +44,7 @@ public partial class AnnotationConstantsGeneratorTests
             .GetDiagnostics()
             .Concat(generatorDiagnostics)
             .Where(d => d.Severity >= DiagnosticSeverity.Warning &&
-                        d.Id.StartsWith("ATCANN", StringComparison.Ordinal))
+                        d.Id.StartsWith(diagnosticPrefix ?? "ATCANN", StringComparison.Ordinal))
             .ToImmutableArray();
 
         var output = string.Join(
@@ -54,5 +55,93 @@ public partial class AnnotationConstantsGeneratorTests
                 .Select(tree => tree.ToString()));
 
         return (allDiagnostics, output);
+    }
+
+    [Fact]
+    public void Generator_Should_Generate_Constants_For_Partial_Class_Split_Across_Declarations()
+    {
+        const string source = """
+                              using System.ComponentModel.DataAnnotations;
+
+                              namespace TestNamespace;
+
+                              public partial class Product
+                              {
+                                  [Required]
+                                  public string Name { get; set; } = string.Empty;
+                              }
+
+                              public partial class Product
+                              {
+                                  [Required]
+                                  public string Sku { get; set; } = string.Empty;
+                              }
+
+                              public static class Usage
+                              {
+                                  public static bool Both
+                                      => AnnotationConstants.Product.Name.IsRequired &&
+                                         AnnotationConstants.Product.Sku.IsRequired;
+                              }
+                              """;
+
+        var (diagnostics, output) = GetGeneratedOutput(source, "CS");
+
+        Assert.Empty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+        Assert.Equal(1, CountOccurrences(output, "public static partial class Product"));
+    }
+
+    [Fact]
+    public void Generator_Should_Generate_Constants_For_Nested_Types_With_The_Same_Name()
+    {
+        const string source = """
+                              using System.ComponentModel.DataAnnotations;
+
+                              namespace TestNamespace;
+
+                              public class Order
+                              {
+                                  public class Line
+                                  {
+                                      [Required]
+                                      public string Sku { get; set; } = string.Empty;
+                                  }
+                              }
+
+                              public class Invoice
+                              {
+                                  public class Line
+                                  {
+                                      [MaxLength(10)]
+                                      public string Text { get; set; } = string.Empty;
+                                  }
+                              }
+
+                              public static class Usage
+                              {
+                                  public static bool Required => AnnotationConstants.Order.Line.Sku.IsRequired;
+
+                                  public static int Max => AnnotationConstants.Invoice.Line.Text.MaximumLength;
+                              }
+                              """;
+
+        var (diagnostics, _) = GetGeneratedOutput(source, "CS");
+
+        Assert.Empty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+    }
+
+    private static int CountOccurrences(
+        string text,
+        string pattern)
+    {
+        var count = 0;
+        var index = 0;
+        while ((index = text.IndexOf(pattern, index, StringComparison.Ordinal)) >= 0)
+        {
+            count++;
+            index += pattern.Length;
+        }
+
+        return count;
     }
 }
