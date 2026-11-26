@@ -79,7 +79,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         var classDeclarations = context.SyntaxProvider
             .CreateSyntaxProvider(
                 predicate: static (s, _) => IsSyntaxTargetForGeneration(s),
-                transform: static (ctx, _) => GetSemanticTargetForGeneration(ctx))
+                transform: static (ctx, ct) => GetSemanticTargetForGeneration(ctx, ct))
             .Where(static m => m is not null)
             .Collect();
 
@@ -95,7 +95,8 @@ public class ObjectMappingGenerator : IIncrementalGenerator
            RecordDeclarationSyntax { AttributeLists.Count: > 0 };
 
     private static TypeDeclarationSyntax? GetSemanticTargetForGeneration(
-        GeneratorSyntaxContext context)
+        GeneratorSyntaxContext context,
+        CancellationToken cancellationToken)
     {
         var typeDeclaration = (TypeDeclarationSyntax)context.Node;
 
@@ -103,7 +104,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         {
             foreach (var attributeSyntax in attributeListSyntax.Attributes)
             {
-                if (context.SemanticModel.GetSymbolInfo(attributeSyntax).Symbol is not IMethodSymbol attributeSymbol)
+                if (context.SemanticModel.GetSymbolInfo(attributeSyntax, cancellationToken).Symbol is not IMethodSymbol attributeSymbol)
                 {
                     continue;
                 }
