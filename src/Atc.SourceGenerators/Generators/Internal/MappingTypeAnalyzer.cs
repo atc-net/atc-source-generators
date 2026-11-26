@@ -47,6 +47,23 @@ internal static class MappingTypeAnalyzer
                unwrappedTarget.TypeKind == TypeKind.Enum;
     }
 
+    /// <summary>
+    /// Gets what to append to a null-conditional member access (<c>source.A?.B</c>) that is assigned to a target:
+    /// for a non-nullable value-type member the expression is <c>T?</c>, so a non-nullable target needs
+    /// <c> ?? default</c> and a nullable target needs nothing; a reference member gets <c>!</c>.
+    /// </summary>
+    internal static string GetNullConditionalSuffix(
+        ITypeSymbol memberType,
+        ITypeSymbol targetType)
+    {
+        if (memberType.IsValueType && !IsNullableValueType(memberType))
+        {
+            return IsNullableValueType(targetType) ? string.Empty : " ?? default";
+        }
+
+        return "!";
+    }
+
     internal static bool IsNestedMapping(
         ITypeSymbol sourceType,
         ITypeSymbol targetType)

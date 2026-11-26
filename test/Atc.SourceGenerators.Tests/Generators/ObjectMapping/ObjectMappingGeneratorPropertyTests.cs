@@ -535,4 +535,74 @@ public partial class ObjectMappingGeneratorTests
         // Should handle nullable source with null-conditional operator
         Assert.Contains("AddressCity = source.Address?.City", output, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void Generator_Should_Flatten_Value_Type_Member_Through_Nullable_Reference()
+    {
+        // source.Address?.ZipCode is int?, so it must not be assigned to an int target with '!'
+        const string source = """
+            #nullable enable
+            using Atc.SourceGenerators.Annotations;
+
+            namespace TestNamespace;
+
+            public class Address
+            {
+                public int ZipCode { get; set; }
+
+                public string City { get; set; } = string.Empty;
+            }
+
+            public class UserDto
+            {
+                public int AddressZipCode { get; set; }
+
+                public int? AddressZipCodeOrNull { get; set; }
+
+                public string? AddressCity { get; set; }
+            }
+
+            [MapTo(typeof(UserDto), EnableFlattening = true)]
+            public partial class User
+            {
+                public Address? Address { get; set; }
+            }
+            """;
+
+        var (diagnostics, output) = GetGeneratedOutput(source, "CS");
+
+        Assert.Empty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+        Assert.Contains("AddressZipCode = source.Address?.ZipCode ?? default", output, StringComparison.Ordinal);
+        Assert.Contains("AddressCity = source.Address?.City!", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generator_Should_Not_Flatten_Members_Of_BCL_Types()
+    {
+        // DateTimeOffset is a BCL struct (SpecialType.None): its members (Year, ...) are not flattened
+        const string source = """
+            using System;
+            using Atc.SourceGenerators.Annotations;
+
+            namespace TestNamespace;
+
+            public class EventDto
+            {
+                public DateTimeOffset Created { get; set; }
+
+                public int CreatedYear { get; set; }
+            }
+
+            [MapTo(typeof(EventDto), EnableFlattening = true)]
+            public partial class Event
+            {
+                public DateTimeOffset Created { get; set; }
+            }
+            """;
+
+        var (diagnostics, output) = GetGeneratedOutput(source, "CS");
+
+        Assert.Empty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+        Assert.DoesNotContain("CreatedYear =", output, StringComparison.Ordinal);
+    }
 }

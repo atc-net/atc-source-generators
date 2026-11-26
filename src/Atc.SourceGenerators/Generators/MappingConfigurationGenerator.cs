@@ -1335,8 +1335,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
                     continue;
                 }
 
-                var typeStr = namedType.SpecialType.ToString();
-                if (typeStr.StartsWith("System", StringComparison.Ordinal))
+                if (MappingTypeAnalyzer.IsSystemType(namedType))
                 {
                     continue;
                 }
@@ -2481,7 +2480,8 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
 
             if (isNullable)
             {
-                return $"{sourceVariable}.{prop.SourceProperty.Name}?.{prop.FlattenedNestedProperty.Name}!";
+                var suffix = MappingTypeAnalyzer.GetNullConditionalSuffix(prop.FlattenedNestedProperty.Type, prop.TargetProperty.Type);
+                return $"{sourceVariable}.{prop.SourceProperty.Name}?.{prop.FlattenedNestedProperty.Name}{suffix}";
             }
 
             return $"{sourceVariable}.{prop.SourceProperty.Name}.{prop.FlattenedNestedProperty.Name}";

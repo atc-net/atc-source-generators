@@ -1212,4 +1212,43 @@ public partial class MappingConfigurationGeneratorTests
         Assert.Contains("source.GridCountVertical", output, StringComparison.Ordinal);
         Assert.Contains("source.BackgroundColorInHex", output, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void Config_Should_Flatten_Value_Type_Member_Through_Nullable_Reference()
+    {
+        const string source = """
+                              #nullable enable
+                              using Atc.SourceGenerators.Annotations;
+
+                              namespace TestNamespace
+                              {
+                                  public class Address
+                                  {
+                                      public int ZipCode { get; set; }
+                                  }
+
+                                  public class User
+                                  {
+                                      public Address? Address { get; set; }
+                                  }
+
+                                  public class UserDto
+                                  {
+                                      public int AddressZipCode { get; set; }
+                                  }
+
+                                  [MappingConfiguration]
+                                  public static partial class Mappings
+                                  {
+                                      [MapConfigOptions(EnableFlattening = true)]
+                                      public static partial UserDto MapToUserDto(this User source);
+                                  }
+                              }
+                              """;
+
+        var (diagnostics, output) = GetGeneratedOutput(source, "CS");
+
+        Assert.Empty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+        Assert.Contains("AddressZipCode = source.Address?.ZipCode ?? default", output, StringComparison.Ordinal);
+    }
 }
