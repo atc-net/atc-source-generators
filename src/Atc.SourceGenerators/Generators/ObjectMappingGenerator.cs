@@ -499,9 +499,14 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                     else
                     {
                         // Check for enum conversion, nested mapping, or built-in type conversion
-                        var requiresConversion = IsEnumConversion(sourceProp.Type, targetProp.Type);
-                        var isNested = IsNestedMapping(sourceProp.Type, targetProp.Type);
-                        var hasEnumMapping = requiresConversion && HasEnumMappingAttribute(sourceProp.Type, targetProp.Type);
+                        // The shared analyzer unwraps Nullable<T>, so Status? -> StatusDto? is an enum conversion
+                        // (not a nested mapping of Nullable<T>)
+                        var requiresConversion = MappingTypeAnalyzer.IsEnumConversion(sourceProp.Type, targetProp.Type);
+                        var isNested = MappingTypeAnalyzer.IsNestedMapping(sourceProp.Type, targetProp.Type);
+                        var hasEnumMapping = requiresConversion &&
+                                             HasEnumMappingAttribute(
+                                                 MappingTypeAnalyzer.UnwrapNullable(sourceProp.Type),
+                                                 MappingTypeAnalyzer.UnwrapNullable(targetProp.Type));
                         var isBuiltInTypeConversion = IsBuiltInTypeConversion(sourceProp.Type, targetProp.Type);
                         var isNullableValueTypeWrapping = MappingTypeAnalyzer.IsNullableValueTypeWrapping(sourceProp.Type, targetProp.Type);
 
@@ -605,12 +610,6 @@ public class ObjectMappingGenerator : IIncrementalGenerator
 
         return mappings;
     }
-
-    private static bool IsEnumConversion(
-        ITypeSymbol sourceType,
-        ITypeSymbol targetType)
-        => sourceType.TypeKind == TypeKind.Enum &&
-           targetType.TypeKind == TypeKind.Enum;
 
     private static bool HasEnumMappingAttribute(
         ITypeSymbol sourceType,
@@ -746,14 +745,6 @@ public class ObjectMappingGenerator : IIncrementalGenerator
 
         return false;
     }
-
-    private static bool IsNestedMapping(
-        ITypeSymbol sourceType,
-        ITypeSymbol targetType)
-        => sourceType.TypeKind is TypeKind.Class or TypeKind.Struct &&
-           targetType.TypeKind is TypeKind.Class or TypeKind.Struct &&
-           !MappingTypeAnalyzer.IsSystemType(sourceType) &&
-           !MappingTypeAnalyzer.IsSystemType(targetType);
 
     private static bool IsBuiltInTypeConversion(
         ITypeSymbol sourceType,
@@ -1914,9 +1905,20 @@ public class ObjectMappingGenerator : IIncrementalGenerator
             // Enum conversion
             if (prop.HasEnumMapping)
             {
-                // Use EnumMapping extension method (safe mapping with special case handling)
-                var enumMappingMethodName = $"MapTo{TypeNameSanitizer.SanitizeForIdentifier(prop.TargetProperty.Type.Name)}";
-                return $"{sourceVariable}.{prop.SourceProperty.Name}.{enumMappingMethodName}()";
+                // Use EnumMapping extension method (safe mapping with special case handling).
+                // Name it after the underlying enum, so Status? -> StatusDto? calls MapToStatusDto (not MapToNullable).
+                var unwrappedTarget = MappingTypeAnalyzer.UnwrapNullable(prop.TargetProperty.Type);
+                var enumMappingMethodName = $"MapTo{TypeNameSanitizer.SanitizeForIdentifier(unwrappedTarget.Name)}";
+                var enumSourceAccess = GenerateSourcePropertyAccess(prop, sourceVariable, sourceType);
+
+                if (MappingTypeAnalyzer.IsNullableValueType(prop.SourceProperty.Type))
+                {
+                    var varName = $"__{char.ToLowerInvariant(prop.SourceProperty.Name[0])}{prop.SourceProperty.Name.Substring(1)}";
+                    var whenNull = MappingTypeAnalyzer.IsNullableValueType(prop.TargetProperty.Type) ? "null" : "default";
+                    return $"{enumSourceAccess} is {{ }} {varName} ? {varName}.{enumMappingMethodName}() : {whenNull}";
+                }
+
+                return $"{enumSourceAccess}.{enumMappingMethodName}()";
             }
 
             // Fall back to simple cast (less safe but works when no mapping is defined)
