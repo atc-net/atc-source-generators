@@ -709,6 +709,10 @@ services.AddOptionsFromDomain(configuration, "DataAccess", "Infrastructure");
   - Supports `List<T>`, `IList<T>`, `IEnumerable<T>`, `ICollection<T>`, `IReadOnlyList<T>`, `IReadOnlyCollection<T>`, `T[]`
   - Generates appropriate `.ToList()`, `.ToArray()`, or collection constructor calls
   - Automatically chains element mappings (e.g., `source.Items?.Select(x => x.MapToItemDto()).ToList()!`)
+- **Dictionary mapping support** - Copies `Dictionary<K, V>`, `IDictionary<K, V>` and `IReadOnlyDictionary<K, V>` properties with the same key type using `ToDictionary`:
+  - Same value type: `source.Details?.ToDictionary(x => x.Key, x => x.Value)!`
+  - Value type with `[MapTo]`: `x => x.Value.MapToItemDto()`; enum values use the enum mapping method or a cast
+  - Value type without a mapping: skipped with `ATCMAP011`
 - **Base class property inheritance** - Automatically includes properties from base classes:
   - Traverses entire inheritance hierarchy (Entity → AuditableEntity → ConcreteEntity)
   - Handles property overrides correctly (no duplicates)
@@ -1005,7 +1009,7 @@ PetStatus (API)
 - Four complementary approaches: Mapper Class Pattern (primary), Assembly-Level `[MapTypes]`, Class-Level `[MapTypes]`, and Inline `AddMappings()`/`MappingBuilder.Configure()`
 - Enum auto-detection - automatically generates switch expression mappings when properties have different enum types
 - Property renaming, ignoring, nested mapping, constructor support, collection mapping
-- Dictionary copying - `IReadOnlyDictionary<K, V>` / `IDictionary<K, V>` / `Dictionary<K, V>` with the same key and value types are copied with `ToDictionary(x => x.Key, x => x.Value)`
+- Dictionary copying - `IReadOnlyDictionary<K, V>` / `IDictionary<K, V>` / `Dictionary<K, V>` with the same key type are copied with `ToDictionary`; values of a different type are converted with a generated nested mapper (`MapToItem(x.Value)`) or the auto-detected enum mapper (`x.Value.MapToStatus()`)
 - Bidirectional mappings also get nested mappers for the reverse direction (collection elements, dictionary values, nested properties)
 - Mixed mode - attribute-based `[MapTo]` and configuration-based mappings coexist (attribute always wins)
 

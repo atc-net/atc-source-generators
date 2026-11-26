@@ -263,24 +263,64 @@ internal static class MappingTypeAnalyzer
 
     /// <summary>
     /// Checks whether a dictionary on the source side can be copied into a dictionary on the target side
-    /// with <c>ToDictionary(x =&gt; x.Key, x =&gt; x.Value)</c>: the target is <c>Dictionary&lt;K, V&gt;</c>,
+    /// with <c>ToDictionary(x =&gt; x.Key, x =&gt; ...)</c>: the target is <c>Dictionary&lt;K, V&gt;</c>,
     /// <c>IDictionary&lt;K, V&gt;</c> or <c>IReadOnlyDictionary&lt;K, V&gt;</c>, the source is an
-    /// <c>IEnumerable&lt;KeyValuePair&lt;K, V&gt;&gt;</c>, and key and value types are the same on both sides
-    /// (nullable reference annotations are ignored).
+    /// <c>IEnumerable&lt;KeyValuePair&lt;K, V&gt;&gt;</c>, and the key types are the same on both sides
+    /// (nullable reference annotations are ignored). The value types are returned so the caller can decide
+    /// how to convert them.
     /// </summary>
-    internal static bool AreCompatibleDictionaryTypes(
+    internal static bool TryGetDictionaryMapping(
         ITypeSymbol sourceType,
-        ITypeSymbol targetType)
+        ITypeSymbol targetType,
+        out ITypeSymbol? sourceValueType,
+        out ITypeSymbol? targetValueType)
     {
+        sourceValueType = null;
+        targetValueType = null;
+
         if (!IsKnownDictionaryTargetType(targetType, out var targetKey, out var targetValue) ||
-            !TryGetKeyValuePairTypes(sourceType, out var sourceKey, out var sourceValue))
+            !TryGetKeyValuePairTypes(sourceType, out var sourceKey, out var sourceValue) ||
+            !SymbolEqualityComparer.Default.Equals(sourceKey, targetKey))
         {
             return false;
         }
 
-        return SymbolEqualityComparer.Default.Equals(sourceKey, targetKey) &&
-               SymbolEqualityComparer.Default.Equals(sourceValue, targetValue);
+        sourceValueType = sourceValue;
+        targetValueType = targetValue;
+        return true;
     }
+
+    /// <summary>
+    /// Checks whether dictionary values can be converted without a mapping method: the same type, or
+    /// two enums (mapped with an enum mapping method or a cast).
+    /// </summary>
+    internal static bool AreDictionaryValuesDirectlyConvertible(
+        ITypeSymbol sourceValueType,
+        ITypeSymbol targetValueType)
+        => SymbolEqualityComparer.Default.Equals(sourceValueType, targetValueType) ||
+           IsDictionaryValueEnumConversion(sourceValueType, targetValueType);
+
+    /// <summary>
+    /// Checks whether dictionary values are two different non-nullable enums.
+    /// </summary>
+    internal static bool IsDictionaryValueEnumConversion(
+        ITypeSymbol sourceValueType,
+        ITypeSymbol targetValueType)
+        => sourceValueType.TypeKind == TypeKind.Enum &&
+           targetValueType.TypeKind == TypeKind.Enum &&
+           !SymbolEqualityComparer.Default.Equals(sourceValueType, targetValueType);
+
+    /// <summary>
+    /// Checks whether dictionary values are two different user types (classes, records or structs, not
+    /// <see cref="Nullable{T}"/>) that need a nested mapping method.
+    /// </summary>
+    internal static bool IsDictionaryValueNestedMapping(
+        ITypeSymbol sourceValueType,
+        ITypeSymbol targetValueType)
+        => !IsNullableValueType(sourceValueType) &&
+           !IsNullableValueType(targetValueType) &&
+           !SymbolEqualityComparer.Default.Equals(sourceValueType, targetValueType) &&
+           IsNestedMapping(sourceValueType, targetValueType);
 
     private static bool IsKnownDictionaryTargetType(
         ITypeSymbol type,

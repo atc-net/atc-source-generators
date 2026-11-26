@@ -1167,19 +1167,34 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
                     string.Equals(t.Name, targetPropertyName, StringComparison.OrdinalIgnoreCase));
 
                 if (targetProp is not null &&
-                    MappingTypeAnalyzer.AreCompatibleDictionaryTypes(sourceProp.Type, targetProp.Type))
+                    IsMappableDictionary(sourceProp.Type, targetProp.Type, out var sourceValueType, out var targetValueType))
                 {
-                    // Dictionary with the same key and value types but a different dictionary type
-                    // (e.g. IReadOnlyDictionary<K, V> → Dictionary<K, V>): copied with ToDictionary
+                    // Dictionary with the same key type but a different dictionary type and/or a value type
+                    // that needs a nested or enum mapping (e.g. IReadOnlyDictionary<K, A> → Dictionary<K, B>):
+                    // copied with ToDictionary, converting each value
+                    var hasDictionaryEnumMapping = false;
+                    if (MappingTypeAnalyzer.IsDictionaryValueEnumConversion(sourceValueType!, targetValueType!))
+                    {
+                        hasDictionaryEnumMapping = HasEnumMappingAttribute(sourceValueType!, targetValueType!);
+
+                        if (!hasDictionaryEnumMapping &&
+                            sourceValueType is INamedTypeSymbol sourceValueEnum &&
+                            targetValueType is INamedTypeSymbol targetValueEnum)
+                        {
+                            hasDictionaryEnumMapping = TryAutoDetectEnumMapping(
+                                sourceValueEnum, targetValueEnum, autoDetectedEnums, context);
+                        }
+                    }
+
                     mappings.Add(new PropertyMapping(
                         SourceProperty: sourceProp,
                         TargetProperty: targetProp,
                         RequiresConversion: false,
                         IsNested: false,
-                        HasEnumMapping: false,
+                        HasEnumMapping: hasDictionaryEnumMapping,
                         IsCollection: false,
-                        CollectionElementType: null,
-                        SourceCollectionElementType: null,
+                        CollectionElementType: targetValueType,
+                        SourceCollectionElementType: sourceValueType,
                         CollectionTargetType: null,
                         IsFlattened: false,
                         FlattenedNestedProperty: null,
@@ -1584,7 +1599,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
                     !MappingTypeAnalyzer.IsNumericTypeConversion(sourcePropertyType, parameterType) &&
                     !MappingTypeAnalyzer.IsBuiltInTypeConversion(sourcePropertyType, parameterType) &&
                     !AreBothCollectionTypesWithCompatibleElements(sourcePropertyType, parameterType) &&
-                    !MappingTypeAnalyzer.AreCompatibleDictionaryTypes(sourcePropertyType, parameterType))
+                    !IsMappableDictionary(sourcePropertyType, parameterType, out _, out _))
                 {
                     allParametersMatch = false;
                     break;
@@ -1632,7 +1647,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
                         !AreBothCustomOrEnumTypes(sourcePropertyType, parameterType) &&
                         !MappingTypeAnalyzer.IsNumericTypeConversion(sourcePropertyType, parameterType) &&
                         !AreBothCollectionTypesWithCompatibleElements(sourcePropertyType, parameterType) &&
-                        !MappingTypeAnalyzer.AreCompatibleDictionaryTypes(sourcePropertyType, parameterType))
+                        !IsMappableDictionary(sourcePropertyType, parameterType, out _, out _))
                     {
                         hasIncompatibleParam = true;
                         break;
@@ -1732,6 +1747,15 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
 
         return isSourceCustom && isTargetCustom;
     }
+
+    private static bool IsMappableDictionary(
+        ITypeSymbol sourceType,
+        ITypeSymbol targetType,
+        out ITypeSymbol? sourceValueType,
+        out ITypeSymbol? targetValueType)
+        => MappingTypeAnalyzer.TryGetDictionaryMapping(sourceType, targetType, out sourceValueType, out targetValueType) &&
+           (MappingTypeAnalyzer.AreDictionaryValuesDirectlyConvertible(sourceValueType!, targetValueType!) ||
+            MappingTypeAnalyzer.IsDictionaryValueNestedMapping(sourceValueType!, targetValueType!));
 
     private static bool AreBothCollectionTypesWithCompatibleElements(
         ITypeSymbol sourceType,
@@ -2212,6 +2236,10 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
                      MappingTypeAnalyzer.IsCollectionType(p.SourceProperty.Type, out var srcElem) &&
                      srcElem is not null &&
                      SymbolEqualityComparer.Default.Equals(srcElem, enumMapping.SourceEnum) &&
+                     SymbolEqualityComparer.Default.Equals(p.CollectionElementType, enumMapping.TargetEnum)) ||
+                    (p.IsDictionary &&
+                     p.HasEnumMapping &&
+                     SymbolEqualityComparer.Default.Equals(p.SourceCollectionElementType, enumMapping.SourceEnum) &&
                      SymbolEqualityComparer.Default.Equals(p.CollectionElementType, enumMapping.TargetEnum))));
 
             if (!isReferenced)
@@ -2342,8 +2370,8 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         {
             foreach (var prop in mapping.PropertyMappings)
             {
-                // Collection element type pairs
-                if (prop.IsCollection &&
+                // Collection element and dictionary value type pairs
+                if ((prop.IsCollection || prop.IsDictionary) &&
                     prop.SourceCollectionElementType is not null &&
                     prop.CollectionElementType is not null &&
                     !SymbolEqualityComparer.Default.Equals(prop.SourceCollectionElementType, prop.CollectionElementType) &&
@@ -2351,9 +2379,14 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
                     prop.SourceCollectionElementType is INamedTypeSymbol sourceElem &&
                     prop.CollectionElementType is INamedTypeSymbol targetElem &&
                     sourceElem.SpecialType == SpecialType.None &&
-                    targetElem.SpecialType == SpecialType.None)
+                    targetElem.SpecialType == SpecialType.None &&
+                    sourceElem.TypeKind != TypeKind.Enum &&
+                    targetElem.TypeKind != TypeKind.Enum)
                 {
-                    queue.Enqueue((sourceElem, targetElem));
+                    // Strip nullable reference annotations, so the nested mapper isn't generated for 'T?'
+                    queue.Enqueue((
+                        (INamedTypeSymbol)sourceElem.WithNullableAnnotation(NullableAnnotation.NotAnnotated),
+                        (INamedTypeSymbol)targetElem.WithNullableAnnotation(NullableAnnotation.NotAnnotated)));
                 }
 
                 // Non-collection nested property type pairs
@@ -2391,6 +2424,37 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         }
     }
 
+    private static string GenerateDictionaryValueConversion(
+        PropertyMapping prop)
+    {
+        var sourceValueType = prop.SourceCollectionElementType;
+        var targetValueType = prop.CollectionElementType;
+
+        if (sourceValueType is null ||
+            targetValueType is null ||
+            SymbolEqualityComparer.Default.Equals(sourceValueType, targetValueType))
+        {
+            return "x.Value";
+        }
+
+        var methodName = $"MapTo{TypeNameSanitizer.SanitizeForIdentifier(targetValueType.Name)}";
+
+        if (MappingTypeAnalyzer.IsDictionaryValueEnumConversion(sourceValueType, targetValueType))
+        {
+            // Enum mappers can come from the enum mapping generator ([MapTo] on the enum), so they keep
+            // extension syntax; without any enum mapping, fall back to a cast.
+            return prop.HasEnumMapping
+                ? $"x.Value.{methodName}()"
+                : $"({targetValueType.ToDisplayString()})x.Value";
+        }
+
+        // Nested value mappers are generated into the same class and called with a simple name.
+        // They return default for a null source, so a nullable reference value only needs '!'.
+        return sourceValueType.NullableAnnotation == NullableAnnotation.Annotated && !sourceValueType.IsValueType
+            ? $"{methodName}(x.Value!)"
+            : $"{methodName}(x.Value)";
+    }
+
     private static string GeneratePropertyMappingValue(
         PropertyMapping prop,
         string sourceVariable)
@@ -2415,7 +2479,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
 
         if (prop.IsDictionary)
         {
-            return $"{sourceVariable}.{prop.SourceProperty.Name}?.ToDictionary(x => x.Key, x => x.Value)!";
+            return $"{sourceVariable}.{prop.SourceProperty.Name}?.ToDictionary(x => x.Key, x => {GenerateDictionaryValueConversion(prop)})!";
         }
 
         if (prop.IsCollection)
