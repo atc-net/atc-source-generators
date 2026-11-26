@@ -187,6 +187,11 @@ internal static class RuleIdentifierConstants
         /// ATCMAP011: Collection element type has no mapping method.
         /// </summary>
         internal const string CollectionElementMappingNotFound = "ATCMAP011";
+
+        /// <summary>
+        /// ATCMAP012: Two mappings from the same source type would generate a mapping method with the same name.
+        /// </summary>
+        internal const string DuplicateMappingMethod = "ATCMAP012";
     }
 
     /// <summary>

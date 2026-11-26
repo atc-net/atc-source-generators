@@ -1962,7 +1962,8 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
 
             sb.AppendLineLf("}");
 
-            var fileName = $"{containingClass.Name}.g.cs";
+            // Include the namespace, so same-named configuration classes in different namespaces don't share a file name
+            var fileName = $"{NamespaceHelper.GetQualifier(containingClass.ContainingNamespace)}{containingClass.Name}.g.cs";
             context.AddSource(fileName, SourceText.From(sb.ToString(), Encoding.UTF8));
         }
     }
