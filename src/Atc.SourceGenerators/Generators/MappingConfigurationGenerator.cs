@@ -307,7 +307,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
                 context.CancellationToken.ThrowIfCancellationRequested();
 
                 var semanticModel = compilation.GetSemanticModel(classDeclaration.SyntaxTree);
-                if (semanticModel.GetDeclaredSymbol(classDeclaration) is not { } classSymbol)
+                if (semanticModel.GetDeclaredSymbol(classDeclaration, context.CancellationToken) is not { } classSymbol)
                 {
                     continue;
                 }
@@ -731,8 +731,8 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         // Check for generic Map<TSource, TTarget>() syntax
         if (methodName is GenericNameSyntax genericName && genericName.TypeArgumentList.Arguments.Count == 2)
         {
-            var sourceTypeInfo = semanticModel.GetTypeInfo(genericName.TypeArgumentList.Arguments[0]);
-            var targetTypeInfo = semanticModel.GetTypeInfo(genericName.TypeArgumentList.Arguments[1]);
+            var sourceTypeInfo = semanticModel.GetTypeInfo(genericName.TypeArgumentList.Arguments[0], context.CancellationToken);
+            var targetTypeInfo = semanticModel.GetTypeInfo(genericName.TypeArgumentList.Arguments[1], context.CancellationToken);
 
             sourceType = sourceTypeInfo.Type as INamedTypeSymbol;
             targetType = targetTypeInfo.Type as INamedTypeSymbol;
@@ -940,7 +940,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
             context.ReportDiagnostic(
                 Diagnostic.Create(
                     TypeNotResolvedDescriptor,
-                    attr.ApplicationSyntaxReference?.GetSyntax().GetLocation() ?? Location.None,
+                    attr.ApplicationSyntaxReference?.GetSyntax(context.CancellationToken).GetLocation() ?? Location.None,
                     sourceType.Name,
                     "MapTypes"));
             return null;
@@ -951,7 +951,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
             context.ReportDiagnostic(
                 Diagnostic.Create(
                     TypeNotResolvedDescriptor,
-                    attr.ApplicationSyntaxReference?.GetSyntax().GetLocation() ?? Location.None,
+                    attr.ApplicationSyntaxReference?.GetSyntax(context.CancellationToken).GetLocation() ?? Location.None,
                     targetType.Name,
                     "MapTypes"));
             return null;
@@ -963,7 +963,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
             context.ReportDiagnostic(
                 Diagnostic.Create(
                     ConfigTargetTypeMustBeClassOrStructDescriptor,
-                    attr.ApplicationSyntaxReference?.GetSyntax().GetLocation() ?? Location.None,
+                    attr.ApplicationSyntaxReference?.GetSyntax(context.CancellationToken).GetLocation() ?? Location.None,
                     targetType.Name));
             return null;
         }
@@ -1021,7 +1021,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
             propertyRenames,
             autoDetectedEnums,
             context,
-            attr.ApplicationSyntaxReference?.GetSyntax().GetLocation());
+            attr.ApplicationSyntaxReference?.GetSyntax(context.CancellationToken).GetLocation());
 
         // Find best matching constructor
         var (constructor, constructorParameterNames, constructorDefaultParameters) = FindBestConstructor(sourceType, targetType, propertyRenames);
@@ -1770,11 +1770,11 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         foreach (var syntaxTree in compilation.SyntaxTrees)
         {
             var semanticModel = compilation.GetSemanticModel(syntaxTree);
-            var root = syntaxTree.GetRoot();
+            var root = syntaxTree.GetRoot(context.CancellationToken);
 
             foreach (var typeDecl in root.DescendantNodes().OfType<TypeDeclarationSyntax>())
             {
-                if (semanticModel.GetDeclaredSymbol(typeDecl) is not INamedTypeSymbol typeSymbol)
+                if (semanticModel.GetDeclaredSymbol(typeDecl, context.CancellationToken) is not INamedTypeSymbol typeSymbol)
                 {
                     continue;
                 }

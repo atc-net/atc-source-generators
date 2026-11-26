@@ -133,7 +133,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
             context.CancellationToken.ThrowIfCancellationRequested();
 
             var semanticModel = compilation.GetSemanticModel(classDeclaration.SyntaxTree);
-            if (semanticModel.GetDeclaredSymbol(classDeclaration) is not { } classSymbol)
+            if (semanticModel.GetDeclaredSymbol(classDeclaration, context.CancellationToken) is not { } classSymbol)
             {
                 continue;
             }
@@ -166,7 +166,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
     {
         // Check if class or record is partial
         if (!classSymbol.DeclaringSyntaxReferences.Any(r =>
-            r.GetSyntax() is TypeDeclarationSyntax t && t.Modifiers.Any(SyntaxKind.PartialKeyword)))
+            r.GetSyntax(context.CancellationToken) is TypeDeclarationSyntax t && t.Modifiers.Any(SyntaxKind.PartialKeyword)))
         {
             context.ReportDiagnostic(
                 Diagnostic.Create(
@@ -315,14 +315,14 @@ public class ObjectMappingGenerator : IIncrementalGenerator
             }
 
             // Get property mappings (using constructed target type for generics)
-            var mappingsForGeneric = isGenericMapping ?
-                GetPropertyMappings(classSymbol, targetTypeForMapping, enableFlattening, includePrivateMembers, propertyNameStrategy, context) :
-                propertyMappings;
+            var mappingsForGeneric = isGenericMapping
+                ? GetPropertyMappings(classSymbol, targetTypeForMapping, enableFlattening, includePrivateMembers, propertyNameStrategy, context)
+                : propertyMappings;
 
             // Find best matching constructor (using constructed target type for generics)
-            var (constructorForGeneric, constructorParamsForGeneric) = isGenericMapping ?
-                FindBestConstructor(classSymbol, targetTypeForMapping) :
-                (constructor, constructorParameterNames);
+            var (constructorForGeneric, constructorParamsForGeneric) = isGenericMapping
+                ? FindBestConstructor(classSymbol, targetTypeForMapping)
+                : (constructor, constructorParameterNames);
 
             mappings.Add(new MappingInfo(
                 SourceType: classSymbol,

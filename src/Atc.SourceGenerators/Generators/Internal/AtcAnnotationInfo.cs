@@ -5,28 +5,16 @@ namespace Atc.SourceGenerators.Generators.Internal;
 /// Atc-specific annotation information extracted from Atc attributes.
 /// </summary>
 internal sealed record AtcAnnotationInfo(
-
-    // IgnoreDisplayAttribute
-    bool IsIgnoreDisplay,
-
-    // EnumGuidAttribute
-    string? EnumGuid,
-
-    // CasingStyleDescriptionAttribute
-    string? CasingStyleDefault,
+    bool IsIgnoreDisplay, // IgnoreDisplayAttribute
+    string? EnumGuid, // EnumGuidAttribute
+    string? CasingStyleDefault, // CasingStyleDescriptionAttribute
     string? CasingStylePrefix,
-
-    // IPAddressAttribute
-    bool IsIPAddress,
+    bool IsIPAddress, // IPAddressAttribute
     bool? IPAddressRequired,
-
-    // IsoCurrencySymbolAttribute
-    bool IsIsoCurrencySymbol,
+    bool IsIsoCurrencySymbol, // IsoCurrencySymbolAttribute
     bool? IsoCurrencySymbolRequired,
     string[]? IsoCurrencySymbols,
-
-    // StringAttribute (and KeyStringAttribute)
-    bool IsAtcString,
+    bool IsAtcString, // StringAttribute (and KeyStringAttribute)
     bool IsKeyString,
     bool? StringRequired,
     uint? StringMinLength,
@@ -34,9 +22,7 @@ internal sealed record AtcAnnotationInfo(
     char[]? StringInvalidCharacters,
     string[]? StringInvalidPrefixStrings,
     string? StringRegularExpression,
-
-    // UriAttribute
-    bool IsAtcUri,
+    bool IsAtcUri, // UriAttribute
     bool? UriRequired,
     bool? UriAllowHttp,
     bool? UriAllowHttps,
