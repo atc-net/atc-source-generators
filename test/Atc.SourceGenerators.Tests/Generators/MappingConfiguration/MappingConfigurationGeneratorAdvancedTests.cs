@@ -79,7 +79,7 @@ public partial class MappingConfigurationGeneratorTests
         var (diagnostics, output) = GetGeneratedOutput(source);
 
         Assert.Empty(diagnostics);
-        Assert.Contains("new MyApp.Payment(", output, StringComparison.Ordinal);
+        Assert.Contains("new global::MyApp.Payment(", output, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -276,8 +276,8 @@ public partial class MappingConfigurationGeneratorTests
         var (diagnostics, output) = GetGeneratedOutput(source);
 
         Assert.Empty(diagnostics);
-        Assert.Contains("new MyApp.TargetItem(", output, StringComparison.Ordinal);
-        Assert.DoesNotContain("new MyApp.TargetItem\n", output, StringComparison.Ordinal);
+        Assert.Contains("new global::MyApp.TargetItem(", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("new global::MyApp.TargetItem\n", output, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -326,7 +326,7 @@ public partial class MappingConfigurationGeneratorTests
         var (diagnostics, output) = GetGeneratedOutput(source);
 
         Assert.Empty(diagnostics);
-        Assert.Contains("new MyApp.TargetPerson(", output, StringComparison.Ordinal);
+        Assert.Contains("new global::MyApp.TargetPerson(", output, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -373,7 +373,7 @@ public partial class MappingConfigurationGeneratorTests
         Assert.Empty(diagnostics);
         Assert.Contains("x.MapToFeatureType()", output, StringComparison.Ordinal);
         Assert.Contains("MapToFeatureType(", output, StringComparison.Ordinal);
-        Assert.Contains("this ExternalLib.FeatureType source)", output, StringComparison.Ordinal);
+        Assert.Contains("this global::ExternalLib.FeatureType source)", output, StringComparison.Ordinal);
         Assert.Contains("=> source switch", output, StringComparison.Ordinal);
     }
 
@@ -416,7 +416,7 @@ public partial class MappingConfigurationGeneratorTests
         var (diagnostics, output) = GetGeneratedOutput(source);
 
         Assert.Empty(diagnostics);
-        Assert.Contains("new MyApp.TargetProduct(", output, StringComparison.Ordinal);
+        Assert.Contains("new global::MyApp.TargetProduct(", output, StringComparison.Ordinal);
         Assert.Contains("source.Name", output, StringComparison.Ordinal);
         Assert.Contains("source.Price", output, StringComparison.Ordinal);
         Assert.Contains("source.Description", output, StringComparison.Ordinal);
@@ -462,7 +462,7 @@ public partial class MappingConfigurationGeneratorTests
         Assert.Empty(diagnostics);
 
         // Should use object initializer, not constructor (class has parameterless constructor)
-        Assert.Contains("new MyApp.TargetItem", output, StringComparison.Ordinal);
+        Assert.Contains("new global::MyApp.TargetItem", output, StringComparison.Ordinal);
         Assert.Contains("Name = source.Name", output, StringComparison.Ordinal);
     }
 
@@ -499,7 +499,7 @@ public partial class MappingConfigurationGeneratorTests
         var (diagnostics, output) = GetGeneratedOutput(source);
 
         Assert.Empty(diagnostics);
-        Assert.Contains("new MyApp.TargetProject(", output, StringComparison.Ordinal);
+        Assert.Contains("new global::MyApp.TargetProject(", output, StringComparison.Ordinal);
         Assert.Contains("(int)source.Version", output, StringComparison.Ordinal);
     }
 
@@ -538,7 +538,7 @@ public partial class MappingConfigurationGeneratorTests
         var (diagnostics, output) = GetGeneratedOutput(source);
 
         Assert.Empty(diagnostics);
-        Assert.Contains("new MyApp.TargetDevice(", output, StringComparison.Ordinal);
+        Assert.Contains("new global::MyApp.TargetDevice(", output, StringComparison.Ordinal);
         Assert.Contains("(int)source.Address", output, StringComparison.Ordinal);
         Assert.Contains("(int)source.Port", output, StringComparison.Ordinal);
         Assert.Contains("(int)source.Timestamp", output, StringComparison.Ordinal);
@@ -629,7 +629,7 @@ public partial class MappingConfigurationGeneratorTests
         var (diagnostics, output) = GetGeneratedOutput(source);
 
         Assert.Empty(diagnostics);
-        Assert.Contains("new MyApp.TargetProject(", output, StringComparison.Ordinal);
+        Assert.Contains("new global::MyApp.TargetProject(", output, StringComparison.Ordinal);
         Assert.Contains("MapToTargetHeader", output, StringComparison.Ordinal);
     }
 
@@ -679,7 +679,7 @@ public partial class MappingConfigurationGeneratorTests
         var (diagnostics, output) = GetGeneratedOutput(source);
 
         Assert.Empty(diagnostics);
-        Assert.Contains("new MyApp.TargetContainer(", output, StringComparison.Ordinal);
+        Assert.Contains("new global::MyApp.TargetContainer(", output, StringComparison.Ordinal);
         Assert.Contains("(int)source.Version", output, StringComparison.Ordinal);
         Assert.Contains("MapToTargetItem", output, StringComparison.Ordinal);
     }
@@ -738,7 +738,7 @@ public partial class MappingConfigurationGeneratorTests
         var (diagnostics, output) = GetGeneratedOutput(source);
 
         Assert.Empty(diagnostics);
-        Assert.Contains("new MyApp.TargetDesignerSettings(", output, StringComparison.Ordinal);
+        Assert.Contains("new global::MyApp.TargetDesignerSettings(", output, StringComparison.Ordinal);
         Assert.Contains("source.SizeHorizontal", output, StringComparison.Ordinal);
         Assert.Contains("source.SizeVertical", output, StringComparison.Ordinal);
         Assert.Contains("source.GridCountHorizontal", output, StringComparison.Ordinal);
@@ -838,7 +838,7 @@ public partial class MappingConfigurationGeneratorTests
         var (diagnostics, output) = GetGeneratedOutput(source);
 
         Assert.Empty(diagnostics);
-        Assert.Contains("new Target.SettingsNoDefaults(", output, StringComparison.Ordinal);
+        Assert.Contains("new global::Target.SettingsNoDefaults(", output, StringComparison.Ordinal);
         Assert.Contains("source.Name", output, StringComparison.Ordinal);
         Assert.Contains("source.Width", output, StringComparison.Ordinal);
         Assert.Contains("source.Height", output, StringComparison.Ordinal);
@@ -885,7 +885,7 @@ public partial class MappingConfigurationGeneratorTests
         var (diagnostics, output) = GetGeneratedOutput(source);
 
         Assert.Empty(diagnostics);
-        Assert.Contains("new Target.ConfigAllRequired(", output, StringComparison.Ordinal);
+        Assert.Contains("new global::Target.ConfigAllRequired(", output, StringComparison.Ordinal);
         Assert.Contains("source.Name,", output, StringComparison.Ordinal);
         Assert.Contains("source.Width,", output, StringComparison.Ordinal);
         Assert.Contains("source.Height,", output, StringComparison.Ordinal);
@@ -947,7 +947,7 @@ public partial class MappingConfigurationGeneratorTests
         var (diagnostics, output) = GetGeneratedOutput(source);
 
         Assert.Empty(diagnostics);
-        Assert.Contains("new Domain.Models.DesignerSettings(", output, StringComparison.Ordinal);
+        Assert.Contains("new global::Domain.Models.DesignerSettings(", output, StringComparison.Ordinal);
         Assert.Contains("source.SizeHorizontal,", output, StringComparison.Ordinal);
         Assert.Contains("source.SizeVertical,", output, StringComparison.Ordinal);
         Assert.Contains("source.GridCountHorizontal,", output, StringComparison.Ordinal);
@@ -1036,7 +1036,7 @@ public partial class MappingConfigurationGeneratorTests
         var (diagnostics, output) = GetGeneratedOutput(source);
 
         Assert.Empty(diagnostics);
-        Assert.Contains("new Target.CoordinateDto(", output, StringComparison.Ordinal);
+        Assert.Contains("new global::Target.CoordinateDto(", output, StringComparison.Ordinal);
 
         // Should NOT have null guard for struct input
         Assert.DoesNotContain("if (source is null)", output, StringComparison.Ordinal);
@@ -1081,10 +1081,10 @@ public partial class MappingConfigurationGeneratorTests
         Assert.Empty(diagnostics);
 
         // Should use constructor syntax, not object initializer
-        Assert.Contains("new Target.GridPositionDto(", output, StringComparison.Ordinal);
+        Assert.Contains("new global::Target.GridPositionDto(", output, StringComparison.Ordinal);
 
         // Should NOT use object initializer
-        Assert.DoesNotContain("new Target.GridPositionDto\n", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("new global::Target.GridPositionDto\n", output, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1133,7 +1133,7 @@ public partial class MappingConfigurationGeneratorTests
         var (diagnostics, output) = GetGeneratedOutputWithAssemblyReference(source, targetDll);
 
         Assert.Empty(diagnostics);
-        Assert.Contains("new TestDomain.Settings(", output, StringComparison.Ordinal);
+        Assert.Contains("new global::TestDomain.Settings(", output, StringComparison.Ordinal);
 
         // All 4 constructor args must be emitted, including Width and Height (which have private setters)
         Assert.Contains("source.Name", output, StringComparison.Ordinal);
@@ -1205,7 +1205,7 @@ public partial class MappingConfigurationGeneratorTests
         var (diagnostics, output) = GetGeneratedOutputWithAssemblyReference(source, targetDll);
 
         Assert.Empty(diagnostics);
-        Assert.Contains("new Linksoft.Data.Models.DesignerSettings(", output, StringComparison.Ordinal);
+        Assert.Contains("new global::Linksoft.Data.Models.DesignerSettings(", output, StringComparison.Ordinal);
         Assert.Contains("source.SizeHorizontal", output, StringComparison.Ordinal);
         Assert.Contains("source.SizeVertical", output, StringComparison.Ordinal);
         Assert.Contains("source.GridCountHorizontal", output, StringComparison.Ordinal);

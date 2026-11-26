@@ -179,8 +179,8 @@ public partial class MappingConfigurationGeneratorTests
         Assert.Empty(diagnostics);
 
         // Both extension methods should exist - one on Contact, one on Lead
-        Assert.Contains("this ExternalLib.Contact source", output, StringComparison.Ordinal);
-        Assert.Contains("this ExternalLib.Lead source", output, StringComparison.Ordinal);
+        Assert.Contains("this global::ExternalLib.Contact source", output, StringComparison.Ordinal);
+        Assert.Contains("this global::ExternalLib.Lead source", output, StringComparison.Ordinal);
         Assert.Contains("MapToCustomer", output, StringComparison.Ordinal);
     }
 }

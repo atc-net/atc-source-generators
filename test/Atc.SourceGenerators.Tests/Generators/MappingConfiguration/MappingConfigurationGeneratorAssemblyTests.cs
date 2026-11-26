@@ -197,8 +197,8 @@ public partial class MappingConfigurationGeneratorTests
         Assert.Contains("source.Status.MapToTargetStatus()", output, StringComparison.Ordinal);
 
         // Should map None → Unknown via special case detection
-        Assert.Contains("ExternalLib.SourceStatus.None => MyApp.TargetStatus.Unknown", output, StringComparison.Ordinal);
-        Assert.Contains("ExternalLib.SourceStatus.Active => MyApp.TargetStatus.Active", output, StringComparison.Ordinal);
+        Assert.Contains("global::ExternalLib.SourceStatus.None => global::MyApp.TargetStatus.Unknown", output, StringComparison.Ordinal);
+        Assert.Contains("global::ExternalLib.SourceStatus.Active => global::MyApp.TargetStatus.Active", output, StringComparison.Ordinal);
     }
 
     [Fact]

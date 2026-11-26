@@ -1840,7 +1840,7 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
         }
 
         // Get the full namespace and type name
-        var namespaceName = namedTypeSymbol.ContainingNamespace?.ToDisplayString();
+        var namespaceName = NamespaceHelper.GetNamespaceName(namedTypeSymbol.ContainingNamespace);
         var typeName = namedTypeSymbol.Name;
 
         // Build the open generic type name (e.g., "IRepository<>" or "IHandler<,>")

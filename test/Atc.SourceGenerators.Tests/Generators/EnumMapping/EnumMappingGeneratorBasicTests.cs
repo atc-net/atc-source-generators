@@ -30,12 +30,12 @@ public partial class EnumMappingGeneratorTests
 
         Assert.Empty(diagnostics);
         Assert.Contains("MapToTargetStatus", output, StringComparison.Ordinal);
-        Assert.Contains("public static TestNamespace.TargetStatus MapToTargetStatus(", output, StringComparison.Ordinal);
-        Assert.Contains("this TestNamespace.SourceStatus source)", output, StringComparison.Ordinal);
+        Assert.Contains("public static global::TestNamespace.TargetStatus MapToTargetStatus(", output, StringComparison.Ordinal);
+        Assert.Contains("this global::TestNamespace.SourceStatus source)", output, StringComparison.Ordinal);
         Assert.Contains("=> source switch", output, StringComparison.Ordinal);
-        Assert.Contains("TestNamespace.SourceStatus.Available => TestNamespace.TargetStatus.Available,", output, StringComparison.Ordinal);
-        Assert.Contains("TestNamespace.SourceStatus.Pending => TestNamespace.TargetStatus.Pending,", output, StringComparison.Ordinal);
-        Assert.Contains("TestNamespace.SourceStatus.Adopted => TestNamespace.TargetStatus.Adopted,", output, StringComparison.Ordinal);
+        Assert.Contains("global::TestNamespace.SourceStatus.Available => global::TestNamespace.TargetStatus.Available,", output, StringComparison.Ordinal);
+        Assert.Contains("global::TestNamespace.SourceStatus.Pending => global::TestNamespace.TargetStatus.Pending,", output, StringComparison.Ordinal);
+        Assert.Contains("global::TestNamespace.SourceStatus.Adopted => global::TestNamespace.TargetStatus.Adopted,", output, StringComparison.Ordinal);
         Assert.Contains("_ => throw new global::System.ArgumentOutOfRangeException(nameof(source), source, \"Unmapped enum value\"),", output, StringComparison.Ordinal);
     }
 
@@ -66,9 +66,9 @@ public partial class EnumMappingGeneratorTests
         var (diagnostics, output) = GetGeneratedOutput(source);
 
         Assert.Empty(diagnostics);
-        Assert.Contains("TestNamespace.SourceStatus.Available => TestNamespace.TargetStatus.available,", output, StringComparison.Ordinal);
-        Assert.Contains("TestNamespace.SourceStatus.Pending => TestNamespace.TargetStatus.PENDING,", output, StringComparison.Ordinal);
-        Assert.Contains("TestNamespace.SourceStatus.ADOPTED => TestNamespace.TargetStatus.Adopted,", output, StringComparison.Ordinal);
+        Assert.Contains("global::TestNamespace.SourceStatus.Available => global::TestNamespace.TargetStatus.available,", output, StringComparison.Ordinal);
+        Assert.Contains("global::TestNamespace.SourceStatus.Pending => global::TestNamespace.TargetStatus.PENDING,", output, StringComparison.Ordinal);
+        Assert.Contains("global::TestNamespace.SourceStatus.ADOPTED => global::TestNamespace.TargetStatus.Adopted,", output, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -103,11 +103,11 @@ public partial class EnumMappingGeneratorTests
 
         Assert.Empty(diagnostics);
         Assert.Contains("MapToStatus", output, StringComparison.Ordinal);
-        Assert.Contains("public static Domain.Models.Status MapToStatus(", output, StringComparison.Ordinal);
-        Assert.Contains("this DataAccess.Entities.StatusEntity source)", output, StringComparison.Ordinal);
+        Assert.Contains("public static global::Domain.Models.Status MapToStatus(", output, StringComparison.Ordinal);
+        Assert.Contains("this global::DataAccess.Entities.StatusEntity source)", output, StringComparison.Ordinal);
         Assert.Contains("=> source switch", output, StringComparison.Ordinal);
-        Assert.Contains("DataAccess.Entities.StatusEntity.None => Domain.Models.Status.Unknown,", output, StringComparison.Ordinal);
-        Assert.Contains("DataAccess.Entities.StatusEntity.Active => Domain.Models.Status.Active,", output, StringComparison.Ordinal);
-        Assert.Contains("DataAccess.Entities.StatusEntity.Inactive => Domain.Models.Status.Inactive,", output, StringComparison.Ordinal);
+        Assert.Contains("global::DataAccess.Entities.StatusEntity.None => global::Domain.Models.Status.Unknown,", output, StringComparison.Ordinal);
+        Assert.Contains("global::DataAccess.Entities.StatusEntity.Active => global::Domain.Models.Status.Active,", output, StringComparison.Ordinal);
+        Assert.Contains("global::DataAccess.Entities.StatusEntity.Inactive => global::Domain.Models.Status.Inactive,", output, StringComparison.Ordinal);
     }
 }

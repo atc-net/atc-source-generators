@@ -34,13 +34,13 @@ public partial class ObjectMappingGeneratorTests
         Assert.DoesNotContain(diagnostics, d => d.Severity == DiagnosticSeverity.Error);
 
         // Should generate standard method
-        Assert.Contains("public static TestNamespace.UserDto MapToUserDto(", output, StringComparison.Ordinal);
-        Assert.Contains("this TestNamespace.User source)", output, StringComparison.Ordinal);
+        Assert.Contains("public static global::TestNamespace.UserDto MapToUserDto(", output, StringComparison.Ordinal);
+        Assert.Contains("this global::TestNamespace.User source)", output, StringComparison.Ordinal);
 
         // Should also generate update target overload
         Assert.Contains("public static void MapToUserDto(", output, StringComparison.Ordinal);
-        Assert.Contains("this TestNamespace.User source,", output, StringComparison.Ordinal);
-        Assert.Contains("TestNamespace.UserDto target)", output, StringComparison.Ordinal);
+        Assert.Contains("this global::TestNamespace.User source,", output, StringComparison.Ordinal);
+        Assert.Contains("global::TestNamespace.UserDto target)", output, StringComparison.Ordinal);
 
         // Update method should have property assignments
         Assert.Contains("target.Id = source.Id;", output, StringComparison.Ordinal);
@@ -76,7 +76,7 @@ public partial class ObjectMappingGeneratorTests
         Assert.DoesNotContain(diagnostics, d => d.Severity == DiagnosticSeverity.Error);
 
         // Should generate standard method
-        Assert.Contains("public static TestNamespace.UserDto MapToUserDto(", output, StringComparison.Ordinal);
+        Assert.Contains("public static global::TestNamespace.UserDto MapToUserDto(", output, StringComparison.Ordinal);
 
         // Should NOT generate update target overload when UpdateTarget = false
         Assert.DoesNotContain("public static void MapToUserDto(", output, StringComparison.Ordinal);

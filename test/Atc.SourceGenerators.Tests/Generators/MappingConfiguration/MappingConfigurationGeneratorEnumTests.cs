@@ -50,7 +50,7 @@ public partial class MappingConfigurationGeneratorTests
         Assert.Contains("source.Type.MapToCustomerCategory()", output, StringComparison.Ordinal);
 
         // Should generate the enum mapping method
-        Assert.Contains("ExternalLib.ContactType.Individual => MyApp.CustomerCategory.Individual", output, StringComparison.Ordinal);
+        Assert.Contains("global::ExternalLib.ContactType.Individual => global::MyApp.CustomerCategory.Individual", output, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -144,6 +144,6 @@ public partial class MappingConfigurationGeneratorTests
         Assert.Empty(diagnostics);
 
         // Should map None → Unknown via special case detection
-        Assert.Contains("ExternalLib.ExternalStatus.None => MyApp.InternalStatus.Unknown", output, StringComparison.Ordinal);
+        Assert.Contains("global::ExternalLib.ExternalStatus.None => global::MyApp.InternalStatus.Unknown", output, StringComparison.Ordinal);
     }
 }

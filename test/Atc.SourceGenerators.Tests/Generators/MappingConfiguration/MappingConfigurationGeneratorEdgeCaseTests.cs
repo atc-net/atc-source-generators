@@ -147,7 +147,7 @@ public partial class MappingConfigurationGeneratorTests
 
         // Should still generate the method, but with empty initializer
         Assert.Contains("MapToTarget", output, StringComparison.Ordinal);
-        Assert.Contains("new MyApp.Target", output, StringComparison.Ordinal);
+        Assert.Contains("new global::MyApp.Target", output, StringComparison.Ordinal);
     }
 
     [Fact]

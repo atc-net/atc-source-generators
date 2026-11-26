@@ -38,7 +38,7 @@ public partial class MappingConfigurationGeneratorTests
 
         Assert.Empty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
         Assert.Contains("Items = source.Items?.ToDictionary(x => x.Key, x => MapToApiItem(x.Value))", output, StringComparison.Ordinal);
-        Assert.Contains("private static TestNamespace.ApiItem MapToApiItem(", output, StringComparison.Ordinal);
+        Assert.Contains("private static global::TestNamespace.ApiItem MapToApiItem(", output, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -173,5 +173,56 @@ public partial class MappingConfigurationGeneratorTests
 
         Assert.Empty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
         Assert.Contains("MapToDomainItem(", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Config_Assembly_MapTypes_Should_Map_Types_In_A_Root_Mapping_Namespace()
+    {
+        // Assembly-level mappings are generated in namespace Atc.Mapping, so an unqualified
+        // "Mapping.Models.X" would resolve to Atc.Mapping.Models.X
+        const string source = """
+                              using Atc.SourceGenerators.Annotations;
+
+                              [assembly: MapTypes(typeof(Mapping.Models.Source), typeof(Mapping.Models.TargetDto), Bidirectional = true)]
+
+                              namespace Mapping.Models
+                              {
+                                  public enum StatusDto { Active }
+
+                                  public enum Status { Active }
+
+                                  public class ItemDto
+                                  {
+                                      public string Name { get; set; } = string.Empty;
+                                  }
+
+                                  public class Item
+                                  {
+                                      public string Name { get; set; } = string.Empty;
+                                  }
+
+                                  public class TargetDto
+                                  {
+                                      public int Id { get; set; }
+
+                                      public StatusDto Status { get; set; }
+
+                                      public System.Collections.Generic.List<ItemDto> Items { get; set; } = new();
+                                  }
+
+                                  public class Source
+                                  {
+                                      public int Id { get; set; }
+
+                                      public Status Status { get; set; }
+
+                                      public System.Collections.Generic.List<Item> Items { get; set; } = new();
+                                  }
+                              }
+                              """;
+
+        var (diagnostics, _) = GetGeneratedOutput(source, "CS");
+
+        Assert.Empty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
     }
 }

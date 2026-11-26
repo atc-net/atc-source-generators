@@ -30,14 +30,14 @@ public partial class EnumMappingGeneratorTests
 
         // Forward mapping: SourceStatus.MapToTargetStatus()
         Assert.Contains("MapToTargetStatus", output, StringComparison.Ordinal);
-        Assert.Contains("public static TestNamespace.TargetStatus MapToTargetStatus(", output, StringComparison.Ordinal);
-        Assert.Contains("this TestNamespace.SourceStatus source)", output, StringComparison.Ordinal);
+        Assert.Contains("public static global::TestNamespace.TargetStatus MapToTargetStatus(", output, StringComparison.Ordinal);
+        Assert.Contains("this global::TestNamespace.SourceStatus source)", output, StringComparison.Ordinal);
         Assert.Contains("=> source switch", output, StringComparison.Ordinal);
 
         // Reverse mapping: TargetStatus.MapToSourceStatus()
         Assert.Contains("MapToSourceStatus", output, StringComparison.Ordinal);
-        Assert.Contains("public static TestNamespace.SourceStatus MapToSourceStatus(", output, StringComparison.Ordinal);
-        Assert.Contains("this TestNamespace.TargetStatus source)", output, StringComparison.Ordinal);
+        Assert.Contains("public static global::TestNamespace.SourceStatus MapToSourceStatus(", output, StringComparison.Ordinal);
+        Assert.Contains("this global::TestNamespace.TargetStatus source)", output, StringComparison.Ordinal);
     }
 
     [Fact]

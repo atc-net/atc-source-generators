@@ -30,8 +30,8 @@ public partial class ObjectMappingGeneratorTests
 
         Assert.Empty(diagnostics);
         Assert.Contains("MapToTargetDto", output, StringComparison.Ordinal);
-        Assert.Contains("public static TestNamespace.TargetDto MapToTargetDto(", output, StringComparison.Ordinal);
-        Assert.Contains("this TestNamespace.Source source)", output, StringComparison.Ordinal);
+        Assert.Contains("public static global::TestNamespace.TargetDto MapToTargetDto(", output, StringComparison.Ordinal);
+        Assert.Contains("this global::TestNamespace.Source source)", output, StringComparison.Ordinal);
         Assert.Contains("Id = source.Id", output, StringComparison.Ordinal);
         Assert.Contains("Name = source.Name", output, StringComparison.Ordinal);
     }
@@ -83,7 +83,7 @@ public partial class ObjectMappingGeneratorTests
         Assert.Empty(diagnostics);
         Assert.Contains("MapToTargetDto", output, StringComparison.Ordinal);
         Assert.Contains("MapToTargetAddress", output, StringComparison.Ordinal);
-        Assert.Contains("(TestNamespace.TargetStatus)source.Status", output, StringComparison.Ordinal);
+        Assert.Contains("(global::TestNamespace.TargetStatus)source.Status", output, StringComparison.Ordinal);
         Assert.Contains("source.Address?.MapToTargetAddress()", output, StringComparison.Ordinal);
     }
 
@@ -142,13 +142,13 @@ public partial class ObjectMappingGeneratorTests
 
         // Forward mapping: Source.MapToTargetDto()
         Assert.Contains("MapToTargetDto", output, StringComparison.Ordinal);
-        Assert.Contains("public static TestNamespace.TargetDto MapToTargetDto(", output, StringComparison.Ordinal);
-        Assert.Contains("this TestNamespace.Source source)", output, StringComparison.Ordinal);
+        Assert.Contains("public static global::TestNamespace.TargetDto MapToTargetDto(", output, StringComparison.Ordinal);
+        Assert.Contains("this global::TestNamespace.Source source)", output, StringComparison.Ordinal);
 
         // Reverse mapping: TargetDto.MapToSource()
         Assert.Contains("MapToSource", output, StringComparison.Ordinal);
-        Assert.Contains("public static TestNamespace.Source MapToSource(", output, StringComparison.Ordinal);
-        Assert.Contains("this TestNamespace.TargetDto source)", output, StringComparison.Ordinal);
+        Assert.Contains("public static global::TestNamespace.Source MapToSource(", output, StringComparison.Ordinal);
+        Assert.Contains("this global::TestNamespace.TargetDto source)", output, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -218,6 +218,43 @@ public partial class ObjectMappingGeneratorTests
 
         // Should use enum mapping method instead of cast
         Assert.Contains("Status = source.Status.MapToTargetStatus()", output, StringComparison.Ordinal);
-        Assert.DoesNotContain("(TestNamespace.TargetStatus)source.Status", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("(global::TestNamespace.TargetStatus)source.Status", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generator_Should_Map_Types_In_A_Root_Mapping_Namespace()
+    {
+        // Generated code lives in namespace Atc.Mapping, so an unqualified "Mapping.Models.X"
+        // would resolve to Atc.Mapping.Models.X
+        const string source = """
+                              using Atc.SourceGenerators.Annotations;
+
+                              namespace Mapping.Models
+                              {
+                                  public enum StatusDto { Active }
+
+                                  [MapTo(typeof(StatusDto))]
+                                  public enum Status { Active }
+
+                                  public class TargetDto
+                                  {
+                                      public int Id { get; set; }
+
+                                      public StatusDto Status { get; set; }
+                                  }
+
+                                  [MapTo(typeof(TargetDto), Bidirectional = true)]
+                                  public partial class Source
+                                  {
+                                      public int Id { get; set; }
+
+                                      public Status Status { get; set; }
+                                  }
+                              }
+                              """;
+
+        var (diagnostics, _) = GetGeneratedOutput(source, "CS");
+
+        Assert.Empty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
     }
 }

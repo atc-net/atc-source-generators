@@ -1386,7 +1386,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         // Build type parameter list for generic methods
         var typeParamList = string.Empty;
         var typeConstraints = new List<string>();
-        var targetTypeName = mapping.TargetType.ToDisplayString();
+        var targetTypeName = mapping.TargetType.ToGlobalDisplayString();
 
         if (mapping.IsGeneric)
         {
@@ -1395,7 +1395,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
 
             // For generic types, get the base name without type parameters
             var targetBaseTypeName = mapping.TargetType.Name;
-            targetTypeName = $"{mapping.TargetType.ContainingNamespace}.{targetBaseTypeName}";
+            targetTypeName = $"global::{NamespaceHelper.GetQualifier(mapping.TargetType.ContainingNamespace)}{targetBaseTypeName}";
 
             // Collect type parameter constraints
             foreach (var typeParam in typeParams)
@@ -1415,7 +1415,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                 // Add type constraints
                 foreach (var constraintType in typeParam.ConstraintTypes)
                 {
-                    constraints.Add(constraintType.ToDisplayString());
+                    constraints.Add(constraintType.ToGlobalDisplayString());
                 }
 
                 // Check for new() constraint
@@ -1432,10 +1432,10 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         }
 
         sb.AppendLineLf("    /// <summary>");
-        sb.AppendLineLf($"    /// Maps <see cref=\"{mapping.SourceType.ToDisplayString()}\"/> to <see cref=\"{targetTypeName}{typeParamList}\"/>.");
+        sb.AppendLineLf($"    /// Maps <see cref=\"{mapping.SourceType.ToGlobalDisplayString()}\"/> to <see cref=\"{targetTypeName}{typeParamList}\"/>.");
         sb.AppendLineLf("    /// </summary>");
         sb.AppendLineLf($"    public static {targetTypeName}{typeParamList} {methodName}{typeParamList}(");
-        sb.AppendLineLf($"        this {mapping.SourceType.ToDisplayString()} source)");
+        sb.AppendLineLf($"        this {mapping.SourceType.ToGlobalDisplayString()} source)");
 
         // Add type parameter constraints
         foreach (var constraint in typeConstraints)
@@ -1453,7 +1453,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         // Generate BeforeMap hook call
         if (!string.IsNullOrWhiteSpace(mapping.BeforeMap))
         {
-            sb.AppendLineLf($"        {mapping.SourceType.ToDisplayString()}.{mapping.BeforeMap}(source);");
+            sb.AppendLineLf($"        {mapping.SourceType.ToGlobalDisplayString()}.{mapping.BeforeMap}(source);");
             sb.AppendLineLf();
         }
 
@@ -1475,7 +1475,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         if (useFactory)
         {
             // Use factory method to create the object
-            sb.AppendLineLf($"        var target = {mapping.SourceType.ToDisplayString()}.{mapping.Factory}();");
+            sb.AppendLineLf($"        var target = {mapping.SourceType.ToGlobalDisplayString()}.{mapping.Factory}();");
             sb.AppendLineLf();
 
             // Apply property mappings to the factory-created instance
@@ -1578,7 +1578,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
             if (!string.IsNullOrWhiteSpace(mapping.AfterMap))
             {
                 sb.AppendLineLf();
-                sb.AppendLineLf($"        {mapping.SourceType.ToDisplayString()}.{mapping.AfterMap}(source, target);");
+                sb.AppendLineLf($"        {mapping.SourceType.ToGlobalDisplayString()}.{mapping.AfterMap}(source, target);");
             }
 
             sb.AppendLineLf();
@@ -1604,7 +1604,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         // Build type parameter list for generic methods
         var typeParamList = string.Empty;
         var typeConstraints = new List<string>();
-        var targetTypeName = mapping.TargetType.ToDisplayString();
+        var targetTypeName = mapping.TargetType.ToGlobalDisplayString();
 
         if (mapping.IsGeneric)
         {
@@ -1613,7 +1613,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
 
             // For generic types, get the base name without type parameters
             var targetBaseTypeName = mapping.TargetType.Name;
-            targetTypeName = $"{mapping.TargetType.ContainingNamespace}.{targetBaseTypeName}";
+            targetTypeName = $"global::{NamespaceHelper.GetQualifier(mapping.TargetType.ContainingNamespace)}{targetBaseTypeName}";
 
             // Collect type parameter constraints
             foreach (var typeParam in typeParams)
@@ -1633,7 +1633,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                 // Add type constraints
                 foreach (var constraintType in typeParam.ConstraintTypes)
                 {
-                    constraints.Add(constraintType.ToDisplayString());
+                    constraints.Add(constraintType.ToGlobalDisplayString());
                 }
 
                 // Check for new() constraint
@@ -1650,10 +1650,10 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         }
 
         sb.AppendLineLf("    /// <summary>");
-        sb.AppendLineLf($"    /// Maps <see cref=\"{mapping.SourceType.ToDisplayString()}\"/> to an existing <see cref=\"{targetTypeName}{typeParamList}\"/> instance.");
+        sb.AppendLineLf($"    /// Maps <see cref=\"{mapping.SourceType.ToGlobalDisplayString()}\"/> to an existing <see cref=\"{targetTypeName}{typeParamList}\"/> instance.");
         sb.AppendLineLf("    /// </summary>");
         sb.AppendLineLf($"    public static void {methodName}{typeParamList}(");
-        sb.AppendLineLf($"        this {mapping.SourceType.ToDisplayString()} source,");
+        sb.AppendLineLf($"        this {mapping.SourceType.ToGlobalDisplayString()} source,");
         sb.AppendLineLf($"        {targetTypeName}{typeParamList} target)");
 
         // Add type parameter constraints
@@ -1677,7 +1677,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         // Generate BeforeMap hook call
         if (!string.IsNullOrWhiteSpace(mapping.BeforeMap))
         {
-            sb.AppendLineLf($"        {mapping.SourceType.ToDisplayString()}.{mapping.BeforeMap}(source);");
+            sb.AppendLineLf($"        {mapping.SourceType.ToGlobalDisplayString()}.{mapping.BeforeMap}(source);");
             sb.AppendLineLf();
         }
 
@@ -1703,7 +1703,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         if (!string.IsNullOrWhiteSpace(mapping.AfterMap))
         {
             sb.AppendLineLf();
-            sb.AppendLineLf($"        {mapping.SourceType.ToDisplayString()}.{mapping.AfterMap}(source, target);");
+            sb.AppendLineLf($"        {mapping.SourceType.ToGlobalDisplayString()}.{mapping.AfterMap}(source, target);");
         }
 
         sb.AppendLineLf("    }");
@@ -1723,15 +1723,15 @@ public class ObjectMappingGenerator : IIncrementalGenerator
             .ToList();
 
         sb.AppendLineLf("    /// <summary>");
-        sb.AppendLineLf($"    /// Creates an Expression projection from <see cref=\"{mapping.SourceType.ToDisplayString()}\"/> to <see cref=\"{mapping.TargetType.ToDisplayString()}\"/>.");
+        sb.AppendLineLf($"    /// Creates an Expression projection from <see cref=\"{mapping.SourceType.ToGlobalDisplayString()}\"/> to <see cref=\"{mapping.TargetType.ToGlobalDisplayString()}\"/>.");
         sb.AppendLineLf("    /// </summary>");
         sb.AppendLineLf("    /// <remarks>");
         sb.AppendLineLf("    /// This projection is designed for use with IQueryable (EF Core server-side projection).");
         sb.AppendLineLf("    /// Only simple property mappings are included. Nested objects, collections, and complex conversions are excluded.");
         sb.AppendLineLf("    /// </remarks>");
-        sb.AppendLineLf($"    public static global::System.Linq.Expressions.Expression<global::System.Func<{mapping.SourceType.ToDisplayString()}, {mapping.TargetType.ToDisplayString()}>> {methodName}()");
+        sb.AppendLineLf($"    public static global::System.Linq.Expressions.Expression<global::System.Func<{mapping.SourceType.ToGlobalDisplayString()}, {mapping.TargetType.ToGlobalDisplayString()}>> {methodName}()");
         sb.AppendLineLf("    {");
-        sb.AppendLineLf($"        return source => new {mapping.TargetType.ToDisplayString()}");
+        sb.AppendLineLf($"        return source => new {mapping.TargetType.ToGlobalDisplayString()}");
         sb.AppendLineLf("        {");
 
         for (var i = 0; i < projectionProperties.Count; i++)
@@ -1744,7 +1744,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
             if (prop.RequiresConversion)
             {
                 // Enum conversion - use simple cast (works in expressions)
-                sb.AppendLineLf($"            {prop.TargetProperty.Name} = ({prop.TargetProperty.Type.ToDisplayString()})source.{prop.SourceProperty.Name}{comma}");
+                sb.AppendLineLf($"            {prop.TargetProperty.Name} = ({prop.TargetProperty.Type.ToGlobalDisplayString()})source.{prop.SourceProperty.Name}{comma}");
             }
             else if (MappingTypeAnalyzer.IsNullableToNonNullableValueType(prop.SourceProperty.Type, prop.TargetProperty.Type))
             {
@@ -1781,7 +1781,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         // Add case for each derived type mapping
         foreach (var derivedMapping in mapping.DerivedTypeMappings)
         {
-            var sourceDerivedTypeName = derivedMapping.SourceDerivedType.ToDisplayString();
+            var sourceDerivedTypeName = derivedMapping.SourceDerivedType.ToGlobalDisplayString();
             var targetDerivedTypeName = derivedMapping.TargetDerivedType.Name;
             var variableName = char.ToLowerInvariant(derivedMapping.SourceDerivedType.Name[0]) + derivedMapping.SourceDerivedType.Name.Substring(1);
 
@@ -1829,7 +1829,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
             // Use the enum mapping method when the enums are mapped with [MapTo]; otherwise fall back to a cast
             return prop.HasEnumMapping
                 ? $"x.Value.{methodName}()"
-                : $"({targetValueType.ToDisplayString()})x.Value";
+                : $"({targetValueType.ToGlobalDisplayString()})x.Value";
         }
 
         // Value type mapped with [MapTo]: the generated extension method returns default for a null source,
@@ -1888,12 +1888,12 @@ public class ObjectMappingGenerator : IIncrementalGenerator
 
             if (collectionType == "Collection")
             {
-                return $"new global::System.Collections.ObjectModel.Collection<{prop.CollectionElementType.ToDisplayString()}>({sourceVariable}.{prop.SourceProperty.Name}?.Select(x => x.{mappingMethodName}()).ToList()!)";
+                return $"new global::System.Collections.ObjectModel.Collection<{prop.CollectionElementType.ToGlobalDisplayString()}>({sourceVariable}.{prop.SourceProperty.Name}?.Select(x => x.{mappingMethodName}()).ToList()!)";
             }
 
             if (collectionType == "ReadOnlyCollection")
             {
-                return $"new global::System.Collections.ObjectModel.ReadOnlyCollection<{prop.CollectionElementType.ToDisplayString()}>({sourceVariable}.{prop.SourceProperty.Name}?.Select(x => x.{mappingMethodName}()).ToList()!)";
+                return $"new global::System.Collections.ObjectModel.ReadOnlyCollection<{prop.CollectionElementType.ToGlobalDisplayString()}>({sourceVariable}.{prop.SourceProperty.Name}?.Select(x => x.{mappingMethodName}()).ToList()!)";
             }
 
             // Default to List (handles List, IEnumerable, ICollection, IList, IReadOnlyList, IReadOnlyCollection)
@@ -1922,7 +1922,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
             }
 
             // Fall back to simple cast (less safe but works when no mapping is defined)
-            return $"({prop.TargetProperty.Type.ToDisplayString()}){sourceVariable}.{prop.SourceProperty.Name}";
+            return $"({prop.TargetProperty.Type.ToGlobalDisplayString()}){sourceVariable}.{prop.SourceProperty.Name}";
         }
 
         if (prop.IsNested)
@@ -2064,13 +2064,13 @@ public class ObjectMappingGenerator : IIncrementalGenerator
             // Generate getter accessor for source property if needed
             if (prop.SourceRequiresUnsafeAccessor)
             {
-                var sourceTypeName = mapping.SourceType.ToDisplayString();
+                var sourceTypeName = mapping.SourceType.ToGlobalDisplayString();
                 var accessorName = $"UnsafeGet{mapping.SourceType.Name}_{prop.SourceProperty.Name}";
 
                 if (accessorsGenerated.Add(accessorName))
                 {
                     sb.AppendLineLf($"    [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Method, Name = \"get_{prop.SourceProperty.Name}\")]");
-                    sb.AppendLineLf($"    private static extern {prop.SourceProperty.Type.ToDisplayString()} {accessorName}({sourceTypeName} instance);");
+                    sb.AppendLineLf($"    private static extern {prop.SourceProperty.Type.ToGlobalDisplayString()} {accessorName}({sourceTypeName} instance);");
                     sb.AppendLineLf();
                 }
             }
@@ -2078,13 +2078,13 @@ public class ObjectMappingGenerator : IIncrementalGenerator
             // Generate setter accessor for target property if needed
             if (prop.TargetRequiresUnsafeAccessor)
             {
-                var targetTypeName = mapping.TargetType.ToDisplayString();
+                var targetTypeName = mapping.TargetType.ToGlobalDisplayString();
                 var accessorName = $"UnsafeSet{mapping.TargetType.Name}_{prop.TargetProperty.Name}";
 
                 if (accessorsGenerated.Add(accessorName))
                 {
                     sb.AppendLineLf($"    [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Method, Name = \"set_{prop.TargetProperty.Name}\")]");
-                    sb.AppendLineLf($"    private static extern void {accessorName}({targetTypeName} instance, {prop.TargetProperty.Type.ToDisplayString()} value);");
+                    sb.AppendLineLf($"    private static extern void {accessorName}({targetTypeName} instance, {prop.TargetProperty.Type.ToGlobalDisplayString()} value);");
                     sb.AppendLineLf();
                 }
             }

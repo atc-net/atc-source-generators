@@ -47,8 +47,8 @@ public partial class EnumMappingGeneratorTests
         Assert.Equal(DiagnosticSeverity.Warning, deletedWarning.Severity);
 
         // Generated code should still work for mapped values
-        Assert.Contains("TestNamespace.SourceStatus.Available => TestNamespace.TargetStatus.Available,", output, StringComparison.Ordinal);
-        Assert.Contains("TestNamespace.SourceStatus.Pending => TestNamespace.TargetStatus.Pending,", output, StringComparison.Ordinal);
+        Assert.Contains("global::TestNamespace.SourceStatus.Available => global::TestNamespace.TargetStatus.Available,", output, StringComparison.Ordinal);
+        Assert.Contains("global::TestNamespace.SourceStatus.Pending => global::TestNamespace.TargetStatus.Pending,", output, StringComparison.Ordinal);
 
         // Unmapped values should not appear in switch expression
         Assert.DoesNotContain("SourceStatus.Adopted =>", output, StringComparison.Ordinal);
