@@ -343,7 +343,7 @@ public partial class MappingConfigurationGeneratorTests
         var (diagnostics, output) = GetGeneratedOutput(source);
 
         Assert.Contains("MapToTargetStatus", output, StringComparison.Ordinal);
-        Assert.Contains("MyApp.SourceStatus.None => MyApp.TargetStatus.Unknown", output, StringComparison.Ordinal);
+        Assert.Contains("global::MyApp.SourceStatus.None => global::MyApp.TargetStatus.Unknown", output, StringComparison.Ordinal);
     }
 
     [Fact]

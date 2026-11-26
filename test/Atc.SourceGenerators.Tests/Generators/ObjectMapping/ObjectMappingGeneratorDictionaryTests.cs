@@ -129,7 +129,7 @@ public partial class ObjectMappingGeneratorTests
 
         Assert.Empty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
         Assert.Contains("Statuses = source.Statuses?.ToDictionary(x => x.Key, x => x.Value.MapToStatusDto())", output, StringComparison.Ordinal);
-        Assert.Contains("Kinds = source.Kinds?.ToDictionary(x => x.Key, x => (TestNamespace.KindDto)x.Value)", output, StringComparison.Ordinal);
+        Assert.Contains("Kinds = source.Kinds?.ToDictionary(x => x.Key, x => (global::TestNamespace.KindDto)x.Value)", output, StringComparison.Ordinal);
     }
 
     [Fact]

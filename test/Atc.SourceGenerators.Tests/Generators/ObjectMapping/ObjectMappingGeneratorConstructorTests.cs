@@ -26,10 +26,10 @@ public partial class ObjectMappingGeneratorTests
 
         Assert.Empty(diagnostics);
         Assert.Contains("MapToTargetDto", output, StringComparison.Ordinal);
-        Assert.Contains("public static TestNamespace.TargetDto MapToTargetDto(", output, StringComparison.Ordinal);
+        Assert.Contains("public static global::TestNamespace.TargetDto MapToTargetDto(", output, StringComparison.Ordinal);
 
         // Should use constructor call (constructor mapping feature)
-        Assert.Contains("return new TestNamespace.TargetDto(", output, StringComparison.Ordinal);
+        Assert.Contains("return new global::TestNamespace.TargetDto(", output, StringComparison.Ordinal);
         Assert.Contains("source.Id,", output, StringComparison.Ordinal);
         Assert.Contains("source.Name", output, StringComparison.Ordinal);
     }
@@ -52,10 +52,10 @@ public partial class ObjectMappingGeneratorTests
 
         Assert.Empty(diagnostics);
         Assert.Contains("MapToTargetDto", output, StringComparison.Ordinal);
-        Assert.Contains("public static TestNamespace.TargetDto MapToTargetDto(", output, StringComparison.Ordinal);
+        Assert.Contains("public static global::TestNamespace.TargetDto MapToTargetDto(", output, StringComparison.Ordinal);
 
         // Should use constructor call (constructor mapping feature)
-        Assert.Contains("return new TestNamespace.TargetDto(", output, StringComparison.Ordinal);
+        Assert.Contains("return new global::TestNamespace.TargetDto(", output, StringComparison.Ordinal);
         Assert.Contains("source.Id,", output, StringComparison.Ordinal);
         Assert.Contains("source.Name", output, StringComparison.Ordinal);
     }
@@ -82,7 +82,7 @@ public partial class ObjectMappingGeneratorTests
 
         Assert.Empty(diagnostics);
         Assert.Contains("MapToTargetDto", output, StringComparison.Ordinal);
-        Assert.Contains("public static TestNamespace.TargetDto MapToTargetDto(", output, StringComparison.Ordinal);
+        Assert.Contains("public static global::TestNamespace.TargetDto MapToTargetDto(", output, StringComparison.Ordinal);
         Assert.Contains("Id = source.Id", output, StringComparison.Ordinal);
         Assert.Contains("Name = source.Name", output, StringComparison.Ordinal);
     }
@@ -111,7 +111,7 @@ public partial class ObjectMappingGeneratorTests
         Assert.Contains("MapToTargetDto", output, StringComparison.Ordinal);
 
         // Should use constructor call instead of object initializer
-        Assert.Contains("return new TestNamespace.TargetDto(", output, StringComparison.Ordinal);
+        Assert.Contains("return new global::TestNamespace.TargetDto(", output, StringComparison.Ordinal);
         Assert.Contains("source.Id,", output, StringComparison.Ordinal);
         Assert.Contains("source.Name", output, StringComparison.Ordinal);
 
@@ -146,7 +146,7 @@ public partial class ObjectMappingGeneratorTests
         Assert.Contains("MapToUserDto", output, StringComparison.Ordinal);
 
         // Should use constructor call with all parameters
-        Assert.Contains("return new TestNamespace.UserDto(", output, StringComparison.Ordinal);
+        Assert.Contains("return new global::TestNamespace.UserDto(", output, StringComparison.Ordinal);
         Assert.Contains("source.Id,", output, StringComparison.Ordinal);
         Assert.Contains("source.Name,", output, StringComparison.Ordinal);
         Assert.Contains("source.Email,", output, StringComparison.Ordinal);
@@ -183,7 +183,7 @@ public partial class ObjectMappingGeneratorTests
         Assert.Contains("MapToTargetDto", output, StringComparison.Ordinal);
 
         // Should use constructor for primary parameters
-        Assert.Contains("return new TestNamespace.TargetDto(", output, StringComparison.Ordinal);
+        Assert.Contains("return new global::TestNamespace.TargetDto(", output, StringComparison.Ordinal);
         Assert.Contains("source.Id,", output, StringComparison.Ordinal);
         Assert.Contains("source.Name", output, StringComparison.Ordinal);
 
@@ -212,11 +212,11 @@ public partial class ObjectMappingGeneratorTests
 
         // Forward mapping: Source.MapToTargetDto() - should use constructor
         Assert.Contains("MapToTargetDto", output, StringComparison.Ordinal);
-        Assert.Contains("return new TestNamespace.TargetDto(", output, StringComparison.Ordinal);
+        Assert.Contains("return new global::TestNamespace.TargetDto(", output, StringComparison.Ordinal);
 
         // Reverse mapping: TargetDto.MapToSource() - should also use constructor
         Assert.Contains("MapToSource", output, StringComparison.Ordinal);
-        Assert.Contains("return new TestNamespace.Source(", output, StringComparison.Ordinal);
+        Assert.Contains("return new global::TestNamespace.Source(", output, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -249,7 +249,7 @@ public partial class ObjectMappingGeneratorTests
         Assert.Contains("MapToUserDto", output, StringComparison.Ordinal);
 
         // Should use constructor with nested mapping
-        Assert.Contains("return new TestNamespace.UserDto(", output, StringComparison.Ordinal);
+        Assert.Contains("return new global::TestNamespace.UserDto(", output, StringComparison.Ordinal);
         Assert.Contains("source.Id,", output, StringComparison.Ordinal);
         Assert.Contains("source.Name,", output, StringComparison.Ordinal);
         Assert.Contains("source.Address?.MapToAddressDto()!", output, StringComparison.Ordinal);
@@ -285,7 +285,7 @@ public partial class ObjectMappingGeneratorTests
         Assert.Contains("MapToUserDto", output, StringComparison.Ordinal);
 
         // Should use constructor with enum mapping method
-        Assert.Contains("return new TestNamespace.UserDto(", output, StringComparison.Ordinal);
+        Assert.Contains("return new global::TestNamespace.UserDto(", output, StringComparison.Ordinal);
         Assert.Contains("source.Id,", output, StringComparison.Ordinal);
         Assert.Contains("source.Name,", output, StringComparison.Ordinal);
         Assert.Contains("source.Status.MapToTargetStatus()", output, StringComparison.Ordinal);
@@ -324,7 +324,7 @@ public partial class ObjectMappingGeneratorTests
         Assert.Contains("MapToPostDto", output, StringComparison.Ordinal);
 
         // Should use constructor for Id and Title
-        Assert.Contains("return new TestNamespace.PostDto(", output, StringComparison.Ordinal);
+        Assert.Contains("return new global::TestNamespace.PostDto(", output, StringComparison.Ordinal);
         Assert.Contains("source.Id,", output, StringComparison.Ordinal);
         Assert.Contains("source.Title", output, StringComparison.Ordinal);
 
@@ -356,7 +356,7 @@ public partial class ObjectMappingGeneratorTests
         Assert.Contains("MapToTargetDto", output, StringComparison.Ordinal);
 
         // Should match properties to constructor parameters case-insensitively
-        Assert.Contains("return new TestNamespace.TargetDto(", output, StringComparison.Ordinal);
+        Assert.Contains("return new global::TestNamespace.TargetDto(", output, StringComparison.Ordinal);
         Assert.Contains("source.Id,", output, StringComparison.Ordinal);
         Assert.Contains("source.Name", output, StringComparison.Ordinal);
     }

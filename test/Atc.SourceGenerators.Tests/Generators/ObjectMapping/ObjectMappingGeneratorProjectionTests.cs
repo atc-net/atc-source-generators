@@ -83,7 +83,7 @@ public partial class ObjectMappingGeneratorTests
         Assert.Contains("ProjectToUserDto", output, StringComparison.Ordinal);
 
         // Projection should include enum conversion (simple cast)
-        Assert.Contains("Status = (TestNamespace.TargetStatus)source.Status", output, StringComparison.Ordinal);
+        Assert.Contains("Status = (global::TestNamespace.TargetStatus)source.Status", output, StringComparison.Ordinal);
     }
 
     [Fact(Skip = "GenerateProjection property not recognized in test harness (similar to Factory/UpdateTarget). Feature will be verified in samples.")]

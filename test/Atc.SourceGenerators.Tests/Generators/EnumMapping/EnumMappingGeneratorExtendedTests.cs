@@ -30,9 +30,9 @@ public partial class EnumMappingGeneratorTests
         var (diagnostics, output) = GetGeneratedOutput(source);
 
         Assert.Empty(diagnostics);
-        Assert.Contains("TestNamespace.SourceStatus.None => TestNamespace.TargetStatus.Default,", output, StringComparison.Ordinal);
-        Assert.Contains("TestNamespace.SourceStatus.Active => TestNamespace.TargetStatus.Active,", output, StringComparison.Ordinal);
-        Assert.Contains("TestNamespace.SourceStatus.Closed => TestNamespace.TargetStatus.Closed,", output, StringComparison.Ordinal);
+        Assert.Contains("global::TestNamespace.SourceStatus.None => global::TestNamespace.TargetStatus.Default,", output, StringComparison.Ordinal);
+        Assert.Contains("global::TestNamespace.SourceStatus.Active => global::TestNamespace.TargetStatus.Active,", output, StringComparison.Ordinal);
+        Assert.Contains("global::TestNamespace.SourceStatus.Closed => global::TestNamespace.TargetStatus.Closed,", output, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -62,9 +62,9 @@ public partial class EnumMappingGeneratorTests
         var (diagnostics, output) = GetGeneratedOutput(source);
 
         Assert.Empty(diagnostics);
-        Assert.Contains("TestNamespace.SourceStatus.Unknown => TestNamespace.TargetStatus.None,", output, StringComparison.Ordinal);
-        Assert.Contains("TestNamespace.SourceStatus.Active => TestNamespace.TargetStatus.Active,", output, StringComparison.Ordinal);
-        Assert.Contains("TestNamespace.SourceStatus.Closed => TestNamespace.TargetStatus.Closed,", output, StringComparison.Ordinal);
+        Assert.Contains("global::TestNamespace.SourceStatus.Unknown => global::TestNamespace.TargetStatus.None,", output, StringComparison.Ordinal);
+        Assert.Contains("global::TestNamespace.SourceStatus.Active => global::TestNamespace.TargetStatus.Active,", output, StringComparison.Ordinal);
+        Assert.Contains("global::TestNamespace.SourceStatus.Closed => global::TestNamespace.TargetStatus.Closed,", output, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -94,7 +94,7 @@ public partial class EnumMappingGeneratorTests
         var (diagnostics, output) = GetGeneratedOutput(source);
 
         Assert.Empty(diagnostics);
-        Assert.Contains("TestNamespace.SourceStatus.Unknown => TestNamespace.TargetStatus.Default,", output, StringComparison.Ordinal);
+        Assert.Contains("global::TestNamespace.SourceStatus.Unknown => global::TestNamespace.TargetStatus.Default,", output, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -124,7 +124,7 @@ public partial class EnumMappingGeneratorTests
         var (diagnostics, output) = GetGeneratedOutput(source);
 
         Assert.Empty(diagnostics);
-        Assert.Contains("TestNamespace.SourceStatus.Default => TestNamespace.TargetStatus.None,", output, StringComparison.Ordinal);
+        Assert.Contains("global::TestNamespace.SourceStatus.Default => global::TestNamespace.TargetStatus.None,", output, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -154,7 +154,7 @@ public partial class EnumMappingGeneratorTests
         var (diagnostics, output) = GetGeneratedOutput(source);
 
         Assert.Empty(diagnostics);
-        Assert.Contains("TestNamespace.SourceStatus.Default => TestNamespace.TargetStatus.Unknown,", output, StringComparison.Ordinal);
+        Assert.Contains("global::TestNamespace.SourceStatus.Default => global::TestNamespace.TargetStatus.Unknown,", output, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -202,8 +202,8 @@ public partial class EnumMappingGeneratorTests
         Assert.Equal(DiagnosticSeverity.Warning, yellowWarning.Severity);
 
         // Mapped values should be present in output
-        Assert.Contains("TestNamespace.SourceColor.Red => TestNamespace.TargetColor.Red,", output, StringComparison.Ordinal);
-        Assert.Contains("TestNamespace.SourceColor.Green => TestNamespace.TargetColor.Green,", output, StringComparison.Ordinal);
+        Assert.Contains("global::TestNamespace.SourceColor.Red => global::TestNamespace.TargetColor.Red,", output, StringComparison.Ordinal);
+        Assert.Contains("global::TestNamespace.SourceColor.Green => global::TestNamespace.TargetColor.Green,", output, StringComparison.Ordinal);
 
         // Unmapped values should NOT be present in switch
         Assert.DoesNotContain("SourceColor.Blue =>", output, StringComparison.Ordinal);
@@ -343,9 +343,9 @@ public partial class EnumMappingGeneratorTests
 
         Assert.Empty(diagnostics);
         Assert.Contains("MapToTargetMonth", output, StringComparison.Ordinal);
-        Assert.Contains("TestNamespace.SourceMonth.January => TestNamespace.TargetMonth.January,", output, StringComparison.Ordinal);
-        Assert.Contains("TestNamespace.SourceMonth.June => TestNamespace.TargetMonth.June,", output, StringComparison.Ordinal);
-        Assert.Contains("TestNamespace.SourceMonth.December => TestNamespace.TargetMonth.December,", output, StringComparison.Ordinal);
+        Assert.Contains("global::TestNamespace.SourceMonth.January => global::TestNamespace.TargetMonth.January,", output, StringComparison.Ordinal);
+        Assert.Contains("global::TestNamespace.SourceMonth.June => global::TestNamespace.TargetMonth.June,", output, StringComparison.Ordinal);
+        Assert.Contains("global::TestNamespace.SourceMonth.December => global::TestNamespace.TargetMonth.December,", output, StringComparison.Ordinal);
 
         // Verify all 12 months are present
         Assert.Contains("SourceMonth.February =>", output, StringComparison.Ordinal);
@@ -392,8 +392,8 @@ public partial class EnumMappingGeneratorTests
         Assert.All(diagnostics, d => Assert.Equal(DiagnosticSeverity.Warning, d.Severity));
 
         // Mapped values should be present
-        Assert.Contains("TestNamespace.SourcePriority.Low => TestNamespace.TargetPriority.Low,", output, StringComparison.Ordinal);
-        Assert.Contains("TestNamespace.SourcePriority.High => TestNamespace.TargetPriority.High,", output, StringComparison.Ordinal);
+        Assert.Contains("global::TestNamespace.SourcePriority.Low => global::TestNamespace.TargetPriority.Low,", output, StringComparison.Ordinal);
+        Assert.Contains("global::TestNamespace.SourcePriority.High => global::TestNamespace.TargetPriority.High,", output, StringComparison.Ordinal);
 
         // Unmapped values should NOT be present
         Assert.DoesNotContain("SourcePriority.Medium =>", output, StringComparison.Ordinal);
@@ -430,8 +430,8 @@ public partial class EnumMappingGeneratorTests
 
         // No warnings - all source values have targets
         Assert.Empty(diagnostics);
-        Assert.Contains("TestNamespace.SourcePriority.Low => TestNamespace.TargetPriority.Low,", output, StringComparison.Ordinal);
-        Assert.Contains("TestNamespace.SourcePriority.High => TestNamespace.TargetPriority.High,", output, StringComparison.Ordinal);
+        Assert.Contains("global::TestNamespace.SourcePriority.Low => global::TestNamespace.TargetPriority.Low,", output, StringComparison.Ordinal);
+        Assert.Contains("global::TestNamespace.SourcePriority.High => global::TestNamespace.TargetPriority.High,", output, StringComparison.Ordinal);
 
         // Extra target values should not appear as source in switch arms
         Assert.DoesNotContain("SourcePriority.Medium", output, StringComparison.Ordinal);
@@ -476,12 +476,12 @@ public partial class EnumMappingGeneratorTests
         Assert.Contains("MapToTargetA", output, StringComparison.Ordinal);
         Assert.Contains("MapToTargetB", output, StringComparison.Ordinal);
 
-        Assert.Contains("public static TestNamespace.TargetA MapToTargetA(", output, StringComparison.Ordinal);
-        Assert.Contains("this TestNamespace.SourceStatus source)", output, StringComparison.Ordinal);
-        Assert.Contains("public static TestNamespace.TargetB MapToTargetB(", output, StringComparison.Ordinal);
+        Assert.Contains("public static global::TestNamespace.TargetA MapToTargetA(", output, StringComparison.Ordinal);
+        Assert.Contains("this global::TestNamespace.SourceStatus source)", output, StringComparison.Ordinal);
+        Assert.Contains("public static global::TestNamespace.TargetB MapToTargetB(", output, StringComparison.Ordinal);
 
-        Assert.Contains("TestNamespace.SourceStatus.Active => TestNamespace.TargetA.Active,", output, StringComparison.Ordinal);
-        Assert.Contains("TestNamespace.SourceStatus.Active => TestNamespace.TargetB.Active,", output, StringComparison.Ordinal);
+        Assert.Contains("global::TestNamespace.SourceStatus.Active => global::TestNamespace.TargetA.Active,", output, StringComparison.Ordinal);
+        Assert.Contains("global::TestNamespace.SourceStatus.Active => global::TestNamespace.TargetB.Active,", output, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -513,14 +513,14 @@ public partial class EnumMappingGeneratorTests
         Assert.Empty(diagnostics);
 
         // Forward: None -> Unknown
-        Assert.Contains("TestNamespace.SourceStatus.None => TestNamespace.TargetStatus.Unknown,", output, StringComparison.Ordinal);
-        Assert.Contains("TestNamespace.SourceStatus.Active => TestNamespace.TargetStatus.Active,", output, StringComparison.Ordinal);
-        Assert.Contains("TestNamespace.SourceStatus.Closed => TestNamespace.TargetStatus.Closed,", output, StringComparison.Ordinal);
+        Assert.Contains("global::TestNamespace.SourceStatus.None => global::TestNamespace.TargetStatus.Unknown,", output, StringComparison.Ordinal);
+        Assert.Contains("global::TestNamespace.SourceStatus.Active => global::TestNamespace.TargetStatus.Active,", output, StringComparison.Ordinal);
+        Assert.Contains("global::TestNamespace.SourceStatus.Closed => global::TestNamespace.TargetStatus.Closed,", output, StringComparison.Ordinal);
 
         // Reverse: Unknown -> None
-        Assert.Contains("TestNamespace.TargetStatus.Unknown => TestNamespace.SourceStatus.None,", output, StringComparison.Ordinal);
-        Assert.Contains("TestNamespace.TargetStatus.Active => TestNamespace.SourceStatus.Active,", output, StringComparison.Ordinal);
-        Assert.Contains("TestNamespace.TargetStatus.Closed => TestNamespace.SourceStatus.Closed,", output, StringComparison.Ordinal);
+        Assert.Contains("global::TestNamespace.TargetStatus.Unknown => global::TestNamespace.SourceStatus.None,", output, StringComparison.Ordinal);
+        Assert.Contains("global::TestNamespace.TargetStatus.Active => global::TestNamespace.SourceStatus.Active,", output, StringComparison.Ordinal);
+        Assert.Contains("global::TestNamespace.TargetStatus.Closed => global::TestNamespace.SourceStatus.Closed,", output, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -552,10 +552,10 @@ public partial class EnumMappingGeneratorTests
         Assert.Empty(diagnostics);
 
         // Forward: Default -> None
-        Assert.Contains("TestNamespace.SourceStatus.Default => TestNamespace.TargetStatus.None,", output, StringComparison.Ordinal);
+        Assert.Contains("global::TestNamespace.SourceStatus.Default => global::TestNamespace.TargetStatus.None,", output, StringComparison.Ordinal);
 
         // Reverse: None -> Default
-        Assert.Contains("TestNamespace.TargetStatus.None => TestNamespace.SourceStatus.Default,", output, StringComparison.Ordinal);
+        Assert.Contains("global::TestNamespace.TargetStatus.None => global::TestNamespace.SourceStatus.Default,", output, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -585,9 +585,9 @@ public partial class EnumMappingGeneratorTests
         var (diagnostics, output) = GetGeneratedOutput(source);
 
         Assert.Empty(diagnostics);
-        Assert.Contains("TestNamespace.SourceCase.ACTIVE => TestNamespace.TargetCase.active,", output, StringComparison.Ordinal);
-        Assert.Contains("TestNamespace.SourceCase.INACTIVE => TestNamespace.TargetCase.inactive,", output, StringComparison.Ordinal);
-        Assert.Contains("TestNamespace.SourceCase.DELETED => TestNamespace.TargetCase.deleted,", output, StringComparison.Ordinal);
+        Assert.Contains("global::TestNamespace.SourceCase.ACTIVE => global::TestNamespace.TargetCase.active,", output, StringComparison.Ordinal);
+        Assert.Contains("global::TestNamespace.SourceCase.INACTIVE => global::TestNamespace.TargetCase.inactive,", output, StringComparison.Ordinal);
+        Assert.Contains("global::TestNamespace.SourceCase.DELETED => global::TestNamespace.TargetCase.deleted,", output, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -617,9 +617,9 @@ public partial class EnumMappingGeneratorTests
         var (diagnostics, output) = GetGeneratedOutput(source);
 
         Assert.Empty(diagnostics);
-        Assert.Contains("TestNamespace.SourceCasing.inProgress => TestNamespace.TargetCasing.InProgress,", output, StringComparison.Ordinal);
-        Assert.Contains("TestNamespace.SourceCasing.onHold => TestNamespace.TargetCasing.OnHold,", output, StringComparison.Ordinal);
-        Assert.Contains("TestNamespace.SourceCasing.completed => TestNamespace.TargetCasing.Completed,", output, StringComparison.Ordinal);
+        Assert.Contains("global::TestNamespace.SourceCasing.inProgress => global::TestNamespace.TargetCasing.InProgress,", output, StringComparison.Ordinal);
+        Assert.Contains("global::TestNamespace.SourceCasing.onHold => global::TestNamespace.TargetCasing.OnHold,", output, StringComparison.Ordinal);
+        Assert.Contains("global::TestNamespace.SourceCasing.completed => global::TestNamespace.TargetCasing.Completed,", output, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -649,9 +649,9 @@ public partial class EnumMappingGeneratorTests
         var (diagnostics, output) = GetGeneratedOutput(source);
 
         Assert.Empty(diagnostics);
-        Assert.Contains("TestNamespace.SourceMixed.active => TestNamespace.TargetMixed.ACTIVE,", output, StringComparison.Ordinal);
-        Assert.Contains("TestNamespace.SourceMixed.PENDING => TestNamespace.TargetMixed.pending,", output, StringComparison.Ordinal);
-        Assert.Contains("TestNamespace.SourceMixed.resolved => TestNamespace.TargetMixed.Resolved,", output, StringComparison.Ordinal);
+        Assert.Contains("global::TestNamespace.SourceMixed.active => global::TestNamespace.TargetMixed.ACTIVE,", output, StringComparison.Ordinal);
+        Assert.Contains("global::TestNamespace.SourceMixed.PENDING => global::TestNamespace.TargetMixed.pending,", output, StringComparison.Ordinal);
+        Assert.Contains("global::TestNamespace.SourceMixed.resolved => global::TestNamespace.TargetMixed.Resolved,", output, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -681,8 +681,8 @@ public partial class EnumMappingGeneratorTests
         Assert.Empty(diagnostics);
 
         // Exact case match should be used
-        Assert.Contains("TestNamespace.SourceExact.Active => TestNamespace.TargetExact.Active,", output, StringComparison.Ordinal);
-        Assert.Contains("TestNamespace.SourceExact.Pending => TestNamespace.TargetExact.Pending,", output, StringComparison.Ordinal);
+        Assert.Contains("global::TestNamespace.SourceExact.Active => global::TestNamespace.TargetExact.Active,", output, StringComparison.Ordinal);
+        Assert.Contains("global::TestNamespace.SourceExact.Pending => global::TestNamespace.TargetExact.Pending,", output, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -714,18 +714,18 @@ public partial class EnumMappingGeneratorTests
         Assert.Empty(diagnostics);
 
         // Forward: EntityStatus.None -> DtoStatus.Unknown
-        Assert.Contains("public static TestNamespace.DtoStatus MapToDtoStatus(", output, StringComparison.Ordinal);
-        Assert.Contains("this TestNamespace.EntityStatus source)", output, StringComparison.Ordinal);
-        Assert.Contains("TestNamespace.EntityStatus.None => TestNamespace.DtoStatus.Unknown,", output, StringComparison.Ordinal);
+        Assert.Contains("public static global::TestNamespace.DtoStatus MapToDtoStatus(", output, StringComparison.Ordinal);
+        Assert.Contains("this global::TestNamespace.EntityStatus source)", output, StringComparison.Ordinal);
+        Assert.Contains("global::TestNamespace.EntityStatus.None => global::TestNamespace.DtoStatus.Unknown,", output, StringComparison.Ordinal);
 
         // Reverse: DtoStatus.Unknown -> EntityStatus.None
-        Assert.Contains("public static TestNamespace.EntityStatus MapToEntityStatus(", output, StringComparison.Ordinal);
-        Assert.Contains("this TestNamespace.DtoStatus source)", output, StringComparison.Ordinal);
-        Assert.Contains("TestNamespace.DtoStatus.Unknown => TestNamespace.EntityStatus.None,", output, StringComparison.Ordinal);
+        Assert.Contains("public static global::TestNamespace.EntityStatus MapToEntityStatus(", output, StringComparison.Ordinal);
+        Assert.Contains("this global::TestNamespace.DtoStatus source)", output, StringComparison.Ordinal);
+        Assert.Contains("global::TestNamespace.DtoStatus.Unknown => global::TestNamespace.EntityStatus.None,", output, StringComparison.Ordinal);
 
         // Other values should map normally in both directions
-        Assert.Contains("TestNamespace.EntityStatus.Open => TestNamespace.DtoStatus.Open,", output, StringComparison.Ordinal);
-        Assert.Contains("TestNamespace.DtoStatus.Open => TestNamespace.EntityStatus.Open,", output, StringComparison.Ordinal);
+        Assert.Contains("global::TestNamespace.EntityStatus.Open => global::TestNamespace.DtoStatus.Open,", output, StringComparison.Ordinal);
+        Assert.Contains("global::TestNamespace.DtoStatus.Open => global::TestNamespace.EntityStatus.Open,", output, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -751,7 +751,7 @@ public partial class EnumMappingGeneratorTests
         var (diagnostics, output) = GetGeneratedOutput(source);
 
         Assert.Empty(diagnostics);
-        Assert.Contains("TestNamespace.SourceSingle.Only => TestNamespace.TargetSingle.Only,", output, StringComparison.Ordinal);
+        Assert.Contains("global::TestNamespace.SourceSingle.Only => global::TestNamespace.TargetSingle.Only,", output, StringComparison.Ordinal);
         Assert.Contains("_ => throw new global::System.ArgumentOutOfRangeException(nameof(source), source, \"Unmapped enum value\"),", output, StringComparison.Ordinal);
     }
 
@@ -893,8 +893,8 @@ public partial class EnumMappingGeneratorTests
         Assert.Contains("MapToSourceSwitch", output, StringComparison.Ordinal);
 
         // Verify reverse mapping is from TargetX
-        Assert.Contains("public static TestNamespace.SourceSwitch MapToSourceSwitch(", output, StringComparison.Ordinal);
-        Assert.Contains("this TestNamespace.TargetX source)", output, StringComparison.Ordinal);
+        Assert.Contains("public static global::TestNamespace.SourceSwitch MapToSourceSwitch(", output, StringComparison.Ordinal);
+        Assert.Contains("this global::TestNamespace.TargetX source)", output, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -928,9 +928,9 @@ public partial class EnumMappingGeneratorTests
         var (diagnostics, output) = GetGeneratedOutput(source);
 
         Assert.Empty(diagnostics);
-        Assert.Contains("Data.Entities.UserStateEntity.None => Api.Models.UserState.Unknown,", output, StringComparison.Ordinal);
-        Assert.Contains("Data.Entities.UserStateEntity.Active => Api.Models.UserState.Active,", output, StringComparison.Ordinal);
-        Assert.Contains("Data.Entities.UserStateEntity.Suspended => Api.Models.UserState.Suspended,", output, StringComparison.Ordinal);
+        Assert.Contains("global::Data.Entities.UserStateEntity.None => global::Api.Models.UserState.Unknown,", output, StringComparison.Ordinal);
+        Assert.Contains("global::Data.Entities.UserStateEntity.Active => global::Api.Models.UserState.Active,", output, StringComparison.Ordinal);
+        Assert.Contains("global::Data.Entities.UserStateEntity.Suspended => global::Api.Models.UserState.Suspended,", output, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -993,16 +993,16 @@ public partial class EnumMappingGeneratorTests
         Assert.Empty(diagnostics);
 
         // Forward: all source values map
-        Assert.Contains("TestNamespace.SourceAccess.Read => TestNamespace.TargetAccess.Read,", output, StringComparison.Ordinal);
-        Assert.Contains("TestNamespace.SourceAccess.Write => TestNamespace.TargetAccess.Write,", output, StringComparison.Ordinal);
+        Assert.Contains("global::TestNamespace.SourceAccess.Read => global::TestNamespace.TargetAccess.Read,", output, StringComparison.Ordinal);
+        Assert.Contains("global::TestNamespace.SourceAccess.Write => global::TestNamespace.TargetAccess.Write,", output, StringComparison.Ordinal);
 
         // Reverse: Read and Write map, Admin has no match in source but
         // reverse mapping warnings are not reported as ATCENUM002 (only forward is diagnosed)
-        Assert.Contains("TestNamespace.TargetAccess.Read => TestNamespace.SourceAccess.Read,", output, StringComparison.Ordinal);
-        Assert.Contains("TestNamespace.TargetAccess.Write => TestNamespace.SourceAccess.Write,", output, StringComparison.Ordinal);
+        Assert.Contains("global::TestNamespace.TargetAccess.Read => global::TestNamespace.SourceAccess.Read,", output, StringComparison.Ordinal);
+        Assert.Contains("global::TestNamespace.TargetAccess.Write => global::TestNamespace.SourceAccess.Write,", output, StringComparison.Ordinal);
 
         // Admin should NOT appear as a mapped value in reverse (it's unmapped)
-        Assert.DoesNotContain("TargetAccess.Admin => TestNamespace.SourceAccess", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("TargetAccess.Admin => global::TestNamespace.SourceAccess", output, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1035,7 +1035,7 @@ public partial class EnumMappingGeneratorTests
         Assert.Empty(diagnostics);
 
         // None should map to Unknown (first in special case list)
-        Assert.Contains("TestNamespace.SourceWithNone.None => TestNamespace.TargetWithBoth.Unknown,", output, StringComparison.Ordinal);
+        Assert.Contains("global::TestNamespace.SourceWithNone.None => global::TestNamespace.TargetWithBoth.Unknown,", output, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1066,7 +1066,7 @@ public partial class EnumMappingGeneratorTests
         Assert.Empty(diagnostics);
 
         // None should map to None (exact match), not Unknown (special case)
-        Assert.Contains("TestNamespace.SourceWithNone.None => TestNamespace.TargetWithNone.None,", output, StringComparison.Ordinal);
+        Assert.Contains("global::TestNamespace.SourceWithNone.None => global::TestNamespace.TargetWithNone.None,", output, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1093,7 +1093,7 @@ public partial class EnumMappingGeneratorTests
 
         Assert.Empty(diagnostics);
         Assert.Contains("/// <summary>", output, StringComparison.Ordinal);
-        Assert.Contains("/// Maps <see cref=\"TestNamespace.SourceDoc\"/> to <see cref=\"TestNamespace.TargetDoc\"/>.", output, StringComparison.Ordinal);
+        Assert.Contains("/// Maps <see cref=\"global::TestNamespace.SourceDoc\"/> to <see cref=\"global::TestNamespace.TargetDoc\"/>.", output, StringComparison.Ordinal);
         Assert.Contains("/// </summary>", output, StringComparison.Ordinal);
     }
 
@@ -1126,9 +1126,9 @@ public partial class EnumMappingGeneratorTests
         Assert.Empty(diagnostics);
 
         // Mapping should work by name regardless of integer values
-        Assert.Contains("TestNamespace.SourceFlag.Read => TestNamespace.TargetFlag.Read,", output, StringComparison.Ordinal);
-        Assert.Contains("TestNamespace.SourceFlag.Write => TestNamespace.TargetFlag.Write,", output, StringComparison.Ordinal);
-        Assert.Contains("TestNamespace.SourceFlag.Execute => TestNamespace.TargetFlag.Execute,", output, StringComparison.Ordinal);
+        Assert.Contains("global::TestNamespace.SourceFlag.Read => global::TestNamespace.TargetFlag.Read,", output, StringComparison.Ordinal);
+        Assert.Contains("global::TestNamespace.SourceFlag.Write => global::TestNamespace.TargetFlag.Write,", output, StringComparison.Ordinal);
+        Assert.Contains("global::TestNamespace.SourceFlag.Execute => global::TestNamespace.TargetFlag.Execute,", output, StringComparison.Ordinal);
     }
 
     [Fact]

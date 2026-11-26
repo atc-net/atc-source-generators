@@ -226,6 +226,6 @@ public partial class ObjectMappingGeneratorTests
 
         Assert.Empty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
         Assert.DoesNotContain("MapToNullable", output, StringComparison.Ordinal);
-        Assert.Contains("Kind = (TestNamespace.KindDto?)source.Kind", output, StringComparison.Ordinal);
+        Assert.Contains("Kind = (global::TestNamespace.KindDto?)source.Kind", output, StringComparison.Ordinal);
     }
 }

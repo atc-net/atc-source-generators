@@ -84,7 +84,7 @@ public partial class MappingConfigurationGeneratorTests
         Assert.Contains("MapToCustomerDto", output, StringComparison.Ordinal);
 
         // Should use constructor since CustomerDto is a record
-        Assert.Contains("new MyApp.CustomerDto(", output, StringComparison.Ordinal);
+        Assert.Contains("new global::MyApp.CustomerDto(", output, StringComparison.Ordinal);
     }
 
     [Fact]

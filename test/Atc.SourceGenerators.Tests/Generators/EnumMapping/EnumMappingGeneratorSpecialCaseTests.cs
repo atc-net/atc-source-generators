@@ -31,10 +31,10 @@ public partial class EnumMappingGeneratorTests
         var (diagnostics, output) = GetGeneratedOutput(source);
 
         Assert.Empty(diagnostics);
-        Assert.Contains("TestNamespace.SourceStatus.None => TestNamespace.TargetStatus.Unknown,", output, StringComparison.Ordinal);
-        Assert.Contains("TestNamespace.SourceStatus.Available => TestNamespace.TargetStatus.Available,", output, StringComparison.Ordinal);
-        Assert.Contains("TestNamespace.SourceStatus.Pending => TestNamespace.TargetStatus.Pending,", output, StringComparison.Ordinal);
-        Assert.Contains("TestNamespace.SourceStatus.Adopted => TestNamespace.TargetStatus.Adopted,", output, StringComparison.Ordinal);
+        Assert.Contains("global::TestNamespace.SourceStatus.None => global::TestNamespace.TargetStatus.Unknown,", output, StringComparison.Ordinal);
+        Assert.Contains("global::TestNamespace.SourceStatus.Available => global::TestNamespace.TargetStatus.Available,", output, StringComparison.Ordinal);
+        Assert.Contains("global::TestNamespace.SourceStatus.Pending => global::TestNamespace.TargetStatus.Pending,", output, StringComparison.Ordinal);
+        Assert.Contains("global::TestNamespace.SourceStatus.Adopted => global::TestNamespace.TargetStatus.Adopted,", output, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -67,10 +67,10 @@ public partial class EnumMappingGeneratorTests
 
         Assert.Empty(diagnostics);
         Assert.Contains("MapToPetStatusDto", output, StringComparison.Ordinal);
-        Assert.Contains("TestNamespace.PetStatusEntity.None => TestNamespace.PetStatusDto.Unknown,", output, StringComparison.Ordinal);
-        Assert.Contains("TestNamespace.PetStatusEntity.Pending => TestNamespace.PetStatusDto.Pending,", output, StringComparison.Ordinal);
-        Assert.Contains("TestNamespace.PetStatusEntity.Available => TestNamespace.PetStatusDto.Available,", output, StringComparison.Ordinal);
-        Assert.Contains("TestNamespace.PetStatusEntity.Adopted => TestNamespace.PetStatusDto.Adopted,", output, StringComparison.Ordinal);
+        Assert.Contains("global::TestNamespace.PetStatusEntity.None => global::TestNamespace.PetStatusDto.Unknown,", output, StringComparison.Ordinal);
+        Assert.Contains("global::TestNamespace.PetStatusEntity.Pending => global::TestNamespace.PetStatusDto.Pending,", output, StringComparison.Ordinal);
+        Assert.Contains("global::TestNamespace.PetStatusEntity.Available => global::TestNamespace.PetStatusDto.Available,", output, StringComparison.Ordinal);
+        Assert.Contains("global::TestNamespace.PetStatusEntity.Adopted => global::TestNamespace.PetStatusDto.Adopted,", output, StringComparison.Ordinal);
         Assert.Contains("_ => throw new global::System.ArgumentOutOfRangeException(nameof(source), source, \"Unmapped enum value\"),", output, StringComparison.Ordinal);
     }
 }

@@ -99,8 +99,8 @@ public partial class MappingConfigurationGeneratorTests
 
         Assert.Empty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
         Assert.Contains("source.Details?.ToDictionary(x => x.Key, x => x.Value)", output, StringComparison.Ordinal);
-        Assert.Contains("return new TestNamespace.Domain(", output, StringComparison.Ordinal);
-        Assert.Contains("return new TestNamespace.Api(", output, StringComparison.Ordinal);
+        Assert.Contains("return new global::TestNamespace.Domain(", output, StringComparison.Ordinal);
+        Assert.Contains("return new global::TestNamespace.Api(", output, StringComparison.Ordinal);
     }
 
     [Fact]

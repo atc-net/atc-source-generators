@@ -640,7 +640,7 @@ public class OptionsBindingGenerator : IIncrementalGenerator
 
                 result.Add(new OptionsInfo(
                     classSymbol.Name,
-                    classSymbol.ContainingNamespace.ToDisplayString(),
+                    NamespaceHelper.GetNamespaceName(classSymbol.ContainingNamespace) ?? string.Empty,
                     classSymbol.ContainingAssembly.Name,
                     childSectionName,
                     validateOnStart,
@@ -664,7 +664,7 @@ public class OptionsBindingGenerator : IIncrementalGenerator
         [
             new OptionsInfo(
                 classSymbol.Name,
-                classSymbol.ContainingNamespace.ToDisplayString(),
+                NamespaceHelper.GetNamespaceName(classSymbol.ContainingNamespace) ?? string.Empty,
                 classSymbol.ContainingAssembly.Name,
                 sectionName!, // Guaranteed non-null after validation above
                 validateOnStart,
@@ -680,6 +680,14 @@ public class OptionsBindingGenerator : IIncrementalGenerator
                 alsoRegisterDirectType),
         ];
     }
+
+    /// <summary>
+    /// Gets the fully qualified (global::) name of an options type, also for a type in the global namespace.
+    /// </summary>
+    private static string GetGlobalTypeName(OptionsInfo option)
+        => string.IsNullOrEmpty(option.Namespace)
+            ? $"global::{option.ClassName}"
+            : $"global::{option.Namespace}.{option.ClassName}";
 
     private static string InferSectionNameFromClassName(string className)
         => className;
@@ -863,7 +871,7 @@ public class OptionsBindingGenerator : IIncrementalGenerator
     {
         // Extract only the essential information needed for dispatcher
         var className = namedType.Name;
-        var namespaceName = namedType.ContainingNamespace.ToDisplayString();
+        var namespaceName = NamespaceHelper.GetNamespaceName(namedType.ContainingNamespace) ?? string.Empty;
         var assemblyName = namedType.ContainingAssembly.Name;
 
         // Check if this is a named option (has Name property set)
@@ -994,7 +1002,7 @@ public static class OptionsBindingExtensions{{methodSuffix}}
             var configureAllOption = namedOptions.FirstOrDefault(o => !string.IsNullOrWhiteSpace(o.ConfigureAll));
             if (configureAllOption is not null)
             {
-                var optionsType = $"global::{configureAllOption.Namespace}.{configureAllOption.ClassName}";
+                var optionsType = GetGlobalTypeName(configureAllOption);
 
                 sb.AppendLineLf($"        // Configure defaults for ALL named instances of {configureAllOption.ClassName}");
                 sb.Append("        services.ConfigureAll<");
@@ -1197,7 +1205,7 @@ public static class OptionsBindingExtensions{{methodSuffix}}
         OptionsInfo option,
         string methodSuffix)
     {
-        var optionsType = $"global::{option.Namespace}.{option.ClassName}";
+        var optionsType = GetGlobalTypeName(option);
         var sectionName = option.SectionName;
         var isNamed = !string.IsNullOrWhiteSpace(option.Name);
 
@@ -1361,7 +1369,7 @@ public static class OptionsBindingExtensions{{methodSuffix}}
         StringBuilder sb,
         OptionsInfo option)
     {
-        var optionsType = $"global::{option.Namespace}.{option.ClassName}";
+        var optionsType = GetGlobalTypeName(option);
         var listenerClassName = $"{option.ClassName}ChangeListener";
 
         sb.AppendLineLf();
@@ -1418,7 +1426,7 @@ public static class OptionsBindingExtensions{{methodSuffix}}
         OptionsInfo option,
         string methodSuffix)
     {
-        var optionsType = $"global::{option.Namespace}.{option.ClassName}";
+        var optionsType = GetGlobalTypeName(option);
         var sectionName = option.SectionName;
 
         sb.AppendLine();
@@ -1521,7 +1529,7 @@ public static class OptionsBindingExtensions{{methodSuffix}}
         OptionsInfo option,
         string methodSuffix)
     {
-        var optionsType = $"global::{option.Namespace}.{option.ClassName}";
+        var optionsType = GetGlobalTypeName(option);
         var sectionName = option.SectionName;
 
         sb.AppendLine();
@@ -1643,7 +1651,7 @@ public static class OptionsBindingExtensions{{methodSuffix}}
         var allOptionsTypes = new List<string>();
         foreach (var option in currentAssemblyOptions)
         {
-            allOptionsTypes.Add($"global::{option.Namespace}.{option.ClassName}");
+            allOptionsTypes.Add(GetGlobalTypeName(option));
         }
 
         foreach (var refAssembly in referencedAssemblies)
@@ -1652,7 +1660,7 @@ public static class OptionsBindingExtensions{{methodSuffix}}
             {
                 foreach (var option in refOptions)
                 {
-                    allOptionsTypes.Add($"global::{option.Namespace}.{option.ClassName}");
+                    allOptionsTypes.Add(GetGlobalTypeName(option));
                 }
             }
         }
@@ -1684,7 +1692,7 @@ public static class OptionsBindingExtensions{{methodSuffix}}
             sb.AppendLineLf("        // Current assembly options");
             foreach (var option in currentAssemblyOptions)
             {
-                var optionsType = $"global::{option.Namespace}.{option.ClassName}";
+                var optionsType = GetGlobalTypeName(option);
                 sb.Append("        if (type == typeof(");
                 sb.Append(optionsType);
                 sb.AppendLineLf("))");
@@ -1710,7 +1718,7 @@ public static class OptionsBindingExtensions{{methodSuffix}}
 
                     foreach (var option in refOptions)
                     {
-                        var optionsType = $"global::{option.Namespace}.{option.ClassName}";
+                        var optionsType = GetGlobalTypeName(option);
                         sb.Append("        if (type == typeof(");
                         sb.Append(optionsType);
                         sb.AppendLineLf("))");
