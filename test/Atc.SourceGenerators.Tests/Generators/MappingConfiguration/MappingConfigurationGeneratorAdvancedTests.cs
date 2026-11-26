@@ -135,7 +135,7 @@ public partial class MappingConfigurationGeneratorTests
         Assert.Empty(diagnostics);
         Assert.Contains("MapToTargetContainer", output, StringComparison.Ordinal);
         Assert.Contains("MapToTargetItem", output, StringComparison.Ordinal);
-        Assert.Contains(".Select(x => x.MapToTargetItem()).ToList()", output, StringComparison.Ordinal);
+        Assert.Contains(".Select(x => MapToTargetItem(x)).ToList()", output, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -190,7 +190,7 @@ public partial class MappingConfigurationGeneratorTests
         Assert.Empty(diagnostics);
         Assert.Contains("MapToTargetContainer", output, StringComparison.Ordinal);
         Assert.Contains("MapToTargetItem", output, StringComparison.Ordinal);
-        Assert.Contains(".Select(x => x.MapToTargetItem()).ToArray()", output, StringComparison.Ordinal);
+        Assert.Contains(".Select(x => MapToTargetItem(x)).ToArray()", output, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -796,7 +796,7 @@ public partial class MappingConfigurationGeneratorTests
         var (diagnostics, output) = GetGeneratedOutput(source);
 
         Assert.Empty(diagnostics);
-        Assert.Contains("source.Location.MapToTargetPoint()", output, StringComparison.Ordinal);
+        Assert.Contains("MapToTargetPoint(source.Location)", output, StringComparison.Ordinal);
         Assert.DoesNotContain("source.Location?.MapToTargetPoint()", output, StringComparison.Ordinal);
     }
 
@@ -998,7 +998,7 @@ public partial class MappingConfigurationGeneratorTests
         Assert.DoesNotContain("?.MapToPosition()!", output, StringComparison.Ordinal);
 
         // Should use ternary or direct call pattern
-        Assert.Contains("MapToPosition()", output, StringComparison.Ordinal);
+        Assert.Contains("? MapToPosition(", output, StringComparison.Ordinal);
     }
 
     [Fact]

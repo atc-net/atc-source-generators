@@ -248,6 +248,6 @@ public partial class MappingConfigurationGeneratorTests
         // Should generate collection mapping with Select and ToList
         Assert.Contains("MapToOrderDto", output, StringComparison.Ordinal);
         Assert.Contains("MapToOrderItemDto", output, StringComparison.Ordinal);
-        Assert.Contains(".Select(x => x.MapToOrderItemDto()).ToList()!", output, StringComparison.Ordinal);
+        Assert.Contains(".Select(x => MapToOrderItemDto(x)).ToList()!", output, StringComparison.Ordinal);
     }
 }
