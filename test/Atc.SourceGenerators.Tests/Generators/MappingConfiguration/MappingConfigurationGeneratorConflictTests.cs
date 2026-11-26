@@ -183,4 +183,41 @@ public partial class MappingConfigurationGeneratorTests
         Assert.Contains("this global::ExternalLib.Lead source", output, StringComparison.Ordinal);
         Assert.Contains("MapToCustomer", output, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void Config_Same_Named_Configuration_Classes_In_Different_Namespaces_Should_Compile()
+    {
+        const string source = """
+                              using Atc.SourceGenerators.Annotations;
+
+                              namespace App.Orders
+                              {
+                                  public class Order { public int Id { get; set; } }
+                                  public class OrderDto { public int Id { get; set; } }
+
+                                  [MappingConfiguration]
+                                  public static partial class Mappings
+                                  {
+                                      public static partial OrderDto MapToOrderDto(this Order source);
+                                  }
+                              }
+
+                              namespace App.Invoices
+                              {
+                                  public class Invoice { public int Id { get; set; } }
+                                  public class InvoiceDto { public int Id { get; set; } }
+
+                                  [MappingConfiguration]
+                                  public static partial class Mappings
+                                  {
+                                      public static partial InvoiceDto MapToInvoiceDto(this Invoice source);
+                                  }
+                              }
+                              """;
+
+        var (diagnostics, _) = GetGeneratedOutput(source, "CS");
+
+        Assert.Empty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+        Assert.DoesNotContain(diagnostics, d => d.Id == "CS8785");
+    }
 }

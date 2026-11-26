@@ -519,4 +519,70 @@ public partial class ObjectMappingGeneratorTests
         Assert.Contains("@event => @event.MapToEventDto()", output, StringComparison.Ordinal);
         Assert.Contains("@operator => @operator.MapToOperatorDto()", output, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void Generator_Should_Not_Duplicate_Reverse_Mapping_When_Target_Declares_It_Explicitly()
+    {
+        // A declares Bidirectional = true, and B also declares [MapTo(typeof(A))]:
+        // only one MapToA(this B) may be generated
+        const string source = """
+                              using Atc.SourceGenerators.Annotations;
+
+                              namespace TestNamespace;
+
+                              [MapTo(typeof(B), Bidirectional = true)]
+                              public partial class A
+                              {
+                                  public int Id { get; set; }
+                              }
+
+                              [MapTo(typeof(A))]
+                              public partial class B
+                              {
+                                  public int Id { get; set; }
+                              }
+                              """;
+
+        var (diagnostics, output) = GetGeneratedOutput(source, "CS");
+
+        Assert.Empty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+        Assert.Equal(1, CountOccurrences(output, " MapToA("));
+        Assert.Equal(1, CountOccurrences(output, " MapToB("));
+    }
+
+    [Fact]
+    public void Generator_Should_Report_Duplicate_Mapping_Method_For_Targets_With_The_Same_Name()
+    {
+        // Two targets named TargetDto in different namespaces would both produce MapToTargetDto(this Source)
+        const string source = """
+                              using Atc.SourceGenerators.Annotations;
+
+                              namespace Api.V1
+                              {
+                                  public class TargetDto { public int Id { get; set; } }
+                              }
+
+                              namespace Api.V2
+                              {
+                                  public class TargetDto { public int Id { get; set; } }
+                              }
+
+                              namespace TestNamespace
+                              {
+                                  [MapTo(typeof(Api.V1.TargetDto))]
+                                  [MapTo(typeof(Api.V2.TargetDto))]
+                                  public partial class Source
+                                  {
+                                      public int Id { get; set; }
+                                  }
+                              }
+                              """;
+
+        var (compileDiagnostics, _) = GetGeneratedOutput(source, "CS");
+        var (diagnostics, _) = GetGeneratedOutput(source);
+
+        Assert.Empty(compileDiagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+        var duplicate = Assert.Single(diagnostics, d => d.Id == "ATCMAP012");
+        Assert.Contains("MapToTargetDto", duplicate.GetMessage(CultureInfo.InvariantCulture), StringComparison.Ordinal);
+    }
 }

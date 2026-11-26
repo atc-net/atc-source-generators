@@ -682,6 +682,25 @@ public class OptionsBindingGenerator : IIncrementalGenerator
     }
 
     /// <summary>
+    /// Gets the name of the generated OnChange hosted service: "{ClassName}ChangeListener", or, when another
+    /// options class with the same name (in another namespace) also uses OnChange, prefixed with the namespace
+    /// so the generated classes don't collide.
+    /// </summary>
+    private static string GetChangeListenerClassName(
+        OptionsInfo option,
+        List<OptionsInfo> allOptions)
+    {
+        var hasNameClash = allOptions.Any(o =>
+            !string.IsNullOrWhiteSpace(o.OnChange) &&
+            string.Equals(o.ClassName, option.ClassName, StringComparison.Ordinal) &&
+            !string.Equals(o.Namespace, option.Namespace, StringComparison.Ordinal));
+
+        return hasNameClash
+            ? $"{TypeNameSanitizer.SanitizeForIdentifier(option.Namespace.Replace(".", "_"))}_{option.ClassName}ChangeListener"
+            : $"{option.ClassName}ChangeListener";
+    }
+
+    /// <summary>
     /// Gets the fully qualified (global::) name of an options type, also for a type in the global namespace.
     /// </summary>
     private static string GetGlobalTypeName(OptionsInfo option)
@@ -1018,7 +1037,7 @@ public static class OptionsBindingExtensions{{methodSuffix}}
 
         foreach (var option in options)
         {
-            GenerateOptionsRegistration(sb, option, methodSuffix);
+            GenerateOptionsRegistration(sb, option, methodSuffix, options);
         }
 
         sb.AppendLine("""
@@ -1191,7 +1210,7 @@ public static class OptionsBindingExtensions{{methodSuffix}}
         // Generate hosted service classes for OnChange callbacks
         foreach (var option in options.Where(o => !string.IsNullOrWhiteSpace(o.OnChange)))
         {
-            GenerateOnChangeHostedService(sb, option);
+            GenerateOnChangeHostedService(sb, option, options);
         }
 
         sb.AppendLine("}");
@@ -1203,7 +1222,8 @@ public static class OptionsBindingExtensions{{methodSuffix}}
     private static void GenerateOptionsRegistration(
         StringBuilder sb,
         OptionsInfo option,
-        string methodSuffix)
+        string methodSuffix,
+        List<OptionsInfo> allOptions)
     {
         var optionsType = GetGlobalTypeName(option);
         var sectionName = option.SectionName;
@@ -1315,7 +1335,7 @@ public static class OptionsBindingExtensions{{methodSuffix}}
             // Register OnChange callback listener if specified (only for unnamed options with Monitor lifetime)
             if (!string.IsNullOrWhiteSpace(option.OnChange))
             {
-                var listenerClassName = $"{option.ClassName}ChangeListener";
+                var listenerClassName = GetChangeListenerClassName(option, allOptions);
                 sb.AppendLineLf();
                 sb.Append("        services.AddHostedService<");
                 sb.Append(listenerClassName);
@@ -1365,10 +1385,11 @@ public static class OptionsBindingExtensions{{methodSuffix}}
 
     private static void GenerateOnChangeHostedService(
         StringBuilder sb,
-        OptionsInfo option)
+        OptionsInfo option,
+        List<OptionsInfo> allOptions)
     {
         var optionsType = GetGlobalTypeName(option);
-        var listenerClassName = $"{option.ClassName}ChangeListener";
+        var listenerClassName = GetChangeListenerClassName(option, allOptions);
 
         sb.AppendLineLf();
         sb.AppendLineLf("/// <summary>");

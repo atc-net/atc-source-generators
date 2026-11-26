@@ -914,6 +914,7 @@ UserDto (API)
 - `ATCMAP001` - Mapping class must be partial (Error)
 - `ATCMAP002` - Target type must be a class or struct (Error)
 - `ATCMAP003` - MapProperty target property not found (Error)
+- `ATCMAP012` - Two mappings from the same source type would generate a `MapTo{TargetName}` method with the same name (Error)
 
 ### EnumMappingGenerator
 

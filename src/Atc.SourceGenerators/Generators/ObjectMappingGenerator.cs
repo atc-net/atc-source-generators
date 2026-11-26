@@ -55,6 +55,14 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         DiagnosticSeverity.Warning,
         isEnabledByDefault: true);
 
+    private static readonly DiagnosticDescriptor DuplicateMappingMethodDescriptor = new(
+        id: RuleIdentifierConstants.ObjectMapping.DuplicateMappingMethod,
+        title: "Duplicate mapping method",
+        messageFormat: "Mapping '{0}' to '{1}' would generate a second '{2}' method for '{0}'. Target types must have different names; this mapping is skipped.",
+        category: RuleCategoryConstants.ObjectMapping,
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         // Generate the attribute definitions as fallback
@@ -155,8 +163,11 @@ public class ObjectMappingGenerator : IIncrementalGenerator
             return;
         }
 
+        // Two mappings from the same source type must not generate the same MapToX method (CS0111)
+        var skippedReverseMappings = RemoveDuplicateMappingMethods(mappingsToGenerate, context);
+
         // Generate mapping extensions
-        var source = GenerateMappingExtensions(mappingsToGenerate);
+        var source = GenerateMappingExtensions(mappingsToGenerate, skippedReverseMappings);
         context.AddSource("ObjectMappingExtensions.g.cs", SourceText.From(source, Encoding.UTF8));
     }
 
@@ -1274,7 +1285,79 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         return false;
     }
 
-    private static string GenerateMappingExtensions(List<MappingInfo> mappings)
+    /// <summary>
+    /// Removes mappings whose generated MapTo{TargetName} method would clash with another mapping from the same
+    /// source type (reported as ATCMAP012), and returns the bidirectional mappings whose reverse method must not be
+    /// generated: either because the target declares the same reverse mapping itself, or because it would clash.
+    /// </summary>
+    private static HashSet<MappingInfo> RemoveDuplicateMappingMethods(
+        List<MappingInfo> mappings,
+        SourceProductionContext context)
+    {
+        var methods = new Dictionary<(string Source, string Method), INamedTypeSymbol>();
+        var duplicates = new List<MappingInfo>();
+
+        foreach (var mapping in mappings)
+        {
+            var key = GetMappingMethodKey(mapping.SourceType, mapping.TargetType);
+            if (methods.ContainsKey(key))
+            {
+                duplicates.Add(mapping);
+                ReportDuplicateMappingMethod(context, mapping.SourceType, mapping.TargetType, key.Method);
+                continue;
+            }
+
+            methods[key] = mapping.TargetType;
+        }
+
+        foreach (var duplicate in duplicates)
+        {
+            mappings.Remove(duplicate);
+        }
+
+        var skippedReverseMappings = new HashSet<MappingInfo>();
+        foreach (var mapping in mappings.Where(m => m.Bidirectional))
+        {
+            var reverseKey = GetMappingMethodKey(mapping.TargetType, mapping.SourceType);
+            if (methods.TryGetValue(reverseKey, out var existingTarget))
+            {
+                // The same reverse mapping declared explicitly is fine; a different type with the same name is a clash
+                if (!SymbolEqualityComparer.Default.Equals(existingTarget.OriginalDefinition, mapping.SourceType.OriginalDefinition))
+                {
+                    ReportDuplicateMappingMethod(context, mapping.TargetType, mapping.SourceType, reverseKey.Method);
+                }
+
+                skippedReverseMappings.Add(mapping);
+                continue;
+            }
+
+            methods[reverseKey] = mapping.SourceType;
+        }
+
+        return skippedReverseMappings;
+    }
+
+    private static (string Source, string Method) GetMappingMethodKey(
+        INamedTypeSymbol sourceType,
+        INamedTypeSymbol targetType)
+        => (sourceType.OriginalDefinition.ToDisplayString(), $"MapTo{TypeNameSanitizer.SanitizeForIdentifier(targetType.Name)}");
+
+    private static void ReportDuplicateMappingMethod(
+        SourceProductionContext context,
+        INamedTypeSymbol sourceType,
+        INamedTypeSymbol targetType,
+        string methodName)
+        => context.ReportDiagnostic(
+            Diagnostic.Create(
+                DuplicateMappingMethodDescriptor,
+                sourceType.Locations.FirstOrDefault() ?? Location.None,
+                sourceType.ToDisplayString(),
+                targetType.ToDisplayString(),
+                methodName));
+
+    private static string GenerateMappingExtensions(
+        List<MappingInfo> mappings,
+        HashSet<MappingInfo> skippedReverseMappings)
     {
         var sb = new StringBuilder();
 
@@ -1327,8 +1410,8 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                 GenerateProjectionMethod(sb, mapping);
             }
 
-            // Generate reverse mapping if bidirectional
-            if (mapping.Bidirectional)
+            // Generate reverse mapping if bidirectional (unless it already exists or would clash)
+            if (mapping.Bidirectional && !skippedReverseMappings.Contains(mapping))
             {
                 // For generic mappings, construct the reverse source type with type parameters
                 var reverseSourceType = mapping.TargetType;

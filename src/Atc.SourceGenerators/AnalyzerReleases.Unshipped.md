@@ -21,3 +21,4 @@ ATCENUM006 | EnumMapping | Warning | Flag enum mapping may produce incorrect res
 ATCMAP011 | ObjectMapping | Warning | Collection element type has no mapping method
 ATCMCF014 | MappingConfiguration | Warning | Type could not be resolved (possibly from sibling generator)
 ATCMCF015 | MappingConfiguration | Warning | Property with a matching name is not mapped because the types are not compatible
+ATCMAP012 | ObjectMapping | Error | Duplicate mapping method for the same source type

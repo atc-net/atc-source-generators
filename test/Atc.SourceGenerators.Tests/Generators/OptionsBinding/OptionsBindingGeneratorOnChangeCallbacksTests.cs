@@ -651,4 +651,56 @@ public partial class OptionsBindingGeneratorTests
         Assert.Contains(".Bind(configuration.GetSection(\"Runtime:Settings\"))", generatedCode, StringComparison.Ordinal);
         Assert.Contains("services.AddHostedService<RuntimeOptionsChangeListener>();", generatedCode, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void Generator_Should_Generate_Distinct_Change_Listeners_For_Same_Named_Options_In_Different_Namespaces()
+    {
+        // Arrange
+        const string source = """
+                              using Atc.SourceGenerators.Annotations;
+
+                              namespace App.Email
+                              {
+                                  [OptionsBinding("Email", Lifetime = OptionsLifetime.Monitor, OnChange = nameof(OnChanged))]
+                                  public partial class Settings
+                                  {
+                                      public string Host { get; set; } = string.Empty;
+
+                                      internal static void OnChanged(Settings options, string? name) { }
+                                  }
+                              }
+
+                              namespace App.Storage
+                              {
+                                  [OptionsBinding("Storage", Lifetime = OptionsLifetime.Monitor, OnChange = nameof(OnChanged))]
+                                  public partial class Settings
+                                  {
+                                      public string Path { get; set; } = string.Empty;
+
+                                      internal static void OnChanged(Settings options, string? name) { }
+                                  }
+                              }
+                              """;
+
+        // Act
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        // Assert
+        Assert.Empty(diagnostics);
+
+        var generatedCode = GetGeneratedExtensionMethod(output);
+        Assert.NotNull(generatedCode);
+
+        var classNames = CSharpSyntaxTree
+            .ParseText(generatedCode, cancellationToken: TestContext.Current.CancellationToken)
+            .GetRoot(TestContext.Current.CancellationToken)
+            .DescendantNodes()
+            .OfType<Microsoft.CodeAnalysis.CSharp.Syntax.ClassDeclarationSyntax>()
+            .Select(c => c.Identifier.Text)
+            .Where(n => n.EndsWith("ChangeListener", StringComparison.Ordinal))
+            .ToList();
+
+        Assert.Equal(2, classNames.Count);
+        Assert.Equal(2, classNames.Distinct(StringComparer.Ordinal).Count());
+    }
 }
