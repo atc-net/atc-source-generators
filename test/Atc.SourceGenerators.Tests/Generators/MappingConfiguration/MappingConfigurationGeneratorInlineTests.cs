@@ -485,4 +485,79 @@ public partial class MappingConfigurationGeneratorTests
         // Should report duplicate - attribute takes precedence
         Assert.Contains(diagnostics, d => d.Id == "ATCMAP005");
     }
+
+    [Fact]
+    public void Inline_Should_Ignore_Unrelated_Configure_Calls_With_Map()
+    {
+        // An ASP.NET-style Configure(app => app.Map("/health", ...)) is not a mapping configuration
+        const string source = """
+                              using System;
+
+                              namespace TestNamespace
+                              {
+                                  public class App
+                                  {
+                                      public App Map(string path, Action<App> branch) => this;
+                                  }
+
+                                  public class HostBuilder
+                                  {
+                                      public HostBuilder Configure(Action<App> configure) => this;
+                                  }
+
+                                  public static class Program
+                                  {
+                                      public static void Run()
+                                      {
+                                          new HostBuilder().Configure(app => app.Map("/health", branch => { }));
+                                          new HostBuilder().Configure(app =>
+                                          {
+                                              app.Map("/ready", branch => { });
+                                          });
+                                      }
+                                  }
+                              }
+                              """;
+
+        var (diagnostics, _) = GetGeneratedOutput(source);
+
+        Assert.DoesNotContain(diagnostics, d => d.Id.StartsWith("ATCMCF", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Inline_Should_Generate_Mapping_From_Expression_Bodied_Configure()
+    {
+        // map => map.Map<Source, Target>() has the Map call as the lambda body itself (not a descendant of it)
+        const string source = """
+                              using System;
+                              using Atc.SourceGenerators.Annotations;
+
+                              namespace MyApp
+                              {
+                                  public class Source
+                                  {
+                                      public int Id { get; set; }
+                                  }
+
+                                  public class Target
+                                  {
+                                      public int Id { get; set; }
+                                  }
+
+                                  public static class Startup
+                                  {
+                                      public static void Configure()
+                                      {
+                                          MappingBuilder.Configure(map => map.Map<Source, Target>());
+                                      }
+                                  }
+                              }
+                              """;
+
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        Assert.Empty(diagnostics);
+        Assert.Contains("MapToTarget", output, StringComparison.Ordinal);
+        Assert.Contains("Id = source.Id", output, StringComparison.Ordinal);
+    }
 }

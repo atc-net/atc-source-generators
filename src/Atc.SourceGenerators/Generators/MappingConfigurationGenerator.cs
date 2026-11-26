@@ -266,9 +266,12 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
             {
                 return invocation;
             }
+
+            // Resolved to another method (e.g. an ASP.NET Configure(app => app.Map(...))): not a mapping configuration
+            return null;
         }
 
-        // Fallback: if the method is not yet resolved (common for generated methods),
+        // Fallback: if the method is not yet resolved (common for generated methods such as AddMappings),
         // check syntax pattern
         if (invocation.Expression is MemberAccessExpressionSyntax memberAccess)
         {
@@ -692,8 +695,9 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         var semanticModel = compilation.GetSemanticModel(invocation.SyntaxTree);
         var mappings = new List<ConfiguredMappingInfo>();
 
-        // Find all Map() calls inside the lambda body
-        var mapCalls = lambdaBody.DescendantNodes().OfType<InvocationExpressionSyntax>();
+        // Find all Map() calls in the lambda body, including an expression body that is itself the Map() call
+        // (map => map.Map<Source, Target>())
+        var mapCalls = lambdaBody.DescendantNodesAndSelf().OfType<InvocationExpressionSyntax>();
 
         foreach (var mapCall in mapCalls)
         {
