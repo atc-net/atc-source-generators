@@ -216,7 +216,7 @@ public partial class ObjectMappingGeneratorTests
         // Assert
         var warning = diagnostics.FirstOrDefault(d => d.Id == "ATCMAP004");
         Assert.NotNull(warning);
-        Assert.Equal(DiagnosticSeverity.Warning, warning!.Severity);
+        Assert.Equal(DiagnosticSeverity.Warning, warning.Severity);
         Assert.Contains("Email", warning.GetMessage(CultureInfo.InvariantCulture), StringComparison.Ordinal);
         Assert.Contains("UserDto", warning.GetMessage(CultureInfo.InvariantCulture), StringComparison.Ordinal);
     }

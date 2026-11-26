@@ -44,8 +44,10 @@ public partial class StoragePathsOptions
             return path;
         }
 
-        return path.EndsWith(Path.DirectorySeparatorChar) ||
-               path.EndsWith(Path.AltDirectorySeparatorChar)
+        var hasTrailingSeparator = path.EndsWith(Path.DirectorySeparatorChar) ||
+                                   path.EndsWith(Path.AltDirectorySeparatorChar);
+
+        return hasTrailingSeparator
             ? path
             : path + Path.DirectorySeparatorChar;
     }
