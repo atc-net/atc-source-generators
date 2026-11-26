@@ -314,15 +314,26 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
     }
 
     private static ImmutableArray<ReferencedAssemblyInfo> GetReferencedAssembliesWithRegistrations(
-        Compilation compilation)
+        Compilation compilation,
+        CancellationToken cancellationToken)
     {
         var result = new List<ReferencedAssemblyInfo>();
 
         // Scan all referenced assemblies
         foreach (var reference in compilation.References)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             // Get the assembly symbol for this reference
             if (compilation.GetAssemblyOrModuleSymbol(reference) is not IAssemblySymbol assemblySymbol)
+            {
+                continue;
+            }
+
+            // Only assemblies built with this generator define the (fallback) [Registration] attribute,
+            // and only they have a generated registration method to call. This constant-time check skips
+            // framework and package assemblies without walking all their types.
+            if (assemblySymbol.GetTypeByMetadataName($"{AttributeNamespace}.{AttributeName}") is null)
             {
                 continue;
             }
@@ -332,7 +343,7 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
 
             // Check if this assembly contains any types with [Registration] attribute
             // Traverse all types in the assembly's global namespace
-            if (!HasRegistrationAttributeInNamespace(assemblySymbol.GlobalNamespace, filterRules))
+            if (!HasRegistrationAttributeInNamespace(assemblySymbol.GlobalNamespace, filterRules, cancellationToken))
             {
                 continue;
             }
@@ -423,11 +434,14 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
 
     private static bool HasRegistrationAttributeInNamespace(
         INamespaceSymbol namespaceSymbol,
-        FilterRules filterRules)
+        FilterRules filterRules,
+        CancellationToken cancellationToken)
     {
         // Check all types in this namespace
         foreach (var member in namespaceSymbol.GetMembers())
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             switch (member)
             {
                 case INamedTypeSymbol typeSymbol:
@@ -447,7 +461,7 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
                 }
 
                 case INamespaceSymbol childNamespace when
-                    HasRegistrationAttributeInNamespace(childNamespace, filterRules):
+                    HasRegistrationAttributeInNamespace(childNamespace, filterRules, cancellationToken):
                     return true;
             }
         }
@@ -504,7 +518,7 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
         CheckForDuplicateRegistrations(validServices, context);
 
         // Detect referenced assemblies with [Registration] attributes
-        var referencedAssemblies = GetReferencedAssembliesWithRegistrations(compilation);
+        var referencedAssemblies = GetReferencedAssembliesWithRegistrations(compilation, context.CancellationToken);
 
         // Generate the extension method
         var source = GenerateExtensionMethod(
