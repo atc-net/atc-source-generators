@@ -26,7 +26,7 @@ src/
     AnnotationConstantsGenerator.cs
     RuleIdentifierConstants.cs    # Diagnostic ID constants
     RuleCategoryConstants.cs       # Diagnostic category constants
-  Atc.SourceGenerators.Annotations/ # Shared attribute definitions (published as separate package)
+  Atc.SourceGenerators.Annotations/ # Attribute definitions (not published; the generators emit the same attributes into consuming projects)
     RegistrationAttribute.cs
     OptionsBindingAttribute.cs
     MapToAttribute.cs
