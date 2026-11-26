@@ -160,4 +160,72 @@ public partial class ObjectMappingGeneratorTests
         Assert.DoesNotContain("MapToMoney", output, StringComparison.Ordinal);
         Assert.Contains("Price = source.Price ?? default", output, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void Generator_Should_Map_Nullable_Enum_To_Other_Nullable_Enum_With_MapTo()
+    {
+        const string source = """
+                              using Atc.SourceGenerators.Annotations;
+
+                              namespace TestNamespace;
+
+                              public enum StatusDto { Active, Inactive }
+
+                              [MapTo(typeof(StatusDto))]
+                              public enum Status { Active, Inactive }
+
+                              public class TargetDto
+                              {
+                                  public StatusDto? Status { get; set; }
+
+                                  public StatusDto Required { get; set; }
+                              }
+
+                              [MapTo(typeof(TargetDto))]
+                              public partial class Source
+                              {
+                                  public Status? Status { get; set; }
+
+                                  public Status? Required { get; set; }
+                              }
+                              """;
+
+        var (diagnostics, output) = GetGeneratedOutput(source, "CS");
+
+        Assert.Empty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+        Assert.DoesNotContain("MapToNullable", output, StringComparison.Ordinal);
+        Assert.Contains("Status = source.Status is { } __status ? __status.MapToStatusDto() : null", output, StringComparison.Ordinal);
+        Assert.Contains("Required = source.Required is { } __required ? __required.MapToStatusDto() : default", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generator_Should_Cast_Nullable_Enum_To_Other_Nullable_Enum_Without_MapTo()
+    {
+        const string source = """
+                              using Atc.SourceGenerators.Annotations;
+
+                              namespace TestNamespace;
+
+                              public enum KindDto { A, B }
+
+                              public enum Kind { A, B }
+
+                              public class TargetDto
+                              {
+                                  public KindDto? Kind { get; set; }
+                              }
+
+                              [MapTo(typeof(TargetDto))]
+                              public partial class Source
+                              {
+                                  public Kind? Kind { get; set; }
+                              }
+                              """;
+
+        var (diagnostics, output) = GetGeneratedOutput(source, "CS");
+
+        Assert.Empty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+        Assert.DoesNotContain("MapToNullable", output, StringComparison.Ordinal);
+        Assert.Contains("Kind = (TestNamespace.KindDto?)source.Kind", output, StringComparison.Ordinal);
+    }
 }
