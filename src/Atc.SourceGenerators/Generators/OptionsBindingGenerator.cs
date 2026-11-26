@@ -205,7 +205,7 @@ public class OptionsBindingGenerator : IIncrementalGenerator
         context.AddSource("OptionsInstanceCache.g.cs", SourceText.From(GenerateOptionsInstanceCacheSource(), Encoding.UTF8));
 
         // Detect referenced assemblies with [OptionsBinding] attributes and collect their options
-        var referencedAssemblies = GetReferencedAssembliesWithOptionsBinding(compilation, out var referencedAssemblyOptions);
+        var referencedAssemblies = GetReferencedAssembliesWithOptionsBinding(compilation, context.CancellationToken, out var referencedAssemblyOptions);
 
         // Group by assembly
         var groupedByAssembly = optionsToGenerate
@@ -770,6 +770,7 @@ public class OptionsBindingGenerator : IIncrementalGenerator
 
     private static ImmutableArray<ReferencedAssemblyInfo> GetReferencedAssembliesWithOptionsBinding(
         Compilation compilation,
+        CancellationToken cancellationToken,
         out Dictionary<string, List<OptionsInfo>> referencedAssemblyOptions)
     {
         var result = new List<ReferencedAssemblyInfo>();
@@ -778,11 +779,19 @@ public class OptionsBindingGenerator : IIncrementalGenerator
         var visited = new HashSet<string>(StringComparer.Ordinal) { compilation.AssemblyName! };
         var queue = new Queue<IAssemblySymbol>();
 
-        // Start with direct references
+        // Resolve every reference once (looking up each referenced assembly by name in
+        // compilation.References was O(N^2) in the number of references)
+        var assembliesByName = new Dictionary<string, IAssemblySymbol>(StringComparer.Ordinal);
         foreach (var reference in compilation.References)
         {
             if (compilation.GetAssemblyOrModuleSymbol(reference) is IAssemblySymbol assemblySymbol)
             {
+                if (!assembliesByName.ContainsKey(assemblySymbol.Name))
+                {
+                    assembliesByName[assemblySymbol.Name] = assemblySymbol;
+                }
+
+                // Start with direct references
                 queue.Enqueue(assemblySymbol);
             }
         }
@@ -790,6 +799,8 @@ public class OptionsBindingGenerator : IIncrementalGenerator
         // Process queue recursively
         while (queue.Count > 0)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             var assemblySymbol = queue.Dequeue();
             var assemblyName = assemblySymbol.Name;
 
@@ -799,8 +810,11 @@ public class OptionsBindingGenerator : IIncrementalGenerator
             }
 
             // Check if assembly has OptionsBinding attributes and matches prefix
+            // Only assemblies built with this generator define the (fallback) [OptionsBinding] attribute:
+            // a constant-time check before walking all types of the assembly
             if (assemblyName.StartsWith(prefix, StringComparison.Ordinal) &&
-                HasOptionsBindingAttributeInNamespace(assemblySymbol))
+                assemblySymbol.GetTypeByMetadataName($"{AttributeNamespace}.{AttributeMetadataName}") is not null &&
+                HasOptionsBindingAttributeInNamespace(assemblySymbol, cancellationToken))
             {
                 result.Add(new ReferencedAssemblyInfo(
                     assemblyName,
@@ -818,12 +832,8 @@ public class OptionsBindingGenerator : IIncrementalGenerator
             // Enqueue referenced assemblies for recursive traversal
             foreach (var referencedAssembly in assemblySymbol.Modules.SelectMany(m => m.ReferencedAssemblies))
             {
-                var matchingReference = compilation.References.FirstOrDefault(r =>
-                    compilation.GetAssemblyOrModuleSymbol(r) is IAssemblySymbol asm &&
-                    asm.Name == referencedAssembly.Name);
-
-                if (matchingReference is not null &&
-                    compilation.GetAssemblyOrModuleSymbol(matchingReference) is IAssemblySymbol referencedSymbol)
+                if (!visited.Contains(referencedAssembly.Name) &&
+                    assembliesByName.TryGetValue(referencedAssembly.Name, out var referencedSymbol))
                 {
                     queue.Enqueue(referencedSymbol);
                 }
@@ -942,7 +952,8 @@ public class OptionsBindingGenerator : IIncrementalGenerator
     }
 
     private static bool HasOptionsBindingAttributeInNamespace(
-        IAssemblySymbol assemblySymbol)
+        IAssemblySymbol assemblySymbol,
+        CancellationToken cancellationToken)
     {
         // Check if any types in the assembly have the [OptionsBinding] attribute
         var stack = new Stack<INamespaceSymbol>();
@@ -950,6 +961,8 @@ public class OptionsBindingGenerator : IIncrementalGenerator
 
         while (stack.Count > 0)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             var currentNamespace = stack.Pop();
 
             // Check types in this namespace
