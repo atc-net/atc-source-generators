@@ -1902,6 +1902,9 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
             sb.AppendLineLf($"public static partial class {containingClass.Name}");
             sb.AppendLineLf("{");
 
+            // Forward and reverse mappings: both can need enum and nested type mapping methods
+            var allClassMappings = new List<ConfiguredMappingInfo>(classMappings);
+
             foreach (var mapping in classMappings)
             {
                 GenerateMappingMethodBody(sb, mapping);
@@ -1909,15 +1912,15 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
                 // Generate reverse mapping if bidirectional
                 if (mapping.Bidirectional)
                 {
-                    GenerateReverseMappingMethod(sb, mapping, autoDetectedEnums, context);
+                    allClassMappings.Add(GenerateReverseMappingMethod(sb, mapping, autoDetectedEnums, context));
                 }
             }
 
             // Generate auto-detected enum mapping methods
-            GenerateAutoDetectedEnumMethods(sb, autoDetectedEnums, classMappings);
+            GenerateAutoDetectedEnumMethods(sb, autoDetectedEnums, allClassMappings);
 
             // Generate nested type mapping methods for collection element types
-            GenerateCollectionElementTypeMappingMethods(sb, classMappings, autoDetectedEnums, context);
+            GenerateCollectionElementTypeMappingMethods(sb, allClassMappings, autoDetectedEnums, context);
 
             sb.AppendLineLf("}");
 
@@ -1960,21 +1963,24 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         sb.AppendLineLf("public static class ConfiguredMappingExtensions");
         sb.AppendLineLf("{");
 
+        // Forward and reverse mappings: both can need enum and nested type mapping methods
+        var allMappings = new List<ConfiguredMappingInfo>(mappings);
+
         foreach (var mapping in mappings)
         {
             GenerateExtensionMethodBody(sb, mapping);
 
             if (mapping.Bidirectional)
             {
-                GenerateReverseExtensionMethod(sb, mapping, autoDetectedEnums, context);
+                allMappings.Add(GenerateReverseExtensionMethod(sb, mapping, autoDetectedEnums, context));
             }
         }
 
         // Generate auto-detected enum mapping methods
-        GenerateAutoDetectedEnumMethods(sb, autoDetectedEnums, mappings);
+        GenerateAutoDetectedEnumMethods(sb, autoDetectedEnums, allMappings);
 
         // Generate nested type mapping methods for collection element types
-        GenerateCollectionElementTypeMappingMethods(sb, mappings, autoDetectedEnums, context);
+        GenerateCollectionElementTypeMappingMethods(sb, allMappings, autoDetectedEnums, context);
 
         sb.AppendLineLf("}");
 
@@ -2116,7 +2122,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         }
     }
 
-    private static void GenerateReverseMappingMethod(
+    private static ConfiguredMappingInfo GenerateReverseMappingMethod(
         StringBuilder sb,
         ConfiguredMappingInfo mapping,
         List<AutoDetectedEnumMapping> autoDetectedEnums,
@@ -2165,16 +2171,16 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
 
         sb.AppendLineLf("    }");
         sb.AppendLineLf();
+
+        return reverseMapping;
     }
 
-    private static void GenerateReverseExtensionMethod(
+    private static ConfiguredMappingInfo GenerateReverseExtensionMethod(
         StringBuilder sb,
         ConfiguredMappingInfo mapping,
         List<AutoDetectedEnumMapping> autoDetectedEnums,
         SourceProductionContext context)
-    {
-        GenerateReverseMappingMethod(sb, mapping, autoDetectedEnums, context);
-    }
+        => GenerateReverseMappingMethod(sb, mapping, autoDetectedEnums, context);
 
     private static void GenerateAutoDetectedEnumMethods(
         StringBuilder sb,

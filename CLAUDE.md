@@ -1006,6 +1006,7 @@ PetStatus (API)
 - Enum auto-detection - automatically generates switch expression mappings when properties have different enum types
 - Property renaming, ignoring, nested mapping, constructor support, collection mapping
 - Dictionary copying - `IReadOnlyDictionary<K, V>` / `IDictionary<K, V>` / `Dictionary<K, V>` with the same key and value types are copied with `ToDictionary(x => x.Key, x => x.Value)`
+- Bidirectional mappings also get nested mappers for the reverse direction (collection elements, dictionary values, nested properties)
 - Mixed mode - attribute-based `[MapTo]` and configuration-based mappings coexist (attribute always wins)
 
 **Mapper Class Pattern (Primary):**
