@@ -173,7 +173,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         var classDeclarations = context.SyntaxProvider
             .CreateSyntaxProvider(
                 predicate: static (s, _) => IsSyntaxTargetForGeneration(s),
-                transform: static (ctx, _) => GetSemanticTargetForGeneration(ctx))
+                transform: static (ctx, ct) => GetSemanticTargetForGeneration(ctx, ct))
             .Where(static m => m is not null)
             .Collect();
 
@@ -181,7 +181,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         var inlineInvocations = context.SyntaxProvider
             .CreateSyntaxProvider(
                 predicate: static (s, _) => IsInlineMappingInvocation(s),
-                transform: static (ctx, _) => GetInlineMappingInvocation(ctx))
+                transform: static (ctx, ct) => GetInlineMappingInvocation(ctx, ct))
             .Where(static m => m is not null)
             .Collect();
 
@@ -199,7 +199,8 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         => node is ClassDeclarationSyntax { AttributeLists.Count: > 0 };
 
     private static ClassDeclarationSyntax? GetSemanticTargetForGeneration(
-        GeneratorSyntaxContext context)
+        GeneratorSyntaxContext context,
+        CancellationToken cancellationToken)
     {
         var classDeclaration = (ClassDeclarationSyntax)context.Node;
 
@@ -207,7 +208,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         {
             foreach (var attributeSyntax in attributeListSyntax.Attributes)
             {
-                if (context.SemanticModel.GetSymbolInfo(attributeSyntax).Symbol is not IMethodSymbol attributeSymbol)
+                if (context.SemanticModel.GetSymbolInfo(attributeSyntax, cancellationToken).Symbol is not IMethodSymbol attributeSymbol)
                 {
                     continue;
                 }
@@ -241,11 +242,12 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
     }
 
     private static InvocationExpressionSyntax? GetInlineMappingInvocation(
-        GeneratorSyntaxContext context)
+        GeneratorSyntaxContext context,
+        CancellationToken cancellationToken)
     {
         var invocation = (InvocationExpressionSyntax)context.Node;
 
-        if (context.SemanticModel.GetSymbolInfo(invocation).Symbol is IMethodSymbol methodSymbol)
+        if (context.SemanticModel.GetSymbolInfo(invocation, cancellationToken).Symbol is IMethodSymbol methodSymbol)
         {
             var containingType = methodSymbol.ContainingType?.ToDisplayString() ?? string.Empty;
 
@@ -749,8 +751,8 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
 
             if (positionalArgs.Count >= 2)
             {
-                sourceType = ExtractTypeFromTypeOfExpression(positionalArgs[0].Expression, semanticModel);
-                targetType = ExtractTypeFromTypeOfExpression(positionalArgs[1].Expression, semanticModel);
+                sourceType = ExtractTypeFromTypeOfExpression(positionalArgs[0].Expression, semanticModel, context.CancellationToken);
+                targetType = ExtractTypeFromTypeOfExpression(positionalArgs[1].Expression, semanticModel, context.CancellationToken);
             }
         }
 
@@ -865,11 +867,12 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
 
     private static INamedTypeSymbol? ExtractTypeFromTypeOfExpression(
         ExpressionSyntax expression,
-        SemanticModel semanticModel)
+        SemanticModel semanticModel,
+        CancellationToken cancellationToken)
     {
         if (expression is TypeOfExpressionSyntax typeOfExpression)
         {
-            var typeInfo = semanticModel.GetTypeInfo(typeOfExpression.Type);
+            var typeInfo = semanticModel.GetTypeInfo(typeOfExpression.Type, cancellationToken);
             return typeInfo.Type as INamedTypeSymbol;
         }
 

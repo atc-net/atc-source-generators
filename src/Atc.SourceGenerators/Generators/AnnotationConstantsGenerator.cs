@@ -77,7 +77,7 @@ public class AnnotationConstantsGenerator : IIncrementalGenerator
         var typesWithAnnotations = context.SyntaxProvider
             .CreateSyntaxProvider(
                 predicate: static (node, _) => IsTypeWithPotentialAnnotations(node),
-                transform: static (ctx, _) => GetTypeWithAnnotatedProperties(ctx))
+                transform: static (ctx, ct) => GetTypeWithAnnotatedProperties(ctx, ct))
             .Where(static info => info is not null)
             .Collect();
 
@@ -121,10 +121,11 @@ public class AnnotationConstantsGenerator : IIncrementalGenerator
     }
 
     private static TypeAnnotationInfo? GetTypeWithAnnotatedProperties(
-        GeneratorSyntaxContext context)
+        GeneratorSyntaxContext context,
+        CancellationToken cancellationToken)
     {
         var typeDecl = (TypeDeclarationSyntax)context.Node;
-        var typeSymbol = context.SemanticModel.GetDeclaredSymbol(typeDecl);
+        var typeSymbol = context.SemanticModel.GetDeclaredSymbol(typeDecl, cancellationToken);
 
         if (typeSymbol is null)
         {
