@@ -319,4 +319,21 @@ internal static class MappingCodeEmitter
         parse = string.Empty;
         return false;
     }
+
+    /// <summary>
+    /// Gets an explicit cast (numeric types, or enums without an enum mapping). A nullable value type source cast to a
+    /// non-nullable target falls back to default for null, like every other T? -> T mapping, instead of throwing.
+    /// </summary>
+    public static string GetCastConversion(
+        PropertyMapping prop,
+        string sourceAccess)
+    {
+        var targetType = prop.TargetProperty.Type.ToGlobalDisplayString();
+        var nullToDefault = MappingTypeAnalyzer.IsNullableValueType(prop.SourceProperty.Type) &&
+                            !MappingTypeAnalyzer.IsNullableValueType(prop.TargetProperty.Type);
+
+        return nullToDefault
+            ? $"({targetType})({sourceAccess} ?? default)"
+            : $"({targetType}){sourceAccess}";
+    }
 }

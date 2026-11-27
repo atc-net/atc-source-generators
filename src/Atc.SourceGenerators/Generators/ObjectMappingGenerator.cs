@@ -1703,8 +1703,8 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                 return MappingCodeEmitter.GetEnumMappingCall(prop, GenerateSourcePropertyAccess(prop, sourceVariable, sourceType));
             }
 
-            // Fall back to simple cast (less safe but works when no mapping is defined)
-            return $"({prop.TargetProperty.Type.ToGlobalDisplayString()}){sourceVariable}.{prop.SourceProperty.Name}";
+            // Numeric cast, or a simple enum cast when no enum mapping is defined
+            return MappingCodeEmitter.GetCastConversion(prop, $"{sourceVariable}.{prop.SourceProperty.Name}");
         }
 
         if (prop.IsNested)

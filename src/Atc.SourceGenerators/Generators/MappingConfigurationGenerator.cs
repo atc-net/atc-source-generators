@@ -2210,8 +2210,8 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
                 return MappingCodeEmitter.GetEnumMappingCall(prop, $"{sourceVariable}.{prop.SourceProperty.Name}");
             }
 
-            // Numeric conversion - handle nullable wrapping
-            return $"({prop.TargetProperty.Type.ToGlobalDisplayString()}){sourceVariable}.{prop.SourceProperty.Name}";
+            // Numeric cast, or a simple enum cast when no enum mapping is defined
+            return MappingCodeEmitter.GetCastConversion(prop, $"{sourceVariable}.{prop.SourceProperty.Name}");
         }
 
         if (prop.IsNested)

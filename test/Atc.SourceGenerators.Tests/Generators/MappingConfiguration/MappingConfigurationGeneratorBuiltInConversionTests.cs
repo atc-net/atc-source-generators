@@ -847,4 +847,37 @@ public partial class MappingConfigurationGeneratorTests
         Assert.DoesNotContain(diagnostics, d => d.Severity >= DiagnosticSeverity.Warning);
         Assert.Contains(expected, output, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void Config_Should_Cast_Nullable_Numeric_Source_Without_Throwing()
+    {
+        const string source = """
+                              #nullable enable
+                              using Atc.SourceGenerators.Annotations;
+
+                              namespace MyApp
+                              {
+                                  public class Source
+                                  {
+                                      public int? Count { get; set; }
+                                  }
+
+                                  public class Target
+                                  {
+                                      public long Count { get; set; }
+                                  }
+
+                                  [MappingConfiguration]
+                                  public static partial class Mappings
+                                  {
+                                      public static partial Target MapToTarget(this Source source);
+                                  }
+                              }
+                              """;
+
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        Assert.DoesNotContain(diagnostics, d => d.Severity >= DiagnosticSeverity.Warning);
+        Assert.Contains("Count = (long)(source.Count ?? default)", output, StringComparison.Ordinal);
+    }
 }
