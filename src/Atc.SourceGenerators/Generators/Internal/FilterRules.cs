@@ -92,7 +92,7 @@ internal sealed class FilterRules
     /// Supports * (any characters) and ? (single character).
     /// Uses a static cache to avoid recompiling regex patterns.
     /// </summary>
-    private static bool MatchesPattern(
+    internal static bool MatchesPattern(
         string value,
         string pattern)
     {
