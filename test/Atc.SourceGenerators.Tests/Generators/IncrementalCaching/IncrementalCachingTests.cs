@@ -48,4 +48,21 @@ public class IncrementalCachingTests
             """,
             "AnnotationConstants.Types",
             outputStepsMustBeCached: true);
+
+    [Fact]
+    public void EnumMapping_Should_Be_Fully_Cached_After_Unrelated_Edit()
+        => IncrementalGeneratorAssert.StepIsCachedAfterUnrelatedEdit(
+            [new EnumMappingGenerator(), new ObjectMappingGenerator()],
+            """
+            using Atc.SourceGenerators.Annotations;
+
+            namespace TestNamespace;
+
+            public enum StatusDto { Unknown, Active, Inactive }
+
+            [MapTo(typeof(StatusDto), Bidirectional = true)]
+            public enum Status { None, Active, Inactive }
+            """,
+            "EnumMapping.Models",
+            outputStepsMustBeCached: true);
 }
