@@ -169,7 +169,7 @@ public partial class OptionsBindingGeneratorTests
         var diagnostic = Assert.Single(diagnostics);
         Assert.Equal("ATCOPT013", diagnostic.Id);
         Assert.Equal(DiagnosticSeverity.Error, diagnostic.Severity);
-        Assert.Contains("ConfigureAll callback method 'SetDefaults' must have signature: static void SetDefaults(DatabaseOptions options)", diagnostic.GetMessage(CultureInfo.InvariantCulture), StringComparison.Ordinal);
+        Assert.Contains("ConfigureAll callback method 'SetDefaults' must be internal or public with signature: static void SetDefaults(DatabaseOptions options)", diagnostic.GetMessage(CultureInfo.InvariantCulture), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -402,9 +402,9 @@ public partial class OptionsBindingGeneratorTests
     }
 
     [Fact]
-    public void Generator_Should_Support_Private_ConfigureAll_Method()
+    public void Generator_Should_Report_Error_For_Private_ConfigureAll_Method()
     {
-        // Arrange - Test with private method
+        // Arrange - the generated registration code is in another class, so it can't call a private method
         const string source = """
                               using Atc.SourceGenerators.Annotations;
 
@@ -418,20 +418,18 @@ public partial class OptionsBindingGeneratorTests
 
                                   private static void SetDefaults(LoggerOptions options)
                                   {
-                                      options.Level = "Information"; // Private method works too
+                                      options.Level = "Information";
                                   }
                               }
                               """;
 
         // Act
-        var (diagnostics, output) = GetGeneratedOutput(source);
+        var (diagnostics, _) = GetGeneratedOutput(source);
 
         // Assert
-        Assert.Empty(diagnostics);
-
-        var generatedCode = GetGeneratedExtensionMethod(output);
-        Assert.NotNull(generatedCode);
-        Assert.Contains("services.ConfigureAll<global::MyApp.Configuration.LoggerOptions>(options => global::MyApp.Configuration.LoggerOptions.SetDefaults(options));", generatedCode, StringComparison.Ordinal);
+        var diagnostic = Assert.Single(diagnostics);
+        Assert.Equal("ATCOPT013", diagnostic.Id);
+        Assert.Contains("internal or public", diagnostic.GetMessage(CultureInfo.InvariantCulture), StringComparison.Ordinal);
     }
 
     [Fact]
