@@ -10,3 +10,6 @@
 # in Unix via a file share from Windows, the scripts will work
 *.sh text eol=lf
 *.ps1 text eol=lf
+
+# Generator output snapshots: always LF, so they compare the same on every OS
+*.verified.txt text eol=lf
