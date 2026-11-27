@@ -15,4 +15,5 @@ internal sealed record PropertyMapping(
     bool IsBuiltInTypeConversion,
     bool SourceRequiresUnsafeAccessor,
     bool TargetRequiresUnsafeAccessor,
-    bool IsDictionary = false);
+    bool IsDictionary = false,
+    string? ConversionMethod = null);

@@ -1014,6 +1014,7 @@ PetStatus (API)
 - Property renaming, ignoring, nested mapping, constructor support, collection mapping
 - Dictionary copying - `IReadOnlyDictionary<K, V>` / `IDictionary<K, V>` / `Dictionary<K, V>` with the same key type are copied with `ToDictionary`; values of a different type are converted with a generated nested mapper (`MapToItem(x.Value)`) or the auto-detected enum mapper (`x.Value.MapToStatus()`)
 - Bidirectional mappings also get nested mappers for the reverse direction (collection elements, dictionary values, nested properties)
+- User-implemented conversions - a static, non-partial method with one parameter in the `[MappingConfiguration]` class (e.g. `private static Money ToMoney(decimal amount)`) is used for every property pair with exactly those types, also in constructor calls and nested mappers, before the built-in conversions
 - Mixed mode - attribute-based `[MapTo]` and configuration-based mappings coexist (attribute always wins)
 
 **Mapper Class Pattern (Primary):**

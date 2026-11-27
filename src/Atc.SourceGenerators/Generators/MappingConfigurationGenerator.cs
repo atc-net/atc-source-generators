@@ -669,10 +669,11 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
             propertyRenames,
             autoDetectedEnums,
             context,
-            method.Locations.FirstOrDefault());
+            method.Locations.FirstOrDefault(),
+            GetUserConversions(containingClass));
 
         // Find best matching constructor
-        var (constructor, constructorParameterNames, constructorDefaultParameters) = FindBestConstructor(sourceType, targetType, propertyRenames);
+        var (constructor, constructorParameterNames, constructorDefaultParameters) = FindBestConstructor(sourceType, targetType, propertyRenames, GetUserConversions(containingClass));
 
         return new ConfiguredMappingInfo(
             SourceType: sourceType,
@@ -1179,7 +1180,8 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         List<(string Source, string Target)> propertyRenames,
         List<AutoDetectedEnumMapping> autoDetectedEnums,
         SourceProductionContext context,
-        Location? diagnosticLocation = null)
+        Location? diagnosticLocation = null,
+        Dictionary<string, string>? conversions = null)
     {
         var mappings = new List<PropertyMapping>();
 
@@ -1233,6 +1235,27 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
                     string.Equals(t.Name, targetPropertyName, StringComparison.OrdinalIgnoreCase));
 
                 if (targetProp is not null &&
+                    TryGetUserConversion(conversions, sourceProp.Type, targetProp.Type, out var conversionMethod))
+                {
+                    // A user-implemented conversion method of the configuration class for these types
+                    mappings.Add(new PropertyMapping(
+                        SourceProperty: sourceProp,
+                        TargetProperty: targetProp,
+                        RequiresConversion: false,
+                        IsNested: false,
+                        HasEnumMapping: false,
+                        IsCollection: false,
+                        CollectionElementType: null,
+                        SourceCollectionElementType: null,
+                        CollectionTargetType: null,
+                        IsFlattened: false,
+                        FlattenedNestedProperty: null,
+                        IsBuiltInTypeConversion: false,
+                        SourceRequiresUnsafeAccessor: false,
+                        TargetRequiresUnsafeAccessor: false,
+                        ConversionMethod: conversionMethod));
+                }
+                else if (targetProp is not null &&
                     IsMappableDictionary(sourceProp.Type, targetProp.Type, out var sourceValueType, out var targetValueType))
                 {
                     // Dictionary with the same key type but a different dictionary type and/or a value type
@@ -1639,7 +1662,8 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
     private static (IMethodSymbol? Constructor, List<string> ParameterNames, List<ConstructorDefaultParameter> DefaultParameters) FindBestConstructor(
         INamedTypeSymbol sourceType,
         INamedTypeSymbol targetType,
-        List<(string Source, string Target)>? propertyRenames = null)
+        List<(string Source, string Target)>? propertyRenames = null,
+        Dictionary<string, string>? conversions = null)
     {
         var constructors = targetType
             .Constructors
@@ -1677,6 +1701,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
                 var parameterType = parameter.Type;
                 if (!SymbolEqualityComparer.Default.Equals(sourcePropertyType, parameterType) &&
                     !MappingTypeAnalyzer.IsImplicitlyConvertible(sourcePropertyType, parameterType) &&
+                    !TryGetUserConversion(conversions, sourcePropertyType, parameterType, out _) &&
                     !AreBothCustomOrEnumTypes(sourcePropertyType, parameterType) &&
                     !MappingTypeAnalyzer.IsNumericTypeConversion(sourcePropertyType, parameterType) &&
                     !MappingTypeAnalyzer.IsBuiltInTypeConversion(sourcePropertyType, parameterType) &&
@@ -1726,6 +1751,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
                     var parameterType = parameter.Type;
                     if (!SymbolEqualityComparer.Default.Equals(sourcePropertyType, parameterType) &&
                         !MappingTypeAnalyzer.IsImplicitlyConvertible(sourcePropertyType, parameterType) &&
+                    !TryGetUserConversion(conversions, sourcePropertyType, parameterType, out _) &&
                         !AreBothCustomOrEnumTypes(sourcePropertyType, parameterType) &&
                         !MappingTypeAnalyzer.IsNumericTypeConversion(sourcePropertyType, parameterType) &&
                         !AreBothCollectionTypesWithCompatibleElements(sourcePropertyType, parameterType) &&
@@ -1840,6 +1866,56 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
             namespaces.Add(name);
         }
     }
+
+    /// <summary>
+    /// Gets the user-implemented conversion methods of a configuration class: static, non-partial methods with one
+    /// parameter and a return value, keyed by "source type -> target type". They are used for every property pair
+    /// with exactly these types (before the built-in conversions).
+    /// </summary>
+    private static Dictionary<string, string>? GetUserConversions(
+        INamedTypeSymbol? containingClass)
+    {
+        if (containingClass is null)
+        {
+            return null;
+        }
+
+        var conversions = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var method in containingClass.GetMembers().OfType<IMethodSymbol>())
+        {
+            if (method is not { IsStatic: true, MethodKind: MethodKind.Ordinary, IsGenericMethod: false, ReturnsVoid: false, Parameters.Length: 1 } ||
+                method.IsPartialDefinition ||
+                method.PartialDefinitionPart is not null)
+            {
+                continue;
+            }
+
+            var key = GetConversionKey(method.Parameters[0].Type, method.ReturnType);
+            if (!conversions.ContainsKey(key))
+            {
+                conversions[key] = method.Name;
+            }
+        }
+
+        return conversions.Count > 0 ? conversions : null;
+    }
+
+    private static bool TryGetUserConversion(
+        Dictionary<string, string>? conversions,
+        ITypeSymbol sourceType,
+        ITypeSymbol targetType,
+        out string? methodName)
+    {
+        methodName = null;
+        return conversions is not null &&
+               !SymbolEqualityComparer.Default.Equals(sourceType, targetType) &&
+               conversions.TryGetValue(GetConversionKey(sourceType, targetType), out methodName);
+    }
+
+    private static string GetConversionKey(
+        ITypeSymbol sourceType,
+        ITypeSymbol targetType)
+        => $"{sourceType.WithNullableAnnotation(NullableAnnotation.NotAnnotated).ToDisplayString()}->{targetType.WithNullableAnnotation(NullableAnnotation.NotAnnotated).ToDisplayString()}";
 
     private static bool IsMappableDictionary(
         ITypeSymbol sourceType,
@@ -2233,9 +2309,10 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
             [],
             autoDetectedEnums,
             context,
-            mapping.Method?.Locations.FirstOrDefault());
+            mapping.Method?.Locations.FirstOrDefault(),
+            GetUserConversions(mapping.ContainingClass));
 
-        var (reverseConstructor, reverseConstructorParams, reverseConstructorDefaults) = FindBestConstructor(mapping.TargetType, mapping.SourceType);
+        var (reverseConstructor, reverseConstructorParams, reverseConstructorDefaults) = FindBestConstructor(mapping.TargetType, mapping.SourceType, conversions: GetUserConversions(mapping.ContainingClass));
 
         sb.AppendLineLf("    /// <summary>");
         sb.AppendLineLf($"    /// Maps <see cref=\"{sourceTypeName}\"/> to <see cref=\"{targetTypeName}\"/>.");
@@ -2359,6 +2436,9 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
             }
         }
 
+        // User conversion methods of the configuration class (nested mappers are generated into that class)
+        var classConversions = GetUserConversions(mappings.Select(m => m.ContainingClass).FirstOrDefault(c => c is not null));
+
         // Use a queue for recursive processing of nested type pairs
         var queue = new Queue<(INamedTypeSymbol Source, INamedTypeSymbol Target)>();
         CollectNestedTypePairs(mappings, queue);
@@ -2410,9 +2490,10 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
                 [],
                 [],
                 autoDetectedEnums,
-                context);
+                context,
+                conversions: classConversions);
 
-            var (constructor, constructorParameterNames, constructorDefaultParameters) = FindBestConstructor(sourceElementType, targetElementType);
+            var (constructor, constructorParameterNames, constructorDefaultParameters) = FindBestConstructor(sourceElementType, targetElementType, conversions: classConversions);
 
             var elementMapping = new ConfiguredMappingInfo(
                 SourceType: sourceElementType,
@@ -2551,6 +2632,11 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         PropertyMapping prop,
         string sourceVariable)
     {
+        if (prop.ConversionMethod is not null)
+        {
+            return $"{prop.ConversionMethod}({sourceVariable}.{prop.SourceProperty.Name})";
+        }
+
         if (prop.IsFlattened && prop.FlattenedNestedProperty is not null)
         {
             var isNullable = prop.SourceProperty.Type.NullableAnnotation == NullableAnnotation.Annotated ||
