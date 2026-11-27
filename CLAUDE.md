@@ -4,28 +4,35 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a **Roslyn C# Source Generators** project that provides compile-time code generation for .NET applications. The solution contains five main source generators:
+This is a **Roslyn C# Source Generators** project that provides compile-time code generation for .NET applications. The solution contains six source generators:
 
 1. **DependencyRegistrationGenerator** - Automatically generates dependency injection service registrations
 2. **OptionsBindingGenerator** - Automatically generates configuration options binding code
-3. **MappingGenerator** - Automatically generates type-safe object-to-object mapping code (attribute-based)
-4. **MappingConfigurationGenerator** - Automatically generates mappings for 3rd-party types via configuration (no attributes on source types)
-5. **AnnotationConstantsGenerator** - Automatically generates compile-time constants from DataAnnotation attributes
+3. **ObjectMappingGenerator** - Automatically generates type-safe object-to-object mapping code (attribute-based `[MapTo]`)
+4. **EnumMappingGenerator** - Automatically generates enum-to-enum mappings (`[MapTo]` on enums)
+5. **MappingConfigurationGenerator** - Automatically generates mappings for 3rd-party types via configuration (no attributes on source types)
+6. **AnnotationConstantsGenerator** - Automatically generates compile-time constants from DataAnnotation attributes
 
-All generators eliminate boilerplate code and improve developer productivity while maintaining Native AOT compatibility.
+All generators eliminate boilerplate code. The mapping, enum mapping, annotation constants and DI registration output is Native AOT friendly; OptionsBinding output uses the reflection-based configuration binder (see the README's Native AOT section).
 
 ## Project Structure
 
 ```
 src/
   Atc.SourceGenerators/           # Main generator implementations
-    DependencyRegistrationGenerator.cs
-    OptionsBindingGenerator.cs
-    ObjectMappingGenerator.cs
-    MappingConfigurationGenerator.cs
-    AnnotationConstantsGenerator.cs
+    Generators/
+      DependencyRegistrationGenerator.cs
+      OptionsBindingGenerator.cs
+      ObjectMappingGenerator.cs
+      EnumMappingGenerator.cs
+      MappingConfigurationGenerator.cs
+      AnnotationConstantsGenerator.cs
+      Internal/                   # Equatable pipeline models (EquatableArray, DiagnosticInfo, PropertyMapping, ...)
+    Helpers/                      # CSharpLiteral, CSharpIdentifier, NamespaceHelper, DiagnosticHelpLink, ...
+    Extensions/                   # StringBuilderExtensions
     RuleIdentifierConstants.cs    # Diagnostic ID constants
-    RuleCategoryConstants.cs       # Diagnostic category constants
+    RuleCategoryConstants.cs      # Diagnostic category constants
+    AnalyzerReleases.*.md         # Diagnostic release tracking
   Atc.SourceGenerators.Annotations/ # Attribute definitions (not published; the generators emit the same attributes into consuming projects)
     RegistrationAttribute.cs
     OptionsBindingAttribute.cs
@@ -40,11 +47,18 @@ src/
     OptionsLifetime.cs
 
 test/
-  Atc.SourceGenerators.Tests/     # Unit tests using Roslyn testing infrastructure
-    DependencyRegistrationGeneratorTests.cs
-    OptionsBindingGeneratorTests.cs
-    ObjectMappingGeneratorTests.cs
-    AnnotationConstantsGeneratorTests.cs
+  Atc.SourceGenerators.Tests/     # xUnit v3 on Microsoft.Testing.Platform
+    Generators/
+      GeneratorTestHarness.cs     # Shared references; compiles the generated code in every test
+      DiagnosticDescriptorTests.cs
+      DependencyRegistration/     # One partial test class per generator, split by feature
+      OptionsBinding/
+      ObjectMapping/
+      EnumMapping/
+      MappingConfiguration/
+      AnnotationConstants/
+      IncrementalCaching/         # Steps stay cached after unrelated edits
+    Integration/                  # Builds the sample projects (category "integration")
 
 sample/
   Atc.SourceGenerators.DependencyRegistration/        # DI registration sample
@@ -73,17 +87,21 @@ sample/
 
 ### Build
 ```bash
-dotnet build
+# CI builds Release with warnings as errors
+dotnet build Atc.SourceGenerators.slnx -c Release
 ```
 
 ### Run Tests
 ```bash
-dotnet test
+# Unit tests, as in CI
+dotnet test --solution Atc.SourceGenerators.slnx -c Release --filter-query "/[category!=integration]"
 ```
 
 ### Run Specific Test
 ```bash
-dotnet test --filter "FullyQualifiedName~Generator_Should_Auto_Detect_Multiple_Interfaces"
+# Microsoft.Testing.Platform filters (not VSTest's --filter)
+dotnet test --project test/Atc.SourceGenerators.Tests/Atc.SourceGenerators.Tests.csproj --filter-method "*Generator_Should_Auto_Detect_Multiple_Interfaces"
+dotnet test --project test/Atc.SourceGenerators.Tests/Atc.SourceGenerators.Tests.csproj --filter-class "*DiagnosticDescriptorTests"
 ```
 
 ### Run Sample Projects
@@ -343,10 +361,10 @@ services.AddDependencyRegistrationsFromDomain(
 - Compile-time (assembly-level): Fixed at build time, applies to ALL registrations from that assembly
 - Runtime (method parameters): Flexible per application, allows different apps to exclude different services
 
-**Diagnostics:**
+**Diagnostics** (each links to its section in the wiki Diagnostics Reference):
 - `ATCDIR001` - Service 'As' type must be an interface or abstract class (Error)
 - `ATCDIR002` - Class does not implement specified interface or inherit from abstract class (Error)
-- `ATCDIR003` - Duplicate registration with different lifetimes (Warning)
+- `ATCDIR003` - Duplicate service registration with different lifetime (Warning)
 - `ATCDIR004` - Hosted services must use Singleton lifetime (Error)
 - `ATCDIR005` - Factory method not found (Error)
 - `ATCDIR006` - Factory method has invalid signature (Error)
@@ -672,23 +690,23 @@ services.AddOptionsFromDomain(configuration, "DataAccess");
 services.AddOptionsFromDomain(configuration, "DataAccess", "Infrastructure");
 ```
 
-**Diagnostics:**
+**Diagnostics** (each links to its section in the wiki Diagnostics Reference):
 - `ATCOPT001` - Options class must be partial (Error)
 - `ATCOPT002` - Section name cannot be null or empty (Error)
 - `ATCOPT003` - Const section name cannot be null or empty (Error)
-- `ATCOPT004` - OnChange requires Monitor lifetime (Error)
-- `ATCOPT005` - OnChange not supported with named options (Error)
+- `ATCOPT004` - OnChange callback requires Monitor lifetime (Error)
+- `ATCOPT005` - OnChange callback not supported with named options (Error)
 - `ATCOPT006` - OnChange callback method not found (Error)
-- `ATCOPT007` - OnChange callback has invalid signature (Error)
-- `ATCOPT008` - PostConfigure not supported with named options (Error)
+- `ATCOPT007` - OnChange callback method has invalid signature (Error)
+- `ATCOPT008` - PostConfigure callback not supported with named options (Error)
 - `ATCOPT009` - PostConfigure callback method not found (Error)
-- `ATCOPT010` - PostConfigure callback has invalid signature (Error)
+- `ATCOPT010` - PostConfigure callback method has invalid signature (Error)
 - `ATCOPT011` - ConfigureAll requires multiple named options (Error)
 - `ATCOPT012` - ConfigureAll callback method not found (Error)
-- `ATCOPT013` - ConfigureAll callback has invalid signature (Error)
+- `ATCOPT013` - ConfigureAll callback method has invalid signature (Error)
 - `ATCOPT014` - ChildSections cannot be used with Name property (Error)
 - `ATCOPT015` - ChildSections requires at least 2 items (Error)
-- `ATCOPT016` - ChildSections array contains null or empty value (Error)
+- `ATCOPT016` - ChildSections items cannot be null or empty (Error)
 
 ### MappingGenerator
 
@@ -910,12 +928,14 @@ User (Domain) [MapTo(typeof(UserDto))]
 UserDto (API)
 ```
 
-**Diagnostics:**
+**Diagnostics** (each links to its section in the wiki Diagnostics Reference):
 - `ATCMAP001` - Mapping class must be partial (Error)
 - `ATCMAP002` - Target type must be a class or struct (Error)
 - `ATCMAP003` - MapProperty target property not found (Error)
-- `ATCMAP012` - Two mappings from the same source type would generate a `MapTo{TargetName}` method with the same name (Error)
-- `ATCMAP013` - `BeforeMap`, `AfterMap` or `Factory` method is missing, not static, or private (Error)
+- `ATCMAP004` - Required property on target type has no mapping (Warning)
+- `ATCMAP011` - Collection element type has no mapping method (Warning)
+- `ATCMAP012` - Duplicate mapping method (Error)
+- `ATCMAP013` - Mapping hook method cannot be called (Error)
 - `ATCMAP014` - Target property is not mapped (Info; raise via `.editorconfig` for strict mapping)
 
 ### EnumMappingGenerator
@@ -1001,9 +1021,10 @@ PetStatus (Domain) [MapTo(typeof(Api.PetStatus))]
 PetStatus (API)
 ```
 
-**Diagnostics:**
+**Diagnostics** (each links to its section in the wiki Diagnostics Reference):
 - `ATCENUM001` - Target type must be an enum (Error)
-- `ATCENUM002` - Source enum value has no matching target value (Warning)
+- `ATCENUM002` - Unmapped enum value (Warning)
+- `ATCENUM006` - Flag enum mapping warning (Warning)
 
 ### MappingConfigurationGenerator
 
@@ -1081,24 +1102,27 @@ When mapping properties with different enum types (e.g., `ContactType` → `Cust
 - `MapTypesAttribute(sourceType, targetType)` - Assembly-level or class-level shorthand for simple mappings
 - `MappingBuilder` - Fluent API for inline mapping registration (compile-time analyzed, runtime no-op)
 
-**Diagnostics:**
+**Diagnostics** (each links to its section in the wiki Diagnostics Reference):
+- `ATCENUM004` - Partial enum match (Warning)
+- `ATCENUM005` - No enum match (Warning)
+- `ATCMAP005` - Duplicate attribute and configuration mapping (Warning)
+- `ATCMAP006` - Duplicate configuration mapping (Warning)
+- `ATCMAP010` - Target type must be a class or struct (Error)
 - `ATCMCF001` - Configuration class must be static (Error)
 - `ATCMCF002` - Configuration class must be partial (Error)
-- `ATCMCF004` - Method must be an extension method (Error)
-- `ATCMCF005` - Return type must be a class, struct, or record (Error)
-- `ATCMCF006` - Source property not found for MapConfigProperty/MapConfigIgnore (Error)
-- `ATCMCF007` - Target property not found for MapConfigProperty (Error)
-- `ATCMCF008` - Unmatched source/target properties (Info)
+- `ATCMCF004` - Method must be extension method (Error)
+- `ATCMCF005` - Ignored property not found (Warning)
+- `ATCMCF006` - Renamed source property not found (Error)
+- `ATCMCF007` - Renamed target property not found (Error)
+- `ATCMCF008` - Empty configuration class (Info)
 - `ATCMCF009` - Mapping method must have exactly one parameter (Error)
-- `ATCMCF010` - Assembly MapTypes source type not found (Error)
-- `ATCMCF011` - Map() requires exactly two type arguments (Error)
-- `ATCMCF012` - Map() arguments must be typeof() expressions (Error)
-- `ATCMCF013` - AddMappings() requires a lambda expression argument (Error)
-- `ATCMCF014` - Type could not be resolved, possibly from sibling source generator (Warning)
-- `ATCMCF015` - Property with a matching name is not mapped because the types are not compatible (Warning)
+- `ATCMCF010` - Return type invalid (Error)
+- `ATCMCF011` - Map() requires type arguments (Error)
+- `ATCMCF012` - Map() argument must be a typeof() expression (Error)
+- `ATCMCF013` - Lambda required (Error)
+- `ATCMCF014` - Type not resolved (Warning)
+- `ATCMCF015` - Property types are not compatible (Warning)
 - `ATCMCF016` - Target property is not mapped (Info; raise via `.editorconfig` for strict mapping)
-- `ATCMAP005` - Duplicate mapping: attribute-based [MapTo] takes precedence over configuration (Warning)
-- `ATCMAP006` - Duplicate configuration mapping for same source→target pair (Warning)
 
 ### AnnotationConstantsGenerator
 
@@ -1312,7 +1336,7 @@ The project follows the pattern from `atc-analyzer` for managing diagnostic iden
    - `[ExcludeFromCodeCoverage]` - Excludes from coverage (classes/methods only)
 4. **Testing**: Use the test helper pattern in `DependencyRegistrationGeneratorTests.cs` - create syntax trees, run generator, validate diagnostics and output
 5. **Incremental Generation**: Leverage Roslyn's incremental generation pipeline for performance
-6. **Diagnostics**: Always use constants from `RuleIdentifierConstants` and `RuleCategoryConstants` - never hardcode diagnostic IDs or categories
+6. **Diagnostics**: Always use constants from `RuleIdentifierConstants` and `RuleCategoryConstants` - never hardcode diagnostic IDs or categories. Set `helpLinkUri: DiagnosticHelpLink.For(<id>)` (a test checks every descriptor), add the ID to `AnalyzerReleases.Unshipped.md`, and add a `### <ID>` section to the wiki Diagnostics Reference
 
 ### Testing Pattern
 
@@ -1330,7 +1354,7 @@ private static (ImmutableArray<Diagnostic> Diagnostics, string Output) GetGenera
 
 ### String Generation Utilities
 
-Both generators use `StringBuilderExtensions.AppendLineLf()` for consistent LF-only line endings in generated code (see `src/Atc.SourceGenerators/StringBuilderExtensions.cs`).
+The generators use `StringBuilderExtensions.AppendLineLf()` for consistent LF-only line endings in generated code (see `src/Atc.SourceGenerators/Extensions/StringBuilderExtensions.cs`).
 
 ### Multi-Project Support
 
@@ -1446,9 +1470,9 @@ If you encounter `System.ArgumentException: An item with the same key has alread
 See the **XML Documentation Configuration** section above for detailed explanation.
 
 ### Testing Generators
-Run tests with verbose output to see generated source:
+The test helpers return the generated source, and `GeneratorTestHarness.AssertGeneratedCodeCompiles` fails a test with the compiler errors in the generated code. A failing `Assert.Contains` on the generated source prints that source; run a single test with detailed output:
 ```bash
-dotnet test --logger "console;verbosity=detailed"
+dotnet test --project test/Atc.SourceGenerators.Tests/Atc.SourceGenerators.Tests.csproj --filter-method "*Generator_Should_Auto_Detect_Multiple_Interfaces" --output Detailed
 ```
 
 ## NuGet Package Structure
