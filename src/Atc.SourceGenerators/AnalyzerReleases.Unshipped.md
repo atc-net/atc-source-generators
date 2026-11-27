@@ -28,5 +28,6 @@ ATCMCF012 | MappingConfiguration | Error | Map() argument must be a typeof() exp
 ATCMAP014 | ObjectMapping | Info | Target property is not mapped
 ATCMAP015 | ObjectMapping | Error | Nested property type has no mapping to the target property type
 ATCMAP016 | ObjectMapping | Warning | DeepClone copies a property by reference because its type has no self-mapping
+ATCMAP017 | ObjectMapping | Error | MapProperty source path can't be mapped
 ATCMCF016 | MappingConfiguration | Info | Target property is not mapped
 ATCDIR011 | DependencyInjection | Error | Replace cannot be combined with TryAdd, Key, Decorator or a hosted service

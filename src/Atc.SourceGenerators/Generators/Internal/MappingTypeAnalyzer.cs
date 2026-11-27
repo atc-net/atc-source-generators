@@ -872,4 +872,71 @@ internal static class MappingTypeAnalyzer
            conversions.TryGetValue(GetConversionKey(sourceType, targetType), out var method)
             ? method
             : null;
+
+    /// <summary>
+    /// Resolves a source property name or a dotted path ("Customer.Address.City") to its chain of properties,
+    /// or <c>null</c> when a segment doesn't exist.
+    /// </summary>
+    internal static List<IPropertySymbol>? ResolveSourcePath(
+        List<IPropertySymbol> sourceProperties,
+        string path)
+    {
+        var chain = new List<IPropertySymbol>();
+        var properties = sourceProperties;
+
+        foreach (var segment in path.Split('.'))
+        {
+            var property = properties.FirstOrDefault(p => string.Equals(p.Name, segment, StringComparison.OrdinalIgnoreCase));
+            if (property is null)
+            {
+                return null;
+            }
+
+            chain.Add(property);
+            properties = UnwrapNullable(property.Type) is INamedTypeSymbol nextType
+                ? GetAllProperties(nextType, includePrivateMembers: false)
+                : [];
+        }
+
+        return chain;
+    }
+
+    /// <summary>
+    /// Builds the access expression for a resolved source path, using "?." after every segment that can be null,
+    /// and checks that the last property can be assigned to the target type.
+    /// </summary>
+    internal static string BuildSourcePath(
+        List<IPropertySymbol> chain,
+        ITypeSymbol targetType,
+        out bool isCompatible)
+    {
+        var sb = new StringBuilder(chain[0].Name);
+        var usesNullConditional = false;
+
+        for (var i = 1; i < chain.Count; i++)
+        {
+            var previousType = chain[i - 1].Type;
+            var canBeNull = !previousType.IsValueType || IsNullableValueType(previousType);
+            sb.Append(canBeNull ? "?." : ".");
+            sb.Append(chain[i].Name);
+            usesNullConditional |= canBeNull;
+        }
+
+        var lastType = chain[chain.Count - 1].Type;
+        isCompatible = SymbolEqualityComparer.Default.Equals(
+                           UnwrapNullable(lastType),
+                           UnwrapNullable(targetType)) ||
+                       IsImplicitlyConvertible(lastType, targetType);
+
+        if (usesNullConditional)
+        {
+            sb.Append(GetNullConditionalSuffix(lastType, targetType));
+        }
+        else if (IsNullableToNonNullableValueType(lastType, targetType))
+        {
+            sb.Append(" ?? default");
+        }
+
+        return sb.ToString();
+    }
 }

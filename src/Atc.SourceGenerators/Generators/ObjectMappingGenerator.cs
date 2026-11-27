@@ -69,6 +69,15 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         isEnabledByDefault: true,
         helpLinkUri: DiagnosticHelpLink.For(RuleIdentifierConstants.ObjectMapping.TargetPropertyNotMapped));
 
+    private static readonly DiagnosticDescriptor MapPropertySourcePathInvalidDescriptor = new(
+        id: RuleIdentifierConstants.ObjectMapping.MapPropertySourcePathInvalid,
+        title: "MapProperty source path can't be mapped",
+        messageFormat: "[MapProperty(\"{0}\", \"{1}\")] on '{2}' can't be mapped: {3}",
+        category: RuleCategoryConstants.ObjectMapping,
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        helpLinkUri: DiagnosticHelpLink.For(RuleIdentifierConstants.ObjectMapping.MapPropertySourcePathInvalid));
+
     private static readonly DiagnosticDescriptor DeepCloneSharesReferenceDescriptor = new(
         id: RuleIdentifierConstants.ObjectMapping.DeepCloneSharesReference,
         title: "DeepClone copies a property by reference",
@@ -355,16 +364,19 @@ public class ObjectMappingGenerator : IIncrementalGenerator
             // Conversion methods of the [MapTo] class (static, one parameter, callable from the generated class)
             var conversions = GetConversionMethods(classSymbol);
 
+            // Nested source paths of class-level [MapProperty("Customer.Name", "CustomerName")]
+            var sourcePaths = GetSourcePaths(classSymbol);
+
             // The generated mapping is an extension method in another class: hooks must be static and accessible
             beforeMap = GetCallableHook(classSymbol, beforeMap, "BeforeMap", context);
             afterMap = GetCallableHook(classSymbol, afterMap, "AfterMap", context);
             factory = GetCallableHook(classSymbol, factory, "Factory", context);
 
             // Get property mappings
-            var propertyMappings = GetPropertyMappings(classSymbol, targetType, enableFlattening, includePrivateMembers, propertyNameStrategy, context, deepClone, conversions);
+            var propertyMappings = GetPropertyMappings(classSymbol, targetType, enableFlattening, includePrivateMembers, propertyNameStrategy, context, deepClone, conversions, sourcePaths);
 
             // Find best matching constructor
-            var (constructor, constructorParameterNames, constructorDefaultParameters) = FindBestConstructor(classSymbol, targetType, conversions);
+            var (constructor, constructorParameterNames, constructorDefaultParameters) = FindBestConstructor(classSymbol, targetType, conversions, sourcePaths);
 
             // Extract derived type mappings from MapDerivedType attributes
             var derivedTypeMappings = GetDerivedTypeMappings(classSymbol);
@@ -391,12 +403,12 @@ public class ObjectMappingGenerator : IIncrementalGenerator
 
             // Get property mappings (using constructed target type for generics)
             var mappingsForGeneric = isGenericMapping
-                ? GetPropertyMappings(classSymbol, targetTypeForMapping, enableFlattening, includePrivateMembers, propertyNameStrategy, context, deepClone, conversions)
+                ? GetPropertyMappings(classSymbol, targetTypeForMapping, enableFlattening, includePrivateMembers, propertyNameStrategy, context, deepClone, conversions, sourcePaths)
                 : propertyMappings;
 
             // Find best matching constructor (using constructed target type for generics)
             var (constructorForGeneric, constructorParamsForGeneric, constructorDefaultsForGeneric) = isGenericMapping
-                ? FindBestConstructor(classSymbol, targetTypeForMapping, conversions)
+                ? FindBestConstructor(classSymbol, targetTypeForMapping, conversions, sourcePaths)
                 : (constructor, constructorParameterNames, constructorDefaultParameters);
 
             mappings.Add(new MappingInfo(
@@ -431,7 +443,8 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         PropertyNameStrategy propertyNameStrategy,
         SourceProductionContext? context = null,
         bool deepClone = false,
-        Dictionary<string, string>? conversions = null)
+        Dictionary<string, string>? conversions = null,
+        List<(string SourcePath, string Target)>? sourcePaths = null)
     {
         var mappings = new List<PropertyMapping>();
 
@@ -518,6 +531,12 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                 ? CreateDeepCloneMapping(sourceProp, targetProp, context)
                 : PropertyPairClassifier.Create(sourceProp, targetProp);
             mappings.Add(WithAccessorFlags(directMapping, includePrivateMembers));
+        }
+
+        // Nested source paths from [MapProperty("Customer.Address.City", "City")] on the class
+        foreach (var (path, target) in sourcePaths ?? [])
+        {
+            AddSourcePathMapping(mappings, sourceProperties, targetProperties, sourceType, targetType, path, target, context);
         }
 
         // Handle flattening if enabled
@@ -622,6 +641,84 @@ public class ObjectMappingGenerator : IIncrementalGenerator
             classSymbol,
             static method => method.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal or Accessibility.ProtectedOrInternal,
             method => $"{classSymbol.ToGlobalDisplayString()}.{method.Name}");
+
+    /// <summary>
+    /// Gets the class-level [MapProperty("Customer.Address.City", "City")] attributes (source path, target name).
+    /// </summary>
+    private static List<(string SourcePath, string Target)> GetSourcePaths(
+        INamedTypeSymbol classSymbol)
+        => classSymbol
+            .GetAttributes()
+            .Where(a => MappingTypeAnalyzer.IsAttributeMatch(a.AttributeClass, "MapPropertyAttribute") &&
+                        a.ConstructorArguments.Length == 2 &&
+                        a.ConstructorArguments[0].Value is string &&
+                        a.ConstructorArguments[1].Value is string)
+            .Select(a => ((string)a.ConstructorArguments[0].Value!, (string)a.ConstructorArguments[1].Value!))
+            .ToList();
+
+    /// <summary>
+    /// Maps a nested source path null-safely (source.Customer?.Address?.City), replacing a by-name mapping of the
+    /// same target property.
+    /// </summary>
+    private static void AddSourcePathMapping(
+        List<PropertyMapping> mappings,
+        List<IPropertySymbol> sourceProperties,
+        List<IPropertySymbol> targetProperties,
+        INamedTypeSymbol sourceType,
+        INamedTypeSymbol targetType,
+        string path,
+        string target,
+        SourceProductionContext? context)
+    {
+        var location = sourceType.Locations.FirstOrDefault() ?? Location.None;
+        var targetProp = targetProperties.FirstOrDefault(t => string.Equals(t.Name, target, StringComparison.OrdinalIgnoreCase));
+        if (targetProp is null)
+        {
+            // A class-level [MapProperty] applies to every [MapTo] of the class: only an error when no target has the property
+            var anyTargetHasProperty = sourceType
+                .GetAttributes()
+                .Where(a => MappingTypeAnalyzer.IsAttributeMatch(a.AttributeClass, "MapToAttribute"))
+                .Select(a => a.ConstructorArguments.FirstOrDefault().Value)
+                .OfType<INamedTypeSymbol>()
+                .Any(t => MappingTypeAnalyzer.GetAllProperties(t, includePrivateMembers: true)
+                    .Any(p => string.Equals(p.Name, target, StringComparison.OrdinalIgnoreCase)));
+            if (!anyTargetHasProperty)
+            {
+                context?.ReportDiagnostic(Diagnostic.Create(MapPropertyTargetNotFoundDescriptor, location, path, target, targetType.Name));
+            }
+
+            return;
+        }
+
+        var chain = MappingTypeAnalyzer.ResolveSourcePath(sourceProperties, path);
+        if (chain is null)
+        {
+            context?.ReportDiagnostic(Diagnostic.Create(
+                MapPropertySourcePathInvalidDescriptor,
+                location,
+                path,
+                target,
+                sourceType.Name,
+                $"'{path}' is not a property path of '{sourceType.Name}'"));
+            return;
+        }
+
+        var sourcePath = MappingTypeAnalyzer.BuildSourcePath(chain, targetProp.Type, out var isCompatible);
+        if (!isCompatible)
+        {
+            context?.ReportDiagnostic(Diagnostic.Create(
+                MapPropertySourcePathInvalidDescriptor,
+                location,
+                path,
+                target,
+                sourceType.Name,
+                $"'{chain[chain.Count - 1].Type.ToDisplayString()}' can't be converted to '{targetProp.Type.ToDisplayString()}'"));
+            return;
+        }
+
+        mappings.RemoveAll(m => string.Equals(m.TargetProperty.Name, targetProp.Name, StringComparison.Ordinal));
+        mappings.Add(PropertyPairClassifier.Create(chain[0], targetProp) with { SourcePath = sourcePath });
+    }
 
     private static PropertyMapping WithAccessorFlags(
         PropertyMapping mapping,
@@ -856,15 +953,24 @@ public class ObjectMappingGenerator : IIncrementalGenerator
     private static (IMethodSymbol? Constructor, List<string> ParameterNames, List<ConstructorDefaultParameter> DefaultParameters) FindBestConstructor(
         INamedTypeSymbol sourceType,
         INamedTypeSymbol targetType,
-        Dictionary<string, string>? conversions)
+        Dictionary<string, string>? conversions,
+        List<(string SourcePath, string Target)>? sourcePaths = null)
     {
         // Source properties that we can map from, including inherited ones
         var sourceProperties = MappingTypeAnalyzer.GetAllProperties(sourceType, includePrivateMembers: true);
 
+        // A parameter filled from a nested source path is checked against the path's last property
+        IPropertySymbol? FindSourceProperty(string parameterName)
+        {
+            var path = (sourcePaths ?? []).FirstOrDefault(p => string.Equals(p.Target, parameterName, StringComparison.OrdinalIgnoreCase));
+            return path.SourcePath is not null
+                ? MappingTypeAnalyzer.ResolveSourcePath(sourceProperties, path.SourcePath)?.LastOrDefault()
+                : sourceProperties.FirstOrDefault(p => string.Equals(p.Name, parameterName, StringComparison.OrdinalIgnoreCase));
+        }
+
         return MappingTypeAnalyzer.FindBestConstructor(
             targetType,
-            parameterName => sourceProperties.FirstOrDefault(p =>
-                string.Equals(p.Name, parameterName, StringComparison.OrdinalIgnoreCase)),
+            FindSourceProperty,
             (sourcePropertyType, parameterType) =>
                 MappingTypeAnalyzer.IsConstructorParameterCompatible(sourcePropertyType, parameterType) ||
                 MappingTypeAnalyzer.FindConversionMethod(conversions, sourcePropertyType, parameterType) is not null ||
@@ -1441,7 +1547,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         // Filter properties that can be used in projections
         // Only simple properties (no nested objects, no collections or dictionaries, no built-in type conversions)
         var projectionProperties = mapping.PropertyMappings
-            .Where(p => !p.IsNested && !p.IsCollection && !p.IsDictionary && !p.IsBuiltInTypeConversion && !p.IsFlattened)
+            .Where(p => !p.IsNested && !p.IsCollection && !p.IsDictionary && !p.IsBuiltInTypeConversion && !p.IsFlattened && p.SourcePath is null)
             .ToList();
 
         sb.AppendLineLf("    /// <summary>");
@@ -1524,6 +1630,12 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         {
             // Conversion method of the [MapTo] class
             return $"{prop.ConversionMethod}({GenerateSourcePropertyAccess(prop, sourceVariable, sourceType)})";
+        }
+
+        if (prop.SourcePath is not null)
+        {
+            // Nested source path of a class-level [MapProperty]
+            return $"{sourceVariable}.{prop.SourcePath}";
         }
 
         if (prop.IsFlattened && prop.FlattenedNestedProperty is not null)
@@ -1909,12 +2021,14 @@ public class ObjectMappingGenerator : IIncrementalGenerator
            {
                /// <summary>
                /// Specifies a custom target property name for mapping when property names differ between source and target types.
+               /// On a property: [MapProperty("TargetName")]. On the [MapTo] class: [MapProperty("Customer.Address.City", "City")]
+               /// maps a nested source path (read null-safely) to a target property.
                /// </summary>
                [global::System.CodeDom.Compiler.GeneratedCode("Atc.SourceGenerators.ObjectMapping", "1.0.0")]
                [global::System.ComponentModel.EditorBrowsable(global::System.ComponentModel.EditorBrowsableState.Never)]
                [global::System.Diagnostics.DebuggerNonUserCode]
                [global::System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
-               [global::System.AttributeUsage(global::System.AttributeTargets.Property, Inherited = false, AllowMultiple = false)]
+               [global::System.AttributeUsage(global::System.AttributeTargets.Property | global::System.AttributeTargets.Class, Inherited = false, AllowMultiple = true)]
                [global::Microsoft.CodeAnalysis.EmbeddedAttribute]
                internal sealed class MapPropertyAttribute : global::System.Attribute
                {
@@ -1928,9 +2042,26 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                    }
 
                    /// <summary>
+                   /// Initializes a new instance of the <see cref="MapPropertyAttribute"/> class for a nested source path
+                   /// (on the [MapTo] class).
+                   /// </summary>
+                   /// <param name="sourcePath">The source property path, e.g. "Customer.Address.City".</param>
+                   /// <param name="targetPropertyName">The name of the target property to map to.</param>
+                   public MapPropertyAttribute(string sourcePath, string targetPropertyName)
+                   {
+                       SourcePath = sourcePath;
+                       TargetPropertyName = targetPropertyName;
+                   }
+
+                   /// <summary>
                    /// Gets the name of the target property to map to.
                    /// </summary>
                    public string TargetPropertyName { get; }
+
+                   /// <summary>
+                   /// Gets the nested source path, or <c>null</c> when the attribute is on a source property.
+                   /// </summary>
+                   public string? SourcePath { get; }
                }
            }
            """;

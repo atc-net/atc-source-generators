@@ -207,6 +207,11 @@ internal static class RuleIdentifierConstants
         /// ATCMAP016: DeepClone copies a property by reference because its type has no self-mapping.
         /// </summary>
         internal const string DeepCloneSharesReference = "ATCMAP016";
+
+        /// <summary>
+        /// ATCMAP017: The source path of a class-level [MapProperty] can't be mapped.
+        /// </summary>
+        internal const string MapPropertySourcePathInvalid = "ATCMAP017";
     }
 
     /// <summary>

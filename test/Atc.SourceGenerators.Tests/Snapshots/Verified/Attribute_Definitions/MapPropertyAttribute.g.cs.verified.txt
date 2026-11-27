@@ -5,12 +5,14 @@ namespace Atc.SourceGenerators.Annotations
 {
     /// <summary>
     /// Specifies a custom target property name for mapping when property names differ between source and target types.
+    /// On a property: [MapProperty("TargetName")]. On the [MapTo] class: [MapProperty("Customer.Address.City", "City")]
+    /// maps a nested source path (read null-safely) to a target property.
     /// </summary>
     [global::System.CodeDom.Compiler.GeneratedCode("Atc.SourceGenerators.ObjectMapping", "1.0.0")]
     [global::System.ComponentModel.EditorBrowsable(global::System.ComponentModel.EditorBrowsableState.Never)]
     [global::System.Diagnostics.DebuggerNonUserCode]
     [global::System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
-    [global::System.AttributeUsage(global::System.AttributeTargets.Property, Inherited = false, AllowMultiple = false)]
+    [global::System.AttributeUsage(global::System.AttributeTargets.Property | global::System.AttributeTargets.Class, Inherited = false, AllowMultiple = true)]
     [global::Microsoft.CodeAnalysis.EmbeddedAttribute]
     internal sealed class MapPropertyAttribute : global::System.Attribute
     {
@@ -24,8 +26,25 @@ namespace Atc.SourceGenerators.Annotations
         }
 
         /// <summary>
+        /// Initializes a new instance of the <see cref="MapPropertyAttribute"/> class for a nested source path
+        /// (on the [MapTo] class).
+        /// </summary>
+        /// <param name="sourcePath">The source property path, e.g. "Customer.Address.City".</param>
+        /// <param name="targetPropertyName">The name of the target property to map to.</param>
+        public MapPropertyAttribute(string sourcePath, string targetPropertyName)
+        {
+            SourcePath = sourcePath;
+            TargetPropertyName = targetPropertyName;
+        }
+
+        /// <summary>
         /// Gets the name of the target property to map to.
         /// </summary>
         public string TargetPropertyName { get; }
+
+        /// <summary>
+        /// Gets the nested source path, or <c>null</c> when the attribute is on a source property.
+        /// </summary>
+        public string? SourcePath { get; }
     }
 }
