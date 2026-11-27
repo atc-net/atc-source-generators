@@ -962,13 +962,17 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         // Source properties that we can map from, including inherited ones
         var sourceProperties = MappingTypeAnalyzer.GetAllProperties(sourceType, includePrivateMembers: true);
 
-        // A parameter filled from a nested source path is checked against the path's last property
+        // A parameter filled from a nested source path is checked against the path's last property; a source property
+        // with [MapProperty("Other")] matches the parameter of that target, not one of its own name
         IPropertySymbol? FindSourceProperty(string parameterName)
         {
             var path = (sourcePaths ?? []).FirstOrDefault(p => string.Equals(p.Target, parameterName, StringComparison.OrdinalIgnoreCase));
             return path.SourcePath is not null
                 ? MappingTypeAnalyzer.ResolveSourcePath(sourceProperties, path.SourcePath)?.LastOrDefault()
-                : sourceProperties.FirstOrDefault(p => string.Equals(p.Name, parameterName, StringComparison.OrdinalIgnoreCase));
+                : sourceProperties.FirstOrDefault(p => string.Equals(
+                    GetMapPropertyTargetName(p) ?? p.Name,
+                    parameterName,
+                    StringComparison.OrdinalIgnoreCase));
         }
 
         return MappingTypeAnalyzer.FindBestConstructor(

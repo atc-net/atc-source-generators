@@ -570,4 +570,28 @@ public partial class ObjectMappingGeneratorTests
         Assert.Contains("default,", output, StringComparison.Ordinal);
         Assert.Contains("default!", output, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void Generator_Should_Pass_A_MapProperty_Renamed_Property_To_Its_Constructor_Parameter()
+    {
+        const string source = """
+                              #nullable enable
+                              using Atc.SourceGenerators.Annotations;
+
+                              namespace TestNamespace;
+
+                              public sealed record UserDto(string Name, string DisplayName);
+
+                              [MapTo(typeof(UserDto))]
+                              public partial class User
+                              {
+                                  [MapProperty("DisplayName")]
+                                  public string Name { get; set; } = string.Empty;
+                              }
+                              """;
+
+        var (_, output) = GetGeneratedOutput(source);
+
+        Assert.Contains("return new global::TestNamespace.UserDto(\n            default!,\n            source.Name\n", output.Replace("\r\n", "\n", StringComparison.Ordinal), StringComparison.Ordinal);
+    }
 }
