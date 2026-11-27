@@ -2285,11 +2285,16 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
     {
         var generated = new HashSet<string>(StringComparer.Ordinal);
 
-        // Collect all top-level mapping pairs (source -> target) so we don't duplicate them
-        var topLevelMappingPairs = new HashSet<string>(StringComparer.Ordinal);
+        // Collect all top-level mapping pairs (source -> target) with their method names, so we don't duplicate them
+        var topLevelMappingPairs = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (var mapping in mappings)
         {
-            topLevelMappingPairs.Add($"{mapping.SourceType.ToDisplayString()}->{mapping.TargetType.ToDisplayString()}");
+            var pairKey = $"{mapping.SourceType.ToDisplayString()}->{mapping.TargetType.ToDisplayString()}";
+            if (!topLevelMappingPairs.ContainsKey(pairKey))
+            {
+                topLevelMappingPairs[pairKey] = mapping.Method?.Name ??
+                                                $"MapTo{TypeNameSanitizer.SanitizeForIdentifier(mapping.TargetType.Name)}";
+            }
         }
 
         // Use a queue for recursive processing of nested type pairs
@@ -2308,14 +2313,33 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
             var targetDisplay = targetElementType.ToDisplayString().TrimEnd('?');
             var key = $"{sourceDisplay}->{targetDisplay}";
 
-            // Skip if already generated or if there's already a top-level mapping for this pair
-            if (!generated.Add(key) || topLevelMappingPairs.Contains(key))
+            // Generate a nested mapping method for this type pair
+            var methodName = $"MapTo{TypeNameSanitizer.SanitizeForIdentifier(targetElementType.Name)}";
+
+            // Skip if already generated
+            if (!generated.Add(key))
             {
                 continue;
             }
 
-            // Generate a nested mapping method for this type pair
-            var methodName = $"MapTo{TypeNameSanitizer.SanitizeForIdentifier(targetElementType.Name)}";
+            // A top-level mapping exists for this pair. Nested calls use MapTo{TargetName}, so when the declared
+            // mapper has another name (e.g. MapToDomainGridSettings), forward to it instead of failing with CS0103.
+            if (topLevelMappingPairs.TryGetValue(key, out var declaredMethodName))
+            {
+                if (!string.Equals(declaredMethodName, methodName, StringComparison.Ordinal))
+                {
+                    sb.AppendLineLf("    /// <summary>");
+                    sb.AppendLineLf($"    /// Maps <see cref=\"{sourceElementType.ToGlobalDisplayString()}\"/> to <see cref=\"{targetElementType.ToGlobalDisplayString()}\"/> with {declaredMethodName}.");
+                    sb.AppendLineLf("    /// </summary>");
+                    sb.AppendLineLf($"    private static {targetElementType.ToGlobalDisplayString()} {methodName}(");
+                    sb.AppendLineLf($"        this {sourceElementType.ToGlobalDisplayString()} source)");
+                    sb.AppendLineLf($"        => {declaredMethodName}(source);");
+                    sb.AppendLineLf();
+                }
+
+                continue;
+            }
+
             var elementPropertyMappings = GetPropertyMappingsWithConfig(
                 sourceElementType,
                 targetElementType,
