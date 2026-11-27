@@ -171,24 +171,54 @@ public class OptionsBindingGenerator : IIncrementalGenerator
             ctx.AddSource("OptionsBindingAttribute.g.cs", SourceText.From(GenerateAttributeSource(), Encoding.UTF8));
         });
 
-        // Find classes with OptionsBinding attribute using ForAttributeWithMetadataName for optimal caching
-        var classSymbols = context.SyntaxProvider
+        // Extract the options of each [OptionsBinding] class as equatable data, so unrelated edits are cached
+        var optionsClasses = context.SyntaxProvider
             .ForAttributeWithMetadataName(
                 $"{AttributeNamespace}.{AttributeMetadataName}",
                 predicate: static (s, _) => s is ClassDeclarationSyntax,
-                transform: static (ctx, _) => (INamedTypeSymbol)ctx.TargetSymbol)
+                transform: static (ctx, cancellationToken) => ExtractOptionsClass((INamedTypeSymbol)ctx.TargetSymbol, cancellationToken))
+            .WithTrackingName("OptionsBinding.Options")
             .Collect();
 
-        // Combine with compilation
-        var compilationAndClasses = context.CompilationProvider.Combine(classSymbols);
+        // Referenced assemblies with options (transitive registration): only re-read when the references change
+        var referencedOptions = context.CompilationProvider
+            .WithComparer(CompilationReferencesComparer.Instance)
+            .Select(static (compilation, cancellationToken) => GetReferencedOptions(compilation, cancellationToken))
+            .WithTrackingName("OptionsBinding.References");
 
-        // Generate source
-        context.RegisterSourceOutput(compilationAndClasses, static (spc, source) => Execute(source.Left, source.Right, spc));
+        context.RegisterSourceOutput(
+            optionsClasses.Combine(referencedOptions),
+            static (spc, source) => Execute(source.Left, source.Right, spc));
+    }
+
+    private static OptionsClassResult ExtractOptionsClass(
+        INamedTypeSymbol classSymbol,
+        CancellationToken cancellationToken)
+    {
+        var diagnostics = new List<DiagnosticInfo>();
+        var options = ExtractAllOptionsInfo(classSymbol, diagnostics, cancellationToken);
+        return new OptionsClassResult(
+            classSymbol.ToDisplayString(),
+            new EquatableArray<OptionsInfo>(options),
+            new EquatableArray<DiagnosticInfo>(diagnostics));
+    }
+
+    private static ReferencedOptionsInfo GetReferencedOptions(
+        Compilation compilation,
+        CancellationToken cancellationToken)
+    {
+        var assemblies = GetReferencedAssembliesWithOptionsBinding(compilation, cancellationToken, out var options);
+        return new ReferencedOptionsInfo(
+            new EquatableArray<ReferencedAssemblyInfo>(assemblies),
+            new EquatableArray<ReferencedAssemblyOptions>(
+                options
+                    .OrderBy(o => o.Key, StringComparer.Ordinal)
+                    .Select(o => new ReferencedAssemblyOptions(o.Key, new EquatableArray<OptionsInfo>(o.Value)))));
     }
 
     private static void Execute(
-        Compilation compilation,
-        ImmutableArray<INamedTypeSymbol> classes,
+        ImmutableArray<OptionsClassResult> classes,
+        ReferencedOptionsInfo referenced,
         SourceProductionContext context)
     {
         if (classes.IsDefaultOrEmpty)
@@ -198,19 +228,23 @@ public class OptionsBindingGenerator : IIncrementalGenerator
 
         var optionsToGenerate = new List<OptionsInfo>();
 
-        // Deduplicate (ForAttributeWithMetadataName emits once per attribute instance)
+        // Deduplicate (a partial class is found once per declaration with the attribute)
         var seen = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var classSymbol in classes)
+        foreach (var optionsClass in classes)
         {
             context.CancellationToken.ThrowIfCancellationRequested();
 
-            if (!seen.Add(classSymbol.ToDisplayString()))
+            if (!seen.Add(optionsClass.ClassKey))
             {
                 continue;
             }
 
-            var optionsInfoList = ExtractAllOptionsInfo(classSymbol, context);
-            optionsToGenerate.AddRange(optionsInfoList);
+            foreach (var diagnostic in optionsClass.Diagnostics)
+            {
+                context.ReportDiagnostic(diagnostic.ToDiagnostic());
+            }
+
+            optionsToGenerate.AddRange(optionsClass.Options);
         }
 
         if (optionsToGenerate.Count == 0)
@@ -221,8 +255,12 @@ public class OptionsBindingGenerator : IIncrementalGenerator
         // Generate OptionsInstanceCache only when there are options classes
         context.AddSource("OptionsInstanceCache.g.cs", SourceText.From(GenerateOptionsInstanceCacheSource(), Encoding.UTF8));
 
-        // Detect referenced assemblies with [OptionsBinding] attributes and collect their options
-        var referencedAssemblies = GetReferencedAssembliesWithOptionsBinding(compilation, context.CancellationToken, out var referencedAssemblyOptions);
+        // Referenced assemblies with [OptionsBinding] attributes and their options
+        var referencedAssemblies = referenced.Assemblies.ToImmutableArray();
+        var referencedAssemblyOptions = referenced.Options.ToDictionary(
+            o => o.AssemblyName,
+            o => o.Options.ToList(),
+            StringComparer.Ordinal);
 
         // Group by assembly
         var groupedByAssembly = optionsToGenerate
@@ -237,16 +275,17 @@ public class OptionsBindingGenerator : IIncrementalGenerator
 
     private static List<OptionsInfo> ExtractAllOptionsInfo(
         INamedTypeSymbol classSymbol,
-        SourceProductionContext context)
+        List<DiagnosticInfo> diagnostics,
+        CancellationToken cancellationToken)
     {
         var result = new List<OptionsInfo>();
 
         // Check if class is partial
-        if (!classSymbol.DeclaringSyntaxReferences.Any(r => r.GetSyntax(context.CancellationToken) is ClassDeclarationSyntax c &&
+        if (!classSymbol.DeclaringSyntaxReferences.Any(r => r.GetSyntax(cancellationToken) is ClassDeclarationSyntax c &&
                                                             c.Modifiers.Any(SyntaxKind.PartialKeyword)))
         {
-            context.ReportDiagnostic(
-                Diagnostic.Create(
+            diagnostics.Add(
+                DiagnosticInfo.FromLocation(
                     OptionsClassMustBePartialDescriptor,
                     classSymbol.Locations.FirstOrDefault() ?? Location.None,
                     classSymbol.Name));
@@ -267,7 +306,7 @@ public class OptionsBindingGenerator : IIncrementalGenerator
         // Process each attribute separately
         foreach (var attribute in attributes)
         {
-            var optionsInfoList = ExtractOptionsInfoFromAttribute(classSymbol, attribute, context);
+            var optionsInfoList = ExtractOptionsInfoFromAttribute(classSymbol, attribute, diagnostics, cancellationToken);
             if (optionsInfoList is not null)
             {
                 result.AddRange(optionsInfoList);
@@ -282,8 +321,8 @@ public class OptionsBindingGenerator : IIncrementalGenerator
             var namedInstancesCount = result.Count(o => !string.IsNullOrWhiteSpace(o.Name));
             if (namedInstancesCount < 2)
             {
-                context.ReportDiagnostic(
-                    Diagnostic.Create(
+                diagnostics.Add(
+                    DiagnosticInfo.FromLocation(
                         ConfigureAllRequiresMultipleNamedOptionsDescriptor,
                         classSymbol.Locations.FirstOrDefault() ?? Location.None,
                         configureAllOption.ConfigureAll));
@@ -303,8 +342,8 @@ public class OptionsBindingGenerator : IIncrementalGenerator
 
                 if (callbackMethod is null)
                 {
-                    context.ReportDiagnostic(
-                        Diagnostic.Create(
+                    diagnostics.Add(
+                        DiagnosticInfo.FromLocation(
                             ConfigureAllCallbackNotFoundDescriptor,
                             classSymbol.Locations.FirstOrDefault() ?? Location.None,
                             configureAllOption.ConfigureAll,
@@ -320,8 +359,8 @@ public class OptionsBindingGenerator : IIncrementalGenerator
                          callbackMethod.Parameters.Length != 1 ||
                          !SymbolEqualityComparer.Default.Equals(callbackMethod.Parameters[0].Type, classSymbol))
                 {
-                    context.ReportDiagnostic(
-                        Diagnostic.Create(
+                    diagnostics.Add(
+                        DiagnosticInfo.FromLocation(
                             ConfigureAllCallbackInvalidSignatureDescriptor,
                             classSymbol.Locations.FirstOrDefault() ?? Location.None,
                             configureAllOption.ConfigureAll,
@@ -340,7 +379,8 @@ public class OptionsBindingGenerator : IIncrementalGenerator
     private static List<OptionsInfo>? ExtractOptionsInfoFromAttribute(
         INamedTypeSymbol classSymbol,
         AttributeData attribute,
-        SourceProductionContext context)
+        List<DiagnosticInfo> diagnostics,
+        CancellationToken cancellationToken)
     {
         // Extract section name with priority:
         // 1. Explicit constructor argument
@@ -361,8 +401,8 @@ public class OptionsBindingGenerator : IIncrementalGenerator
                 if (string.IsNullOrWhiteSpace(constName))
                 {
                     // Const field exists but has empty value - report error
-                    context.ReportDiagnostic(
-                        Diagnostic.Create(
+                    diagnostics.Add(
+                        DiagnosticInfo.FromLocation(
                             ConstSectionNameCannotBeEmptyDescriptor,
                             classSymbol.Locations.FirstOrDefault() ?? Location.None,
                             classSymbol.Name,
@@ -382,8 +422,8 @@ public class OptionsBindingGenerator : IIncrementalGenerator
 
         if (string.IsNullOrWhiteSpace(sectionName))
         {
-            context.ReportDiagnostic(
-                Diagnostic.Create(
+            diagnostics.Add(
+                DiagnosticInfo.FromLocation(
                     SectionNameCannotBeEmptyDescriptor,
                     classSymbol.Locations.FirstOrDefault() ?? Location.None,
                     classSymbol.Name));
@@ -460,10 +500,10 @@ public class OptionsBindingGenerator : IIncrementalGenerator
             // ChildSections cannot be used with Name
             if (!string.IsNullOrWhiteSpace(name))
             {
-                context.ReportDiagnostic(
-                    Diagnostic.Create(
+                diagnostics.Add(
+                    DiagnosticInfo.FromLocation(
                         ChildSectionsCannotBeUsedWithNameDescriptor,
-                        attribute.ApplicationSyntaxReference?.GetSyntax(context.CancellationToken).GetLocation() ?? Location.None));
+                        attribute.ApplicationSyntaxReference?.GetSyntax(cancellationToken).GetLocation() ?? Location.None));
 
                 return null;
             }
@@ -471,10 +511,10 @@ public class OptionsBindingGenerator : IIncrementalGenerator
             // ChildSections requires at least 2 items
             if (childSections.Length < 2)
             {
-                context.ReportDiagnostic(
-                    Diagnostic.Create(
+                diagnostics.Add(
+                    DiagnosticInfo.FromLocation(
                         ChildSectionsRequiresAtLeastTwoItemsDescriptor,
-                        attribute.ApplicationSyntaxReference?.GetSyntax(context.CancellationToken).GetLocation() ?? Location.None,
+                        attribute.ApplicationSyntaxReference?.GetSyntax(cancellationToken).GetLocation() ?? Location.None,
                         childSections.Length));
 
                 return null;
@@ -485,10 +525,10 @@ public class OptionsBindingGenerator : IIncrementalGenerator
             {
                 if (string.IsNullOrWhiteSpace(childSections[i]))
                 {
-                    context.ReportDiagnostic(
-                        Diagnostic.Create(
+                    diagnostics.Add(
+                        DiagnosticInfo.FromLocation(
                             ChildSectionsItemsCannotBeNullOrEmptyDescriptor,
-                            attribute.ApplicationSyntaxReference?.GetSyntax(context.CancellationToken).GetLocation() ?? Location.None,
+                            attribute.ApplicationSyntaxReference?.GetSyntax(cancellationToken).GetLocation() ?? Location.None,
                             i));
 
                     return null;
@@ -502,10 +542,10 @@ public class OptionsBindingGenerator : IIncrementalGenerator
             // OnChange only allowed with Monitor lifetime (2 = Monitor)
             if (lifetime != 2)
             {
-                context.ReportDiagnostic(
-                    Diagnostic.Create(
+                diagnostics.Add(
+                    DiagnosticInfo.FromLocation(
                         OnChangeRequiresMonitorLifetimeDescriptor,
-                        attribute.ApplicationSyntaxReference?.GetSyntax(context.CancellationToken).GetLocation() ?? Location.None,
+                        attribute.ApplicationSyntaxReference?.GetSyntax(cancellationToken).GetLocation() ?? Location.None,
                         onChange));
 
                 return null;
@@ -514,10 +554,10 @@ public class OptionsBindingGenerator : IIncrementalGenerator
             // OnChange not allowed with named options
             if (!string.IsNullOrWhiteSpace(name))
             {
-                context.ReportDiagnostic(
-                    Diagnostic.Create(
+                diagnostics.Add(
+                    DiagnosticInfo.FromLocation(
                         OnChangeNotSupportedWithNamedOptionsDescriptor,
-                        attribute.ApplicationSyntaxReference?.GetSyntax(context.CancellationToken).GetLocation() ?? Location.None,
+                        attribute.ApplicationSyntaxReference?.GetSyntax(cancellationToken).GetLocation() ?? Location.None,
                         onChange,
                         name));
 
@@ -532,10 +572,10 @@ public class OptionsBindingGenerator : IIncrementalGenerator
 
             if (callbackMethod is null)
             {
-                context.ReportDiagnostic(
-                    Diagnostic.Create(
+                diagnostics.Add(
+                    DiagnosticInfo.FromLocation(
                         OnChangeCallbackNotFoundDescriptor,
-                        attribute.ApplicationSyntaxReference?.GetSyntax(context.CancellationToken).GetLocation() ?? Location.None,
+                        attribute.ApplicationSyntaxReference?.GetSyntax(cancellationToken).GetLocation() ?? Location.None,
                         onChange,
                         classSymbol.Name));
 
@@ -548,10 +588,10 @@ public class OptionsBindingGenerator : IIncrementalGenerator
                 !callbackMethod.ReturnsVoid ||
                 callbackMethod.Parameters.Length != 2)
             {
-                context.ReportDiagnostic(
-                    Diagnostic.Create(
+                diagnostics.Add(
+                    DiagnosticInfo.FromLocation(
                         OnChangeCallbackInvalidSignatureDescriptor,
-                        attribute.ApplicationSyntaxReference?.GetSyntax(context.CancellationToken).GetLocation() ?? Location.None,
+                        attribute.ApplicationSyntaxReference?.GetSyntax(cancellationToken).GetLocation() ?? Location.None,
                         onChange,
                         classSymbol.Name));
 
@@ -565,10 +605,10 @@ public class OptionsBindingGenerator : IIncrementalGenerator
             if (!SymbolEqualityComparer.Default.Equals(firstParam.Type, classSymbol) ||
                 secondParam.Type.ToDisplayString() != "string?")
             {
-                context.ReportDiagnostic(
-                    Diagnostic.Create(
+                diagnostics.Add(
+                    DiagnosticInfo.FromLocation(
                         OnChangeCallbackInvalidSignatureDescriptor,
-                        attribute.ApplicationSyntaxReference?.GetSyntax(context.CancellationToken).GetLocation() ?? Location.None,
+                        attribute.ApplicationSyntaxReference?.GetSyntax(cancellationToken).GetLocation() ?? Location.None,
                         onChange,
                         classSymbol.Name));
 
@@ -582,10 +622,10 @@ public class OptionsBindingGenerator : IIncrementalGenerator
             // PostConfigure not allowed with named options
             if (!string.IsNullOrWhiteSpace(name))
             {
-                context.ReportDiagnostic(
-                    Diagnostic.Create(
+                diagnostics.Add(
+                    DiagnosticInfo.FromLocation(
                         PostConfigureNotSupportedWithNamedOptionsDescriptor,
-                        attribute.ApplicationSyntaxReference?.GetSyntax(context.CancellationToken).GetLocation() ?? Location.None,
+                        attribute.ApplicationSyntaxReference?.GetSyntax(cancellationToken).GetLocation() ?? Location.None,
                         postConfigure,
                         name));
 
@@ -600,10 +640,10 @@ public class OptionsBindingGenerator : IIncrementalGenerator
 
             if (callbackMethod is null)
             {
-                context.ReportDiagnostic(
-                    Diagnostic.Create(
+                diagnostics.Add(
+                    DiagnosticInfo.FromLocation(
                         PostConfigureCallbackNotFoundDescriptor,
-                        attribute.ApplicationSyntaxReference?.GetSyntax(context.CancellationToken).GetLocation() ?? Location.None,
+                        attribute.ApplicationSyntaxReference?.GetSyntax(cancellationToken).GetLocation() ?? Location.None,
                         postConfigure,
                         classSymbol.Name));
 
@@ -616,10 +656,10 @@ public class OptionsBindingGenerator : IIncrementalGenerator
                 !callbackMethod.ReturnsVoid ||
                 callbackMethod.Parameters.Length != 1)
             {
-                context.ReportDiagnostic(
-                    Diagnostic.Create(
+                diagnostics.Add(
+                    DiagnosticInfo.FromLocation(
                         PostConfigureCallbackInvalidSignatureDescriptor,
-                        attribute.ApplicationSyntaxReference?.GetSyntax(context.CancellationToken).GetLocation() ?? Location.None,
+                        attribute.ApplicationSyntaxReference?.GetSyntax(cancellationToken).GetLocation() ?? Location.None,
                         postConfigure,
                         classSymbol.Name));
 
@@ -631,10 +671,10 @@ public class OptionsBindingGenerator : IIncrementalGenerator
 
             if (!SymbolEqualityComparer.Default.Equals(firstParam.Type, classSymbol))
             {
-                context.ReportDiagnostic(
-                    Diagnostic.Create(
+                diagnostics.Add(
+                    DiagnosticInfo.FromLocation(
                         PostConfigureCallbackInvalidSignatureDescriptor,
-                        attribute.ApplicationSyntaxReference?.GetSyntax(context.CancellationToken).GetLocation() ?? Location.None,
+                        attribute.ApplicationSyntaxReference?.GetSyntax(cancellationToken).GetLocation() ?? Location.None,
                         postConfigure,
                         classSymbol.Name));
 
@@ -672,7 +712,7 @@ public class OptionsBindingGenerator : IIncrementalGenerator
                     onChange,
                     postConfigure,
                     configureAll,
-                    childSections,  // Store ChildSections to indicate this is part of a child sections group
+                    new EquatableArray<string>(childSections.Select(c => c ?? string.Empty)),  // Part of a child sections group
                     alsoRegisterDirectType));
             }
 
@@ -696,7 +736,7 @@ public class OptionsBindingGenerator : IIncrementalGenerator
                 onChange,
                 postConfigure,
                 configureAll,
-                null, // No ChildSections
+                EquatableArray<string>.Empty, // No ChildSections
                 alsoRegisterDirectType),
         ];
     }
@@ -980,7 +1020,7 @@ public class OptionsBindingGenerator : IIncrementalGenerator
             PostConfigure: null,
             ConfigureAll: null,
             Name: null,
-            ChildSections: null,
+            ChildSections: EquatableArray<string>.Empty,
             AlsoRegisterDirectType: false);
     }
 

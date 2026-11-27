@@ -37,6 +37,25 @@ internal sealed record DiagnosticInfo(
     }
 
     /// <summary>
+    /// Creates a diagnostic info at a location (an attribute, a class, ...).
+    /// </summary>
+    public static DiagnosticInfo FromLocation(
+        DiagnosticDescriptor descriptor,
+        Location? location,
+        params object?[] arguments)
+    {
+        var args = new EquatableArray<string>(arguments.Select(a => a?.ToString() ?? string.Empty));
+        return location is null || !location.IsInSource
+            ? new DiagnosticInfo(descriptor, null, default, default, args)
+            : new DiagnosticInfo(
+                descriptor,
+                location.SourceTree?.FilePath ?? string.Empty,
+                location.SourceSpan,
+                location.GetLineSpan().Span,
+                args);
+    }
+
+    /// <summary>
     /// Creates the <see cref="Diagnostic"/> to report.
     /// </summary>
     public Diagnostic ToDiagnostic()

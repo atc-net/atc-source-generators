@@ -65,4 +65,30 @@ public class IncrementalCachingTests
             """,
             "EnumMapping.Models",
             outputStepsMustBeCached: true);
+
+    [Fact]
+    public void OptionsBinding_Should_Be_Fully_Cached_After_Unrelated_Edit()
+        => IncrementalGeneratorAssert.StepIsCachedAfterUnrelatedEdit(
+            [new OptionsBindingGenerator()],
+            """
+            using System.ComponentModel.DataAnnotations;
+            using Atc.SourceGenerators.Annotations;
+
+            namespace TestNamespace;
+
+            [OptionsBinding("Database", ValidateDataAnnotations = true, ValidateOnStart = true)]
+            public partial class DatabaseOptions
+            {
+                [Required]
+                public string ConnectionString { get; set; } = string.Empty;
+            }
+
+            [OptionsBinding("Email", ChildSections = new[] { "Primary", "Secondary" })]
+            public partial class EmailOptions
+            {
+                public int Port { get; set; }
+            }
+            """,
+            "OptionsBinding.Options",
+            outputStepsMustBeCached: true);
 }
