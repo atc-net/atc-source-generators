@@ -734,6 +734,7 @@ services.AddOptionsFromDomain(configuration, "DataAccess", "Infrastructure");
 - Null safety (null checks for nullable properties)
 - Multi-layer support (Entity → Domain → DTO chains)
 - **Bidirectional mapping support** - Generate both forward and reverse mappings with `Bidirectional = true`
+- **Nested source paths** - `[MapProperty("Customer.Address.City", "City")]` on the `[MapTo]` class reads a nested member null-safely (`source.Customer?.Address?.City`), also for constructor parameters; it replaces a by-name mapping of the same target and is left out of projections (ATCMAP017 for an unknown or non-convertible path)
 - **Conversion methods** - a static, internal or public, one-parameter method on the `[MapTo]` class (e.g. `internal static Money ToMoney(decimal amount)`) is used for every property pair with exactly those types, also for constructor parameters and the bidirectional reverse, before the built-in conversions
 - **Deep cloning** - `DeepClone = true` copies same-type properties instead of sharing them: new collections and dictionaries, and nested types/elements/values cloned with their self-mapping (`[MapTo(typeof(T))]` on `T`); a class without a self-mapping stays shared (ATCMAP016). `[MapTo(typeof(Order), DeepClone = true)]` on `Order` gives a deep copy (trees only, no reference cycles)
 - **Record support** - Works with classes, records, and structs
@@ -933,6 +934,7 @@ UserDto (API)
 - `ATCMAP013` - Mapping hook method cannot be called (Error)
 - `ATCMAP014` - Target property is not mapped (Info; raise via `.editorconfig` for strict mapping)
 - `ATCMAP016` - DeepClone copies a property by reference because its type has no self-mapping (Warning)
+- `ATCMAP017` - Class-level `[MapProperty]` source path can't be mapped (Error)
 - `ATCMAP015` - Nested property type has no mapping (Error; the property is skipped. Not reported when the compilation has configuration mappings, whose generated mappers the `[MapTo]` generator can't see)
 
 ### EnumMappingGenerator

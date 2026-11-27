@@ -659,7 +659,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         var targetProperties = MappingTypeAnalyzer.GetAllProperties(targetType, includePrivateMembers: false);
         foreach (var rename in propertyRenames)
         {
-            if (ResolveSourcePath(sourceProperties, rename.Source) is null)
+            if (MappingTypeAnalyzer.ResolveSourcePath(sourceProperties, rename.Source) is null)
             {
                 context.ReportDiagnostic(
                     Diagnostic.Create(
@@ -1284,7 +1284,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         // Nested source paths (e.g. "Customer.Address.City" -> "City") from MapConfigProperty / PropertyMap
         foreach (var rename in propertyRenames.Where(r => r.Source.IndexOf('.') >= 0))
         {
-            var chain = ResolveSourcePath(sourceProperties, rename.Source);
+            var chain = MappingTypeAnalyzer.ResolveSourcePath(sourceProperties, rename.Source);
             var targetProp = targetProperties.FirstOrDefault(t =>
                 string.Equals(t.Name, rename.Target, StringComparison.OrdinalIgnoreCase));
 
@@ -1293,7 +1293,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
                 continue;
             }
 
-            var sourcePath = BuildSourcePath(chain, targetProp.Type, out var isCompatible);
+            var sourcePath = MappingTypeAnalyzer.BuildSourcePath(chain, targetProp.Type, out var isCompatible);
             if (!isCompatible)
             {
                 context.ReportDiagnostic(
@@ -1434,73 +1434,6 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
                 IsMappableDictionary(sourcePropertyType, parameterType, out _, out _));
     }
 
-    /// <summary>
-    /// Resolves a source property name or a dotted path ("Customer.Address.City") to its chain of properties,
-    /// or <c>null</c> when a segment doesn't exist.
-    /// </summary>
-    private static List<IPropertySymbol>? ResolveSourcePath(
-        List<IPropertySymbol> sourceProperties,
-        string path)
-    {
-        var chain = new List<IPropertySymbol>();
-        var properties = sourceProperties;
-
-        foreach (var segment in path.Split('.'))
-        {
-            var property = properties.FirstOrDefault(p => string.Equals(p.Name, segment, StringComparison.OrdinalIgnoreCase));
-            if (property is null)
-            {
-                return null;
-            }
-
-            chain.Add(property);
-            properties = MappingTypeAnalyzer.UnwrapNullable(property.Type) is INamedTypeSymbol nextType
-                ? MappingTypeAnalyzer.GetAllProperties(nextType, includePrivateMembers: false)
-                : [];
-        }
-
-        return chain;
-    }
-
-    /// <summary>
-    /// Builds the access expression for a resolved source path, using "?." after every segment that can be null,
-    /// and checks that the last property can be assigned to the target type.
-    /// </summary>
-    private static string BuildSourcePath(
-        List<IPropertySymbol> chain,
-        ITypeSymbol targetType,
-        out bool isCompatible)
-    {
-        var sb = new StringBuilder(chain[0].Name);
-        var usesNullConditional = false;
-
-        for (var i = 1; i < chain.Count; i++)
-        {
-            var previousType = chain[i - 1].Type;
-            var canBeNull = !previousType.IsValueType || MappingTypeAnalyzer.IsNullableValueType(previousType);
-            sb.Append(canBeNull ? "?." : ".");
-            sb.Append(chain[i].Name);
-            usesNullConditional |= canBeNull;
-        }
-
-        var lastType = chain[chain.Count - 1].Type;
-        isCompatible = SymbolEqualityComparer.Default.Equals(
-                           MappingTypeAnalyzer.UnwrapNullable(lastType),
-                           MappingTypeAnalyzer.UnwrapNullable(targetType)) ||
-                       MappingTypeAnalyzer.IsImplicitlyConvertible(lastType, targetType);
-
-        if (usesNullConditional)
-        {
-            sb.Append(MappingTypeAnalyzer.GetNullConditionalSuffix(lastType, targetType));
-        }
-        else if (MappingTypeAnalyzer.IsNullableToNonNullableValueType(lastType, targetType))
-        {
-            sb.Append(" ?? default");
-        }
-
-        return sb.ToString();
-    }
-
     private static IPropertySymbol? FindSourcePropertyForParameter(
         List<IPropertySymbol> sourceProperties,
         string parameterName,
@@ -1523,7 +1456,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
 
             if (rename != default)
             {
-                return ResolveSourcePath(sourceProperties, rename.Source)?.LastOrDefault();
+                return MappingTypeAnalyzer.ResolveSourcePath(sourceProperties, rename.Source)?.LastOrDefault();
             }
         }
 
