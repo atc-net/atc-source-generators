@@ -19,7 +19,7 @@ public partial class OptionsBindingGeneratorTests
                                   public bool EnableNewUI { get; set; }
                                   public bool EnableBetaFeatures { get; set; }
 
-                                  private static void OnFeaturesChanged(FeaturesOptions options, string? name)
+                                  internal static void OnFeaturesChanged(FeaturesOptions options, string? name)
                                   {
                                       // Callback implementation
                                   }
@@ -65,7 +65,7 @@ public partial class OptionsBindingGeneratorTests
                               {
                                   public string ConnectionString { get; set; } = string.Empty;
 
-                                  private static void OnDatabaseChanged(DatabaseOptions options, string? name)
+                                  internal static void OnDatabaseChanged(DatabaseOptions options, string? name)
                                   {
                                       // Callback implementation
                                   }
@@ -96,7 +96,7 @@ public partial class OptionsBindingGeneratorTests
                               {
                                   public string BaseUrl { get; set; } = string.Empty;
 
-                                  private static void OnApiChanged(ApiOptions options, string? name)
+                                  internal static void OnApiChanged(ApiOptions options, string? name)
                                   {
                                       // Callback implementation
                                   }
@@ -126,7 +126,7 @@ public partial class OptionsBindingGeneratorTests
                               {
                                   public string SmtpServer { get; set; } = string.Empty;
 
-                                  private static void OnEmailChanged(EmailOptions options, string? name)
+                                  internal static void OnEmailChanged(EmailOptions options, string? name)
                                   {
                                       // Callback implementation
                                   }
@@ -158,7 +158,7 @@ public partial class OptionsBindingGeneratorTests
                                   public int MaxSize { get; set; }
 
                                   // Method name is wrong - should be OnCacheChanged
-                                  private static void OnChanged(CacheOptions options, string? name)
+                                  internal static void OnChanged(CacheOptions options, string? name)
                                   {
                                       // Callback implementation
                                   }
@@ -204,7 +204,7 @@ public partial class OptionsBindingGeneratorTests
         var diagnostic = Assert.Single(diagnostics);
         Assert.Equal("ATCOPT007", diagnostic.Id);
         Assert.Equal(DiagnosticSeverity.Error, diagnostic.Severity);
-        Assert.Contains("OnChange callback method 'OnLoggingChanged' must have signature: static void OnLoggingChanged(LoggingOptions options, string? name)", diagnostic.GetMessage(CultureInfo.InvariantCulture), StringComparison.Ordinal);
+        Assert.Contains("OnChange callback method 'OnLoggingChanged' must be internal or public with signature: static void OnLoggingChanged(LoggingOptions options, string? name)", diagnostic.GetMessage(CultureInfo.InvariantCulture), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -253,7 +253,7 @@ public partial class OptionsBindingGeneratorTests
                                   public string Version { get; set; } = "1.0";
 
                                   // Only one parameter instead of two
-                                  private static void OnAppChanged(AppOptions options)
+                                  internal static void OnAppChanged(AppOptions options)
                                   {
                                       // Callback implementation
                                   }
@@ -284,7 +284,7 @@ public partial class OptionsBindingGeneratorTests
                                   public string Path { get; set; } = "/data";
 
                                   // First parameter is string instead of StorageOptions
-                                  private static void OnStorageChanged(string options, string? name)
+                                  internal static void OnStorageChanged(string options, string? name)
                                   {
                                       // Callback implementation
                                   }
@@ -315,7 +315,7 @@ public partial class OptionsBindingGeneratorTests
                                   public bool Enabled { get; set; }
 
                                   // Second parameter is int instead of string?
-                                  private static void OnMetricsChanged(MetricsOptions options, int name)
+                                  internal static void OnMetricsChanged(MetricsOptions options, int name)
                                   {
                                       // Callback implementation
                                   }
@@ -345,7 +345,7 @@ public partial class OptionsBindingGeneratorTests
                               {
                                   public string ConnectionString { get; set; } = string.Empty;
 
-                                  private static void OnDatabaseChanged(DatabaseOptions options, string? name)
+                                  internal static void OnDatabaseChanged(DatabaseOptions options, string? name)
                                   {
                                       // Callback implementation
                                   }
@@ -380,7 +380,7 @@ public partial class OptionsBindingGeneratorTests
                               {
                                   public string BaseUrl { get; set; } = string.Empty;
 
-                                  private static void OnApiChanged(ApiOptions options, string? name)
+                                  internal static void OnApiChanged(ApiOptions options, string? name)
                                   {
                                       // Callback implementation
                                   }
@@ -415,7 +415,7 @@ public partial class OptionsBindingGeneratorTests
                               {
                                   public bool EnableNewUI { get; set; }
 
-                                  private static void OnFeaturesChanged(FeaturesOptions options, string? name)
+                                  internal static void OnFeaturesChanged(FeaturesOptions options, string? name)
                                   {
                                       // Callback implementation
                                   }
@@ -451,7 +451,7 @@ public partial class OptionsBindingGeneratorTests
                               {
                                   public string Setting { get; set; } = string.Empty;
 
-                                  private static void HandleConfigurationChange(CustomAppOptions options, string? name)
+                                  internal static void HandleConfigurationChange(CustomAppOptions options, string? name)
                                   {
                                       // Callback implementation
                                   }
@@ -485,7 +485,7 @@ public partial class OptionsBindingGeneratorTests
                               {
                                   public string ConnectionString { get; set; } = string.Empty;
 
-                                  private static void OnDatabaseChanged(DatabaseOptions options, string? name)
+                                  internal static void OnDatabaseChanged(DatabaseOptions options, string? name)
                                   {
                                       // Callback implementation
                                   }
@@ -496,7 +496,7 @@ public partial class OptionsBindingGeneratorTests
                               {
                                   public int MaxSize { get; set; }
 
-                                  private static void OnCacheChanged(CacheOptions options, string? name)
+                                  internal static void OnCacheChanged(CacheOptions options, string? name)
                                   {
                                       // Callback implementation
                                   }
@@ -595,7 +595,7 @@ public partial class OptionsBindingGeneratorTests
                               {
                                   public bool Enabled { get; set; }
 
-                                  private static void OnAdvancedFeaturesChanged(AdvancedFeaturesOptions options, string? name)
+                                  internal static void OnAdvancedFeaturesChanged(AdvancedFeaturesOptions options, string? name)
                                   {
                                       // Callback implementation
                                   }
@@ -631,7 +631,7 @@ public partial class OptionsBindingGeneratorTests
 
                                   public int Timeout { get; set; }
 
-                                  private static void OnRuntimeChanged(RuntimeOptions options, string? name)
+                                  internal static void OnRuntimeChanged(RuntimeOptions options, string? name)
                                   {
                                       // Callback implementation
                                   }
@@ -702,5 +702,32 @@ public partial class OptionsBindingGeneratorTests
 
         Assert.Equal(2, classNames.Count);
         Assert.Equal(2, classNames.Distinct(StringComparer.Ordinal).Count());
+    }
+
+    [Fact]
+    public void Generator_Should_Report_Error_For_Private_OnChange_Callback()
+    {
+        // Arrange - the generated hosted service is another class, so it can't call a private method
+        const string source = """
+                              using Atc.SourceGenerators.Annotations;
+
+                              namespace MyApp.Configuration;
+
+                              [OptionsBinding("Features", Lifetime = OptionsLifetime.Monitor, OnChange = nameof(OnFeaturesChanged))]
+                              public partial class FeaturesOptions
+                              {
+                                  public bool EnableNewUI { get; set; }
+
+                                  private static void OnFeaturesChanged(FeaturesOptions options, string? name) { }
+                              }
+                              """;
+
+        // Act
+        var (diagnostics, _) = GetGeneratedOutput(source);
+
+        // Assert
+        var diagnostic = Assert.Single(diagnostics);
+        Assert.Equal("ATCOPT007", diagnostic.Id);
+        Assert.Contains("internal or public", diagnostic.GetMessage(CultureInfo.InvariantCulture), StringComparison.Ordinal);
     }
 }
