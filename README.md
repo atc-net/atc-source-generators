@@ -146,19 +146,19 @@ Full documentation is available in the **[Wiki](https://github.com/atc-net/atc-s
 ## 🔨 Building
 
 ```bash
-dotnet build
+dotnet build Atc.SourceGenerators.slnx -c Release
 ```
 
 ## 🧪 Testing
 
 ```bash
-dotnet test
+dotnet test --solution Atc.SourceGenerators.slnx -c Release
 ```
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for how to build, test and write commit messages.
 
 ## 📄 License
 
-[License information here]
+[MIT](LICENSE)
