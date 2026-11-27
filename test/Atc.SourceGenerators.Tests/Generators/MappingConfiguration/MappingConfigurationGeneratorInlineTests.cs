@@ -560,4 +560,61 @@ public partial class MappingConfigurationGeneratorTests
         Assert.Contains("MapToTarget", output, StringComparison.Ordinal);
         Assert.Contains("Id = source.Id", output, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void Config_Should_Report_Error_For_Mapping_Method_With_More_Than_One_Parameter()
+    {
+        const string source = """
+                              using Atc.SourceGenerators.Annotations;
+
+                              namespace MyApp
+                              {
+                                  public class Source { public int Id { get; set; } }
+                                  public class Target { public int Id { get; set; } }
+
+                                  [MappingConfiguration]
+                                  public static partial class Mappings
+                                  {
+                                      public static partial Target MapToTarget(this Source source, int extra);
+                                  }
+                              }
+                              """;
+
+        var (diagnostics, _) = GetGeneratedOutput(source);
+
+        var diagnostic = Assert.Single(diagnostics, d => d.Id == "ATCMCF009");
+        Assert.Contains("MapToTarget", diagnostic.GetMessage(CultureInfo.InvariantCulture), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Inline_Should_Report_Error_For_Map_Arguments_That_Are_Not_TypeOf()
+    {
+        const string source = """
+                              using System;
+                              using Atc.SourceGenerators.Annotations;
+
+                              namespace MyApp
+                              {
+                                  public class Source { public int Id { get; set; } }
+                                  public class Target { public int Id { get; set; } }
+
+                                  public static class Startup
+                                  {
+                                      public static void Configure()
+                                      {
+                                          var sourceType = typeof(Source);
+                                          MappingBuilder.Configure(map =>
+                                          {
+                                              map.Map(sourceType, typeof(Target));
+                                          });
+                                      }
+                                  }
+                              }
+                              """;
+
+        var (diagnostics, _) = GetGeneratedOutput(source);
+
+        Assert.Single(diagnostics, d => d.Id == "ATCMCF012");
+        Assert.DoesNotContain(diagnostics, d => d.Id == "ATCMCF011");
+    }
 }

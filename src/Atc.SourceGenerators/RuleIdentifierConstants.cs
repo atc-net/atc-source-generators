@@ -146,16 +146,6 @@ internal static class RuleIdentifierConstants
         /// ATCOPT016: ChildSections items cannot be null or empty.
         /// </summary>
         internal const string ChildSectionsItemsCannotBeNullOrEmpty = "ATCOPT016";
-
-        /// <summary>
-        /// ATCOPT017: Early access not supported with named options.
-        /// </summary>
-        internal const string EarlyAccessNotSupportedWithNamedOptions = "ATCOPT017";
-
-        /// <summary>
-        /// ATCOPT018: Early access uses Singleton lifetime (informational).
-        /// </summary>
-        internal const string EarlyAccessUsesSingletonLifetime = "ATCOPT018";
     }
 
     /// <summary>
@@ -215,11 +205,6 @@ internal static class RuleIdentifierConstants
         internal const string UnmappedEnumValue = "ATCENUM002";
 
         /// <summary>
-        /// ATCENUM003: Enum has [MapTo] attribute which overrides auto-detected mapping from configuration.
-        /// </summary>
-        internal const string DuplicateAttributeAndAutoDetectedEnum = "ATCENUM003";
-
-        /// <summary>
         /// ATCENUM004: Auto-detected enum mapping has partial match.
         /// </summary>
         internal const string AutoDetectedEnumPartialMatch = "ATCENUM004";
@@ -249,11 +234,6 @@ internal static class RuleIdentifierConstants
         /// ATCMCF002: Mapping configuration class must be declared as partial.
         /// </summary>
         internal const string ConfigClassMustBePartial = "ATCMCF002";
-
-        /// <summary>
-        /// ATCMCF003: Mapping method must be declared as partial.
-        /// </summary>
-        internal const string MethodMustBePartial = "ATCMCF003";
 
         /// <summary>
         /// ATCMCF004: Mapping method must be an extension method.
@@ -330,21 +310,6 @@ internal static class RuleIdentifierConstants
         /// ATCMAP006: Type pair is configured multiple times.
         /// </summary>
         internal const string DuplicateConfigurationMapping = "ATCMAP006";
-
-        /// <summary>
-        /// ATCMAP007: Configuration references source type which cannot be found.
-        /// </summary>
-        internal const string ConfigSourceTypeNotFound = "ATCMAP007";
-
-        /// <summary>
-        /// ATCMAP008: Configuration references target type which cannot be found.
-        /// </summary>
-        internal const string ConfigTargetTypeNotFound = "ATCMAP008";
-
-        /// <summary>
-        /// ATCMAP009: Target type has no accessible constructor for mapping.
-        /// </summary>
-        internal const string ConfigTargetNoAccessibleConstructor = "ATCMAP009";
 
         /// <summary>
         /// ATCMAP010: Configuration target type must be a class or struct.
