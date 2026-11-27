@@ -499,14 +499,7 @@ public partial class AnnotationConstantsGeneratorTests
     {
         var syntaxTree = CSharpSyntaxTree.ParseText(source);
 
-        var references = AppDomain
-            .CurrentDomain
-            .GetAssemblies()
-            .Where(assembly => !assembly.IsDynamic &&
-                               !string.IsNullOrWhiteSpace(assembly.Location))
-            .Select(assembly => MetadataReference.CreateFromFile(assembly.Location))
-            .Cast<MetadataReference>()
-            .ToList();
+        var references = GeneratorTestHarness.References.ToList();
 
         var dataAnnotationsAssembly = typeof(System.ComponentModel.DataAnnotations.RequiredAttribute).Assembly;
         if (!string.IsNullOrWhiteSpace(dataAnnotationsAssembly.Location))
@@ -526,6 +519,7 @@ public partial class AnnotationConstantsGeneratorTests
             compilation,
             out var outputCompilation,
             out var generatorDiagnostics);
+        GeneratorTestHarness.AssertGeneratedCodeCompiles(compilation, outputCompilation);
 
         var allDiagnostics = outputCompilation
             .GetDiagnostics()

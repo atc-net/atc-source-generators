@@ -67,9 +67,6 @@ public partial class ObjectMappingGeneratorTests
     [Fact]
     public void Generator_Should_Map_Nullable_Guid_To_Guid_In_Projection()
     {
-        // Ensure System.Linq.Expressions is loaded so the generated projection can be compile-checked
-        Assert.NotNull(typeof(global::System.Linq.Expressions.Expression).Assembly.Location);
-
         const string source = """
                               using System;
                               using Atc.SourceGenerators.Annotations;

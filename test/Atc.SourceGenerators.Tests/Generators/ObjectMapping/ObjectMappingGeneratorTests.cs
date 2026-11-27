@@ -7,16 +7,11 @@ public partial class ObjectMappingGeneratorTests
     [SuppressMessage("", "S1854:Remove this useless assignment to local variable 'driver'", Justification = "OK")]
     private static (ImmutableArray<Diagnostic> Diagnostics, string Output) GetGeneratedOutput(
         string source,
-        string? diagnosticPrefix = null)
+        string? diagnosticPrefix = null,
+        bool allowGeneratedCodeErrors = false)
     {
         var syntaxTree = CSharpSyntaxTree.ParseText(source);
-        var references = AppDomain
-            .CurrentDomain
-            .GetAssemblies()
-            .Where(assembly => !assembly.IsDynamic &&
-                               !string.IsNullOrWhiteSpace(assembly.Location))
-            .Select(assembly => MetadataReference.CreateFromFile(assembly.Location))
-            .Cast<MetadataReference>();
+        var references = GeneratorTestHarness.References;
 
         var compilation = CSharpCompilation.Create(
             "TestAssembly",
@@ -33,6 +28,10 @@ public partial class ObjectMappingGeneratorTests
             compilation,
             out var outputCompilation,
             out var generatorDiagnostics);
+        if (!allowGeneratedCodeErrors)
+        {
+            GeneratorTestHarness.AssertGeneratedCodeCompiles(compilation, outputCompilation);
+        }
 
         var prefix = diagnosticPrefix ?? "ATCMAP";
         var allDiagnostics = outputCompilation

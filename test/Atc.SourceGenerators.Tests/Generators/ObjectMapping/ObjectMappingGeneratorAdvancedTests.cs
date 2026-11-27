@@ -211,7 +211,7 @@ public partial class ObjectMappingGeneratorTests
             """;
 
         // Act
-        var (diagnostics, output) = GetGeneratedOutput(source);
+        var (diagnostics, output) = GetGeneratedOutput(source, allowGeneratedCodeErrors: true);
 
         // Assert
         var warning = diagnostics.FirstOrDefault(d => d.Id == "ATCMAP004");
@@ -286,7 +286,7 @@ public partial class ObjectMappingGeneratorTests
             """;
 
         // Act
-        var (diagnostics, output) = GetGeneratedOutput(source);
+        var (diagnostics, output) = GetGeneratedOutput(source, allowGeneratedCodeErrors: true);
 
         // Assert
         var warnings = diagnostics

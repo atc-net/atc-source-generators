@@ -9,12 +9,7 @@ public partial class OptionsBindingGeneratorTests
         string source)
     {
         var syntaxTree = CSharpSyntaxTree.ParseText(source);
-        var references = AppDomain
-            .CurrentDomain
-            .GetAssemblies()
-            .Where(assembly => !assembly.IsDynamic && !string.IsNullOrWhiteSpace(assembly.Location))
-            .Select(assembly => MetadataReference.CreateFromFile(assembly.Location))
-            .Cast<MetadataReference>();
+        var references = GeneratorTestHarness.References;
 
         var compilation = CSharpCompilation.Create(
             "TestAssembly",
@@ -25,7 +20,11 @@ public partial class OptionsBindingGeneratorTests
         var generator = new OptionsBindingGenerator();
 
         var driver = CSharpGeneratorDriver.Create(generator);
-        driver = (CSharpGeneratorDriver)driver.RunGenerators(compilation);
+        driver = (CSharpGeneratorDriver)driver.RunGeneratorsAndUpdateCompilation(
+            compilation,
+            out var outputCompilation,
+            out _);
+        GeneratorTestHarness.AssertGeneratedCodeCompiles(compilation, outputCompilation);
 
         var runResult = driver.GetRunResult();
 

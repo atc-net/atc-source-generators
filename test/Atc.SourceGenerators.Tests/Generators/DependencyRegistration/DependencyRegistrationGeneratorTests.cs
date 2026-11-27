@@ -10,13 +10,7 @@ public partial class DependencyRegistrationGeneratorTests
         string source)
     {
         var syntaxTree = CSharpSyntaxTree.ParseText(source);
-        var references = AppDomain
-            .CurrentDomain
-            .GetAssemblies()
-            .Where(assembly => !assembly.IsDynamic &&
-                               !string.IsNullOrWhiteSpace(assembly.Location))
-            .Select(assembly => MetadataReference.CreateFromFile(assembly.Location))
-            .Cast<MetadataReference>();
+        var references = GeneratorTestHarness.References;
 
         var compilation = CSharpCompilation.Create(
             "TestAssembly",
@@ -30,6 +24,7 @@ public partial class DependencyRegistrationGeneratorTests
             compilation,
             out var outputCompilation,
             out var generatorDiagnostics);
+        GeneratorTestHarness.AssertGeneratedCodeCompiles(compilation, outputCompilation);
 
         var allDiagnostics = outputCompilation
             .GetDiagnostics()
@@ -55,14 +50,7 @@ public partial class DependencyRegistrationGeneratorTests
         string currentSource,
         string currentAssemblyName)
     {
-        var references = AppDomain
-            .CurrentDomain
-            .GetAssemblies()
-            .Where(assembly => !assembly.IsDynamic &&
-                               !string.IsNullOrWhiteSpace(assembly.Location))
-            .Select(assembly => MetadataReference.CreateFromFile(assembly.Location))
-            .Cast<MetadataReference>()
-            .ToList();
+        var references = GeneratorTestHarness.References.ToList();
 
         // Step 1: Compile referenced assembly
         var referencedSyntaxTree = CSharpSyntaxTree.ParseText(referencedSource);
@@ -108,6 +96,7 @@ public partial class DependencyRegistrationGeneratorTests
             currentCompilation,
             out var currentOutputCompilation,
             out var generatorDiagnostics);
+        GeneratorTestHarness.AssertGeneratedCodeCompiles(currentCompilation, currentOutputCompilation);
 
         var allDiagnostics = currentOutputCompilation
             .GetDiagnostics()
@@ -130,14 +119,7 @@ public partial class DependencyRegistrationGeneratorTests
     private static (ImmutableArray<Diagnostic> Diagnostics, Dictionary<string, string> Outputs) GetGeneratedOutputWithMultipleReferencedAssemblies(
         List<(string Source, string AssemblyName)> assemblies)
     {
-        var references = AppDomain
-            .CurrentDomain
-            .GetAssemblies()
-            .Where(assembly => !assembly.IsDynamic &&
-                               !string.IsNullOrWhiteSpace(assembly.Location))
-            .Select(assembly => MetadataReference.CreateFromFile(assembly.Location))
-            .Cast<MetadataReference>()
-            .ToList();
+        var references = GeneratorTestHarness.References.ToList();
 
         var compilations = new Dictionary<string, Compilation>(StringComparer.Ordinal);
         var outputs = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -159,6 +141,7 @@ public partial class DependencyRegistrationGeneratorTests
                 compilation,
                 out var outputCompilation,
                 out var generatorDiagnostics);
+            GeneratorTestHarness.AssertGeneratedCodeCompiles(compilation, outputCompilation);
 
             allDiagnostics.AddRange(
                 outputCompilation
