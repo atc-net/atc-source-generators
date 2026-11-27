@@ -691,4 +691,47 @@ public partial class ObjectMappingGeneratorTests
         var diagnostic = Assert.Single(generatorDiagnostics, d => d.Id == "ATCMAP014");
         Assert.Equal(DiagnosticSeverity.Error, diagnostic.Severity);
     }
+
+    [Theory]
+    [InlineData("string", "Uri", "Value = new global::System.Uri(source.Value)")]
+    [InlineData("Uri", "string", "Value = source.Value.ToString()")]
+    [InlineData("string", "Color", "Value = global::System.Enum.TryParse<global::TestNamespace.Color>(source.Value, out var __parsed) ? __parsed : default(global::TestNamespace.Color)")]
+    [InlineData("Color", "string", "Value = source.Value.ToString()")]
+    [InlineData("int?", "string?", "Value = source.Value?.ToString(global::System.Globalization.CultureInfo.InvariantCulture)")]
+    [InlineData("string?", "int?", "Value = string.IsNullOrEmpty(source.Value) ? null : (int?)int.Parse(source.Value, global::System.Globalization.CultureInfo.InvariantCulture)")]
+    public void Generator_Should_Apply_The_Same_Built_In_Conversions_As_Configuration_Mappings(
+        string sourceType,
+        string targetType,
+        string expected)
+    {
+        var source = $$"""
+                       #nullable enable
+                       using System;
+                       using Atc.SourceGenerators.Annotations;
+
+                       namespace TestNamespace;
+
+                       public enum Color
+                       {
+                           Red,
+                           Green,
+                       }
+
+                       public class TargetDto
+                       {
+                           public {{targetType}} Value { get; set; } = default!;
+                       }
+
+                       [MapTo(typeof(TargetDto))]
+                       public partial class Source
+                       {
+                           public {{sourceType}} Value { get; set; } = default!;
+                       }
+                       """;
+
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        Assert.Empty(diagnostics);
+        Assert.Contains(expected, output, StringComparison.Ordinal);
+    }
 }

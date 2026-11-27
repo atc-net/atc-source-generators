@@ -565,7 +565,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                                              MappingTypeAnalyzer.HasEnumMappingAttribute(
                                                  MappingTypeAnalyzer.UnwrapNullable(sourceProp.Type),
                                                  MappingTypeAnalyzer.UnwrapNullable(targetProp.Type));
-                        var isBuiltInTypeConversion = IsBuiltInTypeConversion(sourceProp.Type, targetProp.Type);
+                        var isBuiltInTypeConversion = MappingTypeAnalyzer.IsBuiltInTypeConversion(sourceProp.Type, targetProp.Type);
                         var isNullableValueTypeWrapping = MappingTypeAnalyzer.IsNullableValueTypeWrapping(sourceProp.Type, targetProp.Type);
 
                         // Same value type with only nullability differing (e.g. Guid? → Guid) is a direct assignment
@@ -733,75 +733,6 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                     return true;
                 }
             }
-        }
-
-        return false;
-    }
-
-    private static bool IsBuiltInTypeConversion(
-        ITypeSymbol sourceType,
-        ITypeSymbol targetType)
-    {
-        var sourceTypeName = sourceType.ToDisplayString();
-        var targetTypeName = targetType.ToDisplayString();
-
-        // DateTime/DateTimeOffset → string
-        if ((sourceTypeName is "System.DateTime" or "System.DateTimeOffset") &&
-            targetTypeName == "string")
-        {
-            return true;
-        }
-
-        // string → DateTime/DateTimeOffset
-        if (sourceTypeName == "string" &&
-            (targetTypeName is "System.DateTime" or "System.DateTimeOffset"))
-        {
-            return true;
-        }
-
-        // Guid → string
-        if (sourceTypeName == "System.Guid" && targetTypeName == "string")
-        {
-            return true;
-        }
-
-        // string → Guid
-        if (sourceTypeName == "string" && targetTypeName == "System.Guid")
-        {
-            return true;
-        }
-
-        // Numeric types → string
-        if (MappingTypeAnalyzer.IsNumericType(sourceTypeName) && targetTypeName == "string")
-        {
-            return true;
-        }
-
-        // string → Numeric types
-        if (sourceTypeName == "string" && MappingTypeAnalyzer.IsNumericType(targetTypeName))
-        {
-            return true;
-        }
-
-        // bool → string
-        if (sourceTypeName == "bool" && targetTypeName == "string")
-        {
-            return true;
-        }
-
-        // string → bool
-        if (sourceTypeName == "string" && targetTypeName == "bool")
-        {
-            return true;
-        }
-
-        // DateTimeOffset <-> DateTime
-        var normalizedSource = sourceTypeName.TrimEnd('?');
-        var normalizedTarget = targetTypeName.TrimEnd('?');
-        if ((normalizedSource == "System.DateTimeOffset" && normalizedTarget == "System.DateTime") ||
-            (normalizedSource == "System.DateTime" && normalizedTarget == "System.DateTimeOffset"))
-        {
-            return true;
         }
 
         return false;
