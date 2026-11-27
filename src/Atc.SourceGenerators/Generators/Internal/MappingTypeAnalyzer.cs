@@ -585,4 +585,28 @@ internal static class MappingTypeAnalyzer
 
         return false;
     }
+
+    /// <summary>
+    /// Returns true when both types are collections whose element types are the same, or can be mapped
+    /// according to the generator's own rule.
+    /// </summary>
+    /// <param name="sourceType">The source type.</param>
+    /// <param name="targetType">The target type.</param>
+    /// <param name="areElementsMappable">The generator's rule for element types that a mapping can bridge.</param>
+    internal static bool AreCollectionsWithCompatibleElements(
+        ITypeSymbol sourceType,
+        ITypeSymbol targetType,
+        Func<ITypeSymbol, ITypeSymbol, bool> areElementsMappable)
+    {
+        if (!IsCollectionType(sourceType, out var sourceElement) ||
+            !IsCollectionType(targetType, out var targetElement) ||
+            sourceElement is null ||
+            targetElement is null)
+        {
+            return false;
+        }
+
+        return SymbolEqualityComparer.Default.Equals(sourceElement, targetElement) ||
+               areElementsMappable(sourceElement, targetElement);
+    }
 }

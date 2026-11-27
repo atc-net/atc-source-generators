@@ -1653,7 +1653,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
                     !AreBothCustomOrEnumTypes(sourcePropertyType, parameterType) &&
                     !MappingTypeAnalyzer.IsNumericTypeConversion(sourcePropertyType, parameterType) &&
                     !MappingTypeAnalyzer.IsBuiltInTypeConversion(sourcePropertyType, parameterType) &&
-                    !AreBothCollectionTypesWithCompatibleElements(sourcePropertyType, parameterType) &&
+                    !MappingTypeAnalyzer.AreCollectionsWithCompatibleElements(sourcePropertyType, parameterType, AreBothCustomOrEnumTypes) &&
                     !IsMappableDictionary(sourcePropertyType, parameterType, out _, out _))
                 {
                     allParametersMatch = false;
@@ -1702,7 +1702,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
                     !TryGetUserConversion(conversions, sourcePropertyType, parameterType, out _) &&
                         !AreBothCustomOrEnumTypes(sourcePropertyType, parameterType) &&
                         !MappingTypeAnalyzer.IsNumericTypeConversion(sourcePropertyType, parameterType) &&
-                        !AreBothCollectionTypesWithCompatibleElements(sourcePropertyType, parameterType) &&
+                        !MappingTypeAnalyzer.AreCollectionsWithCompatibleElements(sourcePropertyType, parameterType, AreBothCustomOrEnumTypes) &&
                         !IsMappableDictionary(sourcePropertyType, parameterType, out _, out _))
                     {
                         hasIncompatibleParam = true;
@@ -1939,31 +1939,6 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         => MappingTypeAnalyzer.TryGetDictionaryMapping(sourceType, targetType, out sourceValueType, out targetValueType) &&
            (MappingTypeAnalyzer.AreDictionaryValuesDirectlyConvertible(sourceValueType!, targetValueType!) ||
             MappingTypeAnalyzer.IsDictionaryValueNestedMapping(sourceValueType!, targetValueType!));
-
-    private static bool AreBothCollectionTypesWithCompatibleElements(
-        ITypeSymbol sourceType,
-        ITypeSymbol targetType)
-    {
-        if (!MappingTypeAnalyzer.IsCollectionType(sourceType, out var sourceElement) ||
-            !MappingTypeAnalyzer.IsCollectionType(targetType, out var targetElement))
-        {
-            return false;
-        }
-
-        if (sourceElement is null || targetElement is null)
-        {
-            return false;
-        }
-
-        // Same element type
-        if (SymbolEqualityComparer.Default.Equals(sourceElement, targetElement))
-        {
-            return true;
-        }
-
-        // Compatible element types (custom/enum types that can be mapped)
-        return AreBothCustomOrEnumTypes(sourceElement, targetElement);
-    }
 
     private static void DetectDuplicatesWithAttributeMappings(
         ImmutableArray<(string Source, string Target)> attributeMappedPairs,
