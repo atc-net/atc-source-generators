@@ -71,6 +71,34 @@ internal static class MappingCodeEmitter
     }
 
     /// <summary>
+    /// Gets the conversion of a collection property to the target collection type: <c>ToArray()</c>,
+    /// <c>ToList()</c>, or a <c>Collection&lt;T&gt;</c> / <c>ReadOnlyCollection&lt;T&gt;</c> around a list,
+    /// with an optional <c>Select</c> that maps each element.
+    /// </summary>
+    /// <param name="sourceAccess">The source collection expression, for example <c>source.Items</c>.</param>
+    /// <param name="collectionTargetType">The target collection kind: <c>Array</c>, <c>Collection</c>, <c>ReadOnlyCollection</c> or <c>List</c>.</param>
+    /// <param name="targetElementType">The target element type.</param>
+    /// <param name="elementSelector">The element mapping lambda, for example <c>x =&gt; x.MapToItemDto()</c>, or <c>null</c> to copy the elements.</param>
+    public static string GetCollectionConversion(
+        string sourceAccess,
+        string collectionTargetType,
+        ITypeSymbol targetElementType,
+        string? elementSelector)
+    {
+        var elements = elementSelector is null
+            ? $"{sourceAccess}?"
+            : $"{sourceAccess}?.Select({elementSelector})";
+
+        return collectionTargetType switch
+        {
+            "Array" => $"{elements}.ToArray()!",
+            "Collection" => $"new global::System.Collections.ObjectModel.Collection<{targetElementType.ToGlobalDisplayString()}>({elements}.ToList()!)",
+            "ReadOnlyCollection" => $"new global::System.Collections.ObjectModel.ReadOnlyCollection<{targetElementType.ToGlobalDisplayString()}>({elements}.ToList()!)",
+            _ => $"{elements}.ToList()!",
+        };
+    }
+
+    /// <summary>
     /// Gets the conversion expression of a built-in type conversion (DateTime, DateTimeOffset, Guid, numeric and bool
     /// to and from string, DateTime to and from DateTimeOffset, string to and from Uri and enum), including the
     /// nullable variants. Each generator decides with its own predicate which conversions it uses.
