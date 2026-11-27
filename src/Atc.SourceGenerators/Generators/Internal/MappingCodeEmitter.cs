@@ -113,11 +113,16 @@ internal static class MappingCodeEmitter
             ? $"{sourceAccess}?"
             : $"{sourceAccess}?.Select({elementSelector})";
 
+        // Collection<T> and ReadOnlyCollection<T> throw for a null list: check the source first
+        var listOfSource = elementSelector is null
+            ? $"{sourceAccess}.ToList()"
+            : $"{sourceAccess}.Select({elementSelector}).ToList()";
+
         return collectionTargetType switch
         {
             "Array" => $"{elements}.ToArray()!",
-            "Collection" => $"new global::System.Collections.ObjectModel.Collection<{targetElementType.ToGlobalDisplayString()}>({elements}.ToList()!)",
-            "ReadOnlyCollection" => $"new global::System.Collections.ObjectModel.ReadOnlyCollection<{targetElementType.ToGlobalDisplayString()}>({elements}.ToList()!)",
+            "Collection" => $"{sourceAccess} is null ? null! : new global::System.Collections.ObjectModel.Collection<{targetElementType.ToGlobalDisplayString()}>({listOfSource})",
+            "ReadOnlyCollection" => $"{sourceAccess} is null ? null! : new global::System.Collections.ObjectModel.ReadOnlyCollection<{targetElementType.ToGlobalDisplayString()}>({listOfSource})",
             _ => $"{elements}.ToList()!",
         };
     }

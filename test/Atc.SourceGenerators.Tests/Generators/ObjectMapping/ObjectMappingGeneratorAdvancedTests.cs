@@ -871,4 +871,49 @@ public partial class ObjectMappingGeneratorTests
         Assert.Empty(diagnostics);
         Assert.Contains(expected, output, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void Generator_Should_Map_A_Null_Collection_To_A_Collection_Target_Without_Throwing()
+    {
+        const string source = """
+                              #nullable enable
+                              using System.Collections.Generic;
+                              using System.Collections.ObjectModel;
+                              using Atc.SourceGenerators.Annotations;
+
+                              namespace TestNamespace;
+
+                              public class ItemDto
+                              {
+                                  public int Id { get; set; }
+                              }
+
+                              [MapTo(typeof(ItemDto))]
+                              public partial class Item
+                              {
+                                  public int Id { get; set; }
+                              }
+
+                              public class OrderDto
+                              {
+                                  public Collection<ItemDto>? Items { get; set; }
+
+                                  public ReadOnlyCollection<ItemDto>? ReadOnlyItems { get; set; }
+                              }
+
+                              [MapTo(typeof(OrderDto))]
+                              public partial class Order
+                              {
+                                  public List<Item>? Items { get; set; }
+
+                                  public List<Item>? ReadOnlyItems { get; set; }
+                              }
+                              """;
+
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        Assert.Empty(diagnostics);
+        Assert.Contains("Items = source.Items is null ? null! : new global::System.Collections.ObjectModel.Collection<global::TestNamespace.ItemDto>(source.Items.Select(x => x.MapToItemDto()).ToList())", output, StringComparison.Ordinal);
+        Assert.Contains("ReadOnlyItems = source.ReadOnlyItems is null ? null! : new global::System.Collections.ObjectModel.ReadOnlyCollection<global::TestNamespace.ItemDto>(source.ReadOnlyItems.Select(x => x.MapToItemDto()).ToList())", output, StringComparison.Ordinal);
+    }
 }
