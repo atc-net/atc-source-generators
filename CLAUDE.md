@@ -937,6 +937,7 @@ UserDto (API)
 - `ATCMAP012` - Duplicate mapping method (Error)
 - `ATCMAP013` - Mapping hook method cannot be called (Error)
 - `ATCMAP014` - Target property is not mapped (Info; raise via `.editorconfig` for strict mapping)
+- `ATCMAP015` - Nested property type has no mapping (Error; the property is skipped. Not reported when the compilation has configuration mappings, whose generated mappers the `[MapTo]` generator can't see)
 
 ### EnumMappingGenerator
 
