@@ -75,51 +75,20 @@ public class ObjectMappingGenerator : IIncrementalGenerator
             ctx.AddSource("MapDerivedTypeAttribute.g.cs", SourceText.From(GenerateMapDerivedTypeAttributeSource(), Encoding.UTF8));
         });
 
-        // Find classes with MapTo attribute
+        // Find classes and records with [MapTo] (ForAttributeWithMetadataName filters by attribute name
+        // without resolving the symbol of every attribute on every class)
         var classDeclarations = context.SyntaxProvider
-            .CreateSyntaxProvider(
-                predicate: static (s, _) => IsSyntaxTargetForGeneration(s),
-                transform: static (ctx, ct) => GetSemanticTargetForGeneration(ctx, ct))
-            .Where(static m => m is not null)
+            .ForAttributeWithMetadataName(
+                FullAttributeName,
+                predicate: static (s, _) => s is ClassDeclarationSyntax or RecordDeclarationSyntax,
+                transform: static (ctx, _) => (TypeDeclarationSyntax)ctx.TargetNode)
             .Collect();
 
         // Combine with compilation
         var compilationAndClasses = context.CompilationProvider.Combine(classDeclarations);
 
         // Generate source
-        context.RegisterSourceOutput(compilationAndClasses, static (spc, source) => Execute(source.Left, source.Right!, spc));
-    }
-
-    private static bool IsSyntaxTargetForGeneration(SyntaxNode node)
-        => node is ClassDeclarationSyntax { AttributeLists.Count: > 0 } or
-           RecordDeclarationSyntax { AttributeLists.Count: > 0 };
-
-    private static TypeDeclarationSyntax? GetSemanticTargetForGeneration(
-        GeneratorSyntaxContext context,
-        CancellationToken cancellationToken)
-    {
-        var typeDeclaration = (TypeDeclarationSyntax)context.Node;
-
-        foreach (var attributeListSyntax in typeDeclaration.AttributeLists)
-        {
-            foreach (var attributeSyntax in attributeListSyntax.Attributes)
-            {
-                if (context.SemanticModel.GetSymbolInfo(attributeSyntax, cancellationToken).Symbol is not IMethodSymbol attributeSymbol)
-                {
-                    continue;
-                }
-
-                var attributeContainingTypeSymbol = attributeSymbol.ContainingType;
-                var fullName = attributeContainingTypeSymbol.ToDisplayString();
-
-                if (fullName == FullAttributeName)
-                {
-                    return typeDeclaration;
-                }
-            }
-        }
-
-        return null;
+        context.RegisterSourceOutput(compilationAndClasses, static (spc, source) => Execute(source.Left, source.Right, spc));
     }
 
     private static void Execute(
