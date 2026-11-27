@@ -915,6 +915,7 @@ UserDto (API)
 - `ATCMAP002` - Target type must be a class or struct (Error)
 - `ATCMAP003` - MapProperty target property not found (Error)
 - `ATCMAP012` - Two mappings from the same source type would generate a `MapTo{TargetName}` method with the same name (Error)
+- `ATCMAP013` - `BeforeMap`, `AfterMap` or `Factory` method is missing, not static, or private (Error)
 
 ### EnumMappingGenerator
 
