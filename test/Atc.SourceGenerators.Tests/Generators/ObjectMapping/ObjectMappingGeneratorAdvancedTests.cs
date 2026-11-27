@@ -695,7 +695,7 @@ public partial class ObjectMappingGeneratorTests
     [Theory]
     [InlineData("string", "Uri", "Value = new global::System.Uri(source.Value)")]
     [InlineData("Uri", "string", "Value = source.Value.ToString()")]
-    [InlineData("string", "Color", "Value = global::System.Enum.TryParse<global::TestNamespace.Color>(source.Value, out var __parsed) ? __parsed : default(global::TestNamespace.Color)")]
+    [InlineData("string", "Color", "Value = global::System.Enum.TryParse<global::TestNamespace.Color>(source.Value, out var __valueParsed) ? __valueParsed : default(global::TestNamespace.Color)")]
     [InlineData("Color", "string", "Value = source.Value.ToString()")]
     [InlineData("int?", "string?", "Value = source.Value?.ToString(global::System.Globalization.CultureInfo.InvariantCulture)")]
     [InlineData("string?", "int?", "Value = string.IsNullOrEmpty(source.Value) ? null : (int?)int.Parse(source.Value, global::System.Globalization.CultureInfo.InvariantCulture)")]
@@ -797,5 +797,41 @@ public partial class ObjectMappingGeneratorTests
         Assert.Empty(diagnostics);
         Assert.Contains("return new global::TestNamespace.ProductDto(", output, StringComparison.Ordinal);
         Assert.Contains("(short)source.Count", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generator_Should_Convert_Two_Strings_To_Enums_In_One_Mapping()
+    {
+        const string source = """
+                              #nullable enable
+                              using Atc.SourceGenerators.Annotations;
+
+                              namespace TestNamespace;
+
+                              public enum Status { Active, Inactive }
+
+                              public enum Kind { Small, Large }
+
+                              public class TargetDto
+                              {
+                                  public Status Status { get; set; }
+
+                                  public Kind Kind { get; set; }
+                              }
+
+                              [MapTo(typeof(TargetDto))]
+                              public partial class Source
+                              {
+                                  public string Status { get; set; } = string.Empty;
+
+                                  public string Kind { get; set; } = string.Empty;
+                              }
+                              """;
+
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        Assert.Empty(diagnostics);
+        Assert.Contains("out var __statusParsed) ? __statusParsed", output, StringComparison.Ordinal);
+        Assert.Contains("out var __kindParsed) ? __kindParsed", output, StringComparison.Ordinal);
     }
 }

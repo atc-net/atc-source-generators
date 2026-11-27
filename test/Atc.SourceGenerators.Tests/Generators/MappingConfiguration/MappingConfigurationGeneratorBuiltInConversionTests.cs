@@ -205,7 +205,7 @@ public partial class MappingConfigurationGeneratorTests
         var (diagnostics, output) = GetGeneratedOutput(source);
 
         Assert.Empty(diagnostics);
-        Assert.Contains("Enum.TryParse<global::TargetNs.StatusType>(source.Status, out var __parsed)", output, StringComparison.Ordinal);
+        Assert.Contains("Enum.TryParse<global::TargetNs.StatusType>(source.Status, out var __statusParsed)", output, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -641,7 +641,7 @@ public partial class MappingConfigurationGeneratorTests
         Assert.Empty(diagnostics);
 
         // Should use constructor invocation with TryParse for enum and cast for decimal->double
-        Assert.Contains("Enum.TryParse<global::TargetNs.StatusType>(source.Status, out var __parsed)", output, StringComparison.Ordinal);
+        Assert.Contains("Enum.TryParse<global::TargetNs.StatusType>(source.Status, out var __statusParsed)", output, StringComparison.Ordinal);
         Assert.Contains("(double)source.Value", output, StringComparison.Ordinal);
     }
 

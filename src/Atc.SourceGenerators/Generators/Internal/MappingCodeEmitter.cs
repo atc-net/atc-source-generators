@@ -236,6 +236,8 @@ internal static class MappingCodeEmitter
 
         if (normalizedSource == "string" && unwrappedTargetType.TypeKind == TypeKind.Enum)
         {
+            // Named per property: expression variables are scoped to the whole object initializer or constructor call
+            var parsedName = $"__{char.ToLowerInvariant(prop.SourceProperty.Name[0])}{prop.SourceProperty.Name.Substring(1)}Parsed";
             var enumType = unwrappedTargetType.ToGlobalDisplayString();
             var sourceIsNullable = sourceIsNullableRef ||
                                    prop.SourceProperty.Type.NullableAnnotation == NullableAnnotation.Annotated;
@@ -244,10 +246,10 @@ internal static class MappingCodeEmitter
             if (sourceIsNullable && targetIsNullableValue)
             {
                 var varName = $"__{char.ToLowerInvariant(prop.SourceProperty.Name[0])}{prop.SourceProperty.Name.Substring(1)}";
-                return $"{sourcePropertyAccess} is {{ }} {varName} ? (global::System.Enum.TryParse<{enumType}>({varName}, out var __parsed) ? __parsed : default({enumType}?)) : null";
+                return $"{sourcePropertyAccess} is {{ }} {varName} ? (global::System.Enum.TryParse<{enumType}>({varName}, out var {parsedName}) ? {parsedName} : default({enumType}?)) : null";
             }
 
-            return $"global::System.Enum.TryParse<{enumType}>({sourcePropertyAccess}, out var __parsed) ? __parsed : default({enumType})";
+            return $"global::System.Enum.TryParse<{enumType}>({sourcePropertyAccess}, out var {parsedName}) ? {parsedName} : default({enumType})";
         }
 
         if (unwrappedSourceType.TypeKind == TypeKind.Enum && normalizedTarget == "string")
