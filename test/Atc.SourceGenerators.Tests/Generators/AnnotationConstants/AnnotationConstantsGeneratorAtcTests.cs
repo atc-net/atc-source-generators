@@ -519,6 +519,7 @@ public partial class AnnotationConstantsGeneratorTests
             compilation,
             out var outputCompilation,
             out var generatorDiagnostics);
+        GeneratorTestHarness.DumpIfRequested(compilation, outputCompilation, generatorDiagnostics);
         GeneratorTestHarness.AssertGeneratedCodeCompiles(compilation, outputCompilation);
 
         var allDiagnostics = outputCompilation

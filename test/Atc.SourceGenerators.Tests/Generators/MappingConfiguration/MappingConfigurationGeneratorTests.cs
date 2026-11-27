@@ -27,6 +27,7 @@ public partial class MappingConfigurationGeneratorTests
             compilation,
             out var outputCompilation,
             out var generatorDiagnostics);
+        GeneratorTestHarness.DumpIfRequested(compilation, outputCompilation, generatorDiagnostics);
         GeneratorTestHarness.AssertGeneratedCodeCompiles(compilation, outputCompilation);
 
         var prefix = diagnosticPrefix ?? "ATCM";
@@ -106,6 +107,7 @@ public partial class MappingConfigurationGeneratorTests
             compilation,
             out var outputCompilation,
             out var generatorDiagnostics);
+        GeneratorTestHarness.DumpIfRequested(compilation, outputCompilation, generatorDiagnostics);
         GeneratorTestHarness.AssertGeneratedCodeCompiles(compilation, outputCompilation);
 
         var prefix = diagnosticPrefix ?? "ATCM";
