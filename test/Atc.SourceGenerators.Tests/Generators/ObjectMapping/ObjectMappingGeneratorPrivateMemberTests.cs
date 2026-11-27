@@ -4,7 +4,7 @@ namespace Atc.SourceGenerators.Tests.Generators.ObjectMapping;
 
 public partial class ObjectMappingGeneratorTests
 {
-    [Fact(Skip = "IncludePrivateMembers feature requires UnsafeAccessor (.NET 8+) which cannot be fully tested in unit test harness. Feature verified working in real code generation.")]
+    [Fact]
     public void Generator_Should_Map_Private_Properties_With_IncludePrivateMembers()
     {
         const string source = """
@@ -33,7 +33,7 @@ public partial class ObjectMappingGeneratorTests
         Assert.Contains("UnsafeGetSource_PrivateCode", output, StringComparison.Ordinal);
     }
 
-    [Fact(Skip = "IncludePrivateMembers feature requires UnsafeAccessor (.NET 8+) which cannot be fully tested in unit test harness. Feature verified working in real code generation.")]
+    [Fact]
     public void Generator_Should_Map_Internal_Properties_With_IncludePrivateMembers()
     {
         const string source = """
@@ -62,7 +62,7 @@ public partial class ObjectMappingGeneratorTests
         Assert.Contains("UnsafeGetSource_SecurityLevel", output, StringComparison.Ordinal);
     }
 
-    [Fact(Skip = "IncludePrivateMembers feature requires UnsafeAccessor (.NET 8+) which cannot be fully tested in unit test harness. Feature verified working in real code generation.")]
+    [Fact]
     public void Generator_Should_Not_Map_Private_Properties_When_IncludePrivateMembers_Is_False()
     {
         const string source = """
@@ -87,11 +87,11 @@ public partial class ObjectMappingGeneratorTests
         var (diagnostics, output) = GetGeneratedOutput(source);
 
         Assert.Empty(diagnostics);
-        Assert.DoesNotContain("UnsafeAccessor", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("[global::System.Runtime.CompilerServices.UnsafeAccessor(", output, StringComparison.Ordinal);
         Assert.DoesNotContain("PrivateCode", output, StringComparison.Ordinal);
     }
 
-    [Fact(Skip = "IncludePrivateMembers feature requires UnsafeAccessor (.NET 8+) which cannot be fully tested in unit test harness. Feature verified working in real code generation.")]
+    [Fact]
     public void Generator_Should_Generate_UnsafeAccessor_Setter_For_UpdateTarget()
     {
         const string source = """
@@ -121,7 +121,7 @@ public partial class ObjectMappingGeneratorTests
         Assert.Contains("UnsafeSetTargetDto_Code", output, StringComparison.Ordinal);
     }
 
-    [Fact(Skip = "IncludePrivateMembers feature requires UnsafeAccessor (.NET 8+) which cannot be fully tested in unit test harness. Feature verified working in real code generation.")]
+    [Fact]
     public void Generator_Should_Work_With_Bidirectional_And_IncludePrivateMembers()
     {
         const string source = """
@@ -152,7 +152,7 @@ public partial class ObjectMappingGeneratorTests
         Assert.Contains("UnsafeGetTargetDto_InternalData", output, StringComparison.Ordinal);
     }
 
-    [Fact(Skip = "IncludePrivateMembers feature requires UnsafeAccessor (.NET 8+) which cannot be fully tested in unit test harness. Feature verified working in real code generation.")]
+    [Fact]
     public void Generator_Should_Mix_Public_And_Private_Properties()
     {
         const string source = """

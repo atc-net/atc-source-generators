@@ -35,13 +35,13 @@ public partial class DependencyRegistrationGeneratorTests
         Assert.DoesNotContain("InternalService", output, StringComparison.Ordinal);
     }
 
-    [Fact(Skip = "Assembly-level attributes may require different test setup. Manually verified in samples.")]
+    [Fact]
     public void Generator_Should_Exclude_Types_By_Pattern()
     {
         const string source = """
                               [assembly: Atc.DependencyInjection.RegistrationFilter(ExcludePatterns = new[] { "*Test*", "*Mock*" })]
 
-                              namespace TestNamespace
+                              namespace MyApp
                               {
                                   public interface IProductionService { }
                                   public interface ITestService { }
@@ -61,15 +61,17 @@ public partial class DependencyRegistrationGeneratorTests
         var (diagnostics, output) = GetGeneratedOutput(source);
 
         Assert.Empty(diagnostics);
-        Assert.Contains("services.AddSingleton<TestNamespace.IProductionService, TestNamespace.ProductionService>();", output, StringComparison.Ordinal);
+        Assert.Contains("services.AddSingleton<MyApp.IProductionService, MyApp.ProductionService>();", output, StringComparison.Ordinal);
         Assert.DoesNotContain("TestService", output, StringComparison.Ordinal);
         Assert.DoesNotContain("MockService", output, StringComparison.Ordinal);
     }
 
-    [Fact(Skip = "Assembly-level attributes may require different test setup. Manually verified in samples.")]
+    [Fact]
     public void Generator_Should_Exclude_Types_By_Implemented_Interface()
     {
         const string source = """
+                              [assembly: Atc.DependencyInjection.RegistrationFilter(ExcludeImplementing = new[] { typeof(TestNamespace.ITestUtility) })]
+
                               namespace TestNamespace
                               {
                                   public interface ITestUtility { }
@@ -81,8 +83,6 @@ public partial class DependencyRegistrationGeneratorTests
                                   [Atc.DependencyInjection.Registration]
                                   public class TestHelper : ITestUtility { }
                               }
-
-                              [assembly: Atc.DependencyInjection.RegistrationFilter(ExcludeImplementing = new[] { typeof(TestNamespace.ITestUtility) })]
                               """;
 
         var (diagnostics, output) = GetGeneratedOutput(source);
@@ -92,15 +92,15 @@ public partial class DependencyRegistrationGeneratorTests
         Assert.DoesNotContain("TestHelper", output, StringComparison.Ordinal);
     }
 
-    [Fact(Skip = "Assembly-level attributes may require different test setup. Manually verified in samples.")]
+    [Fact]
     public void Generator_Should_Support_Multiple_Filter_Rules()
     {
         const string source = """
                               [assembly: Atc.DependencyInjection.RegistrationFilter(
-                                  ExcludeNamespaces = new[] { "TestNamespace.Internal" },
+                                  ExcludeNamespaces = new[] { "MyApp.Internal" },
                                   ExcludePatterns = new[] { "*Test*" })]
 
-                              namespace TestNamespace
+                              namespace MyApp
                               {
                                   public interface IProductionService { }
 
@@ -108,7 +108,7 @@ public partial class DependencyRegistrationGeneratorTests
                                   public class ProductionService : IProductionService { }
                               }
 
-                              namespace TestNamespace.Internal
+                              namespace MyApp.Internal
                               {
                                   public interface IInternalService { }
 
@@ -116,7 +116,7 @@ public partial class DependencyRegistrationGeneratorTests
                                   public class InternalService : IInternalService { }
                               }
 
-                              namespace TestNamespace.Testing
+                              namespace MyApp.Testing
                               {
                                   public interface ITestService { }
 
@@ -128,19 +128,19 @@ public partial class DependencyRegistrationGeneratorTests
         var (diagnostics, output) = GetGeneratedOutput(source);
 
         Assert.Empty(diagnostics);
-        Assert.Contains("services.AddSingleton<TestNamespace.IProductionService, TestNamespace.ProductionService>();", output, StringComparison.Ordinal);
+        Assert.Contains("services.AddSingleton<MyApp.IProductionService, MyApp.ProductionService>();", output, StringComparison.Ordinal);
         Assert.DoesNotContain("InternalService", output, StringComparison.Ordinal);
         Assert.DoesNotContain("TestService", output, StringComparison.Ordinal);
     }
 
-    [Fact(Skip = "Assembly-level attributes may require different test setup. Manually verified in samples.")]
+    [Fact]
     public void Generator_Should_Support_Multiple_Filter_Attributes()
     {
         const string source = """
-                              [assembly: Atc.DependencyInjection.RegistrationFilter(ExcludeNamespaces = new[] { "TestNamespace.Internal" })]
+                              [assembly: Atc.DependencyInjection.RegistrationFilter(ExcludeNamespaces = new[] { "MyApp.Internal" })]
                               [assembly: Atc.DependencyInjection.RegistrationFilter(ExcludePatterns = new[] { "*Test*" })]
 
-                              namespace TestNamespace
+                              namespace MyApp
                               {
                                   public interface IProductionService { }
 
@@ -148,7 +148,7 @@ public partial class DependencyRegistrationGeneratorTests
                                   public class ProductionService : IProductionService { }
                               }
 
-                              namespace TestNamespace.Internal
+                              namespace MyApp.Internal
                               {
                                   public interface IInternalService { }
 
@@ -156,7 +156,7 @@ public partial class DependencyRegistrationGeneratorTests
                                   public class InternalService : IInternalService { }
                               }
 
-                              namespace TestNamespace.Testing
+                              namespace MyApp.Testing
                               {
                                   public interface ITestService { }
 
@@ -168,18 +168,18 @@ public partial class DependencyRegistrationGeneratorTests
         var (diagnostics, output) = GetGeneratedOutput(source);
 
         Assert.Empty(diagnostics);
-        Assert.Contains("services.AddSingleton<TestNamespace.IProductionService, TestNamespace.ProductionService>();", output, StringComparison.Ordinal);
+        Assert.Contains("services.AddSingleton<MyApp.IProductionService, MyApp.ProductionService>();", output, StringComparison.Ordinal);
         Assert.DoesNotContain("InternalService", output, StringComparison.Ordinal);
         Assert.DoesNotContain("TestService", output, StringComparison.Ordinal);
     }
 
-    [Fact(Skip = "Assembly-level attributes may require different test setup. Manually verified in samples.")]
+    [Fact]
     public void Generator_Should_Support_Wildcard_Pattern_With_Question_Mark()
     {
         const string source = """
                               [assembly: Atc.DependencyInjection.RegistrationFilter(ExcludePatterns = new[] { "Test?" })]
 
-                              namespace TestNamespace
+                              namespace MyApp
                               {
                                   public interface IProductionService { }
                                   public interface ITestAService { }
@@ -203,10 +203,10 @@ public partial class DependencyRegistrationGeneratorTests
         var (diagnostics, output) = GetGeneratedOutput(source);
 
         Assert.Empty(diagnostics);
-        Assert.Contains("services.AddSingleton<TestNamespace.IProductionService, TestNamespace.ProductionService>();", output, StringComparison.Ordinal);
-        Assert.DoesNotContain("TestA", output, StringComparison.Ordinal);
-        Assert.DoesNotContain("TestB", output, StringComparison.Ordinal);
-        Assert.Contains("TestAbc", output, StringComparison.Ordinal); // Not excluded (Test? only matches 5 chars)
+        Assert.Contains("services.AddSingleton<MyApp.IProductionService, MyApp.ProductionService>();", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("MyApp.TestA>", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("MyApp.TestB>", output, StringComparison.Ordinal);
+        Assert.Contains("MyApp.TestAbc>", output, StringComparison.Ordinal); // Not excluded (Test? only matches 5 chars)
     }
 
     [Fact]

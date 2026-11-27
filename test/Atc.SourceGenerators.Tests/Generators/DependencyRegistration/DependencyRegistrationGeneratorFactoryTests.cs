@@ -273,10 +273,12 @@ public partial class DependencyRegistrationGeneratorTests
         Assert.Contains("services.AddScoped<TestNamespace.EmailSender>(sp => (TestNamespace.EmailSender)TestNamespace.EmailSender.CreateEmailSender(sp));", output, StringComparison.Ordinal);
     }
 
-    [Fact(Skip = "Abstract class factory methods require additional investigation in test harness. Manually verified in samples.")]
+    [Fact]
     public void Generator_Should_Support_Factory_Method_With_Abstract_Base_Class()
     {
         const string source = """
+                              using System;
+                              using System.Threading.Tasks;
                               using Atc.DependencyInjection;
 
                               namespace TestNamespace;
