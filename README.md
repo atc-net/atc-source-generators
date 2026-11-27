@@ -1,12 +1,12 @@
 # 🎯 Atc Source Generators
 
-A collection of Roslyn C# source generators for .NET that eliminate boilerplate code and improve developer productivity. All generators are designed with **Native AOT compatibility** in focus, enabling faster startup times, smaller deployment sizes, and optimal performance for modern cloud-native applications.
+A collection of Roslyn C# source generators for .NET that eliminate boilerplate code and improve developer productivity. The generators are designed with **Native AOT compatibility** in focus, enabling faster startup times, smaller deployment sizes, and optimal performance for modern cloud-native applications (see [Native AOT and trimming](#-native-aot-and-trimming) for the details per generator).
 
 **Why Choose Atc Source Generators?**
 
 - 🎯 **Zero boilerplate** - Attribute-based approach eliminates repetitive code
 - ⚡ **Compile-time generation** - Catch errors during build, not at runtime
-- 🚀 **Native AOT ready** - Zero reflection, fully trimming-safe for modern .NET
+- 🚀 **Native AOT friendly** - Mapping, enum mapping, annotation constants and DI registration generate plain code without reflection
 - 🧩 **Multi-project architecture** - Smart naming for clean layered applications
 - 🛡️ **Type-safe** - Full IntelliSense and compile-time validation
 - 📦 **Single package** - Install once, use all generators
@@ -82,6 +82,15 @@ When several of your projects use the generators and reference each other, each 
   <NoWarn>$(NoWarn);CS0436</NoWarn>
 </PropertyGroup>
 ```
+
+## 🚀 Native AOT and trimming
+
+| Generator | Generated code | AOT / trimming |
+|-----------|----------------|----------------|
+| ObjectMapping, MappingConfiguration, EnumMapping | Plain assignments, constructor calls and switch expressions | ✅ No reflection |
+| AnnotationConstants | Constants | ✅ No reflection |
+| DependencyRegistration | Direct `services.AddXxx<TService, TImplementation>()` calls | ✅ No reflection, except decorators, which use `ActivatorUtilities.CreateInstance` |
+| OptionsBinding | `AddOptions<T>().Bind(...)`, and `ValidateDataAnnotations()` when enabled | ⚠️ Uses the reflection-based configuration binder and DataAnnotations validation, so Native AOT and trimming report warnings for it |
 
 ## ⚙️ Requirements
 
