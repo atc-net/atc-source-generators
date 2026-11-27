@@ -27,7 +27,6 @@
     <Project Path="sample/PetStore.Domain/PetStore.Domain.csproj" />
   </Folder>
   <Folder Name="/src/">
-    <Project Path="src/Atc.SourceGenerators.Annotations/Atc.SourceGenerators.Annotations.csproj" />
     <Project Path="src/Atc.SourceGenerators/Atc.SourceGenerators.csproj" />
   </Folder>
   <Folder Name="/tests/">

@@ -33,18 +33,6 @@ src/
     RuleIdentifierConstants.cs    # Diagnostic ID constants
     RuleCategoryConstants.cs      # Diagnostic category constants
     AnalyzerReleases.*.md         # Diagnostic release tracking
-  Atc.SourceGenerators.Annotations/ # Attribute definitions (not published; the generators emit the same attributes into consuming projects)
-    RegistrationAttribute.cs
-    OptionsBindingAttribute.cs
-    MapToAttribute.cs
-    MappingConfigurationAttribute.cs
-    MapConfigPropertyAttribute.cs
-    MapConfigIgnoreAttribute.cs
-    MapConfigOptionsAttribute.cs
-    MapTypesAttribute.cs
-    MappingBuilder.cs
-    Lifetime.cs
-    OptionsLifetime.cs
 
 test/
   Atc.SourceGenerators.Tests/     # xUnit v3 on Microsoft.Testing.Platform
@@ -173,7 +161,7 @@ dotnet build  # Executes source generators using Roslyn 5.0.0
 
 Both generators follow the **Incremental Generator** pattern (IIncrementalGenerator):
 
-1. **PostInitialization** - Generate attribute definitions as fallback (for projects that don't reference Atc.SourceGenerators.Annotations)
+1. **PostInitialization** - Generate the attribute definitions (internal, `[Embedded]`) into the consuming project
 2. **Syntax Provider** - Filter candidate classes with attributes (predicate + transform)
 3. **Compilation Combination** - Combine filtered classes with compilation context
 4. **Source Output** - Validate, analyze, and generate extension methods
@@ -1099,7 +1087,7 @@ MappingBuilder.Configure(map =>
 **Enum Auto-Detection:**
 When mapping properties with different enum types (e.g., `ContactType` → `CustomerCategory`), the generator automatically generates switch expressions using EnumMappingHelper's special case detection (None ↔ Unknown ↔ Default).
 
-**Attributes (in Atc.SourceGenerators.Annotations):**
+**Attributes (generated into the project, namespace `Atc.SourceGenerators.Annotations`):**
 - `MappingConfigurationAttribute` - Marks static partial class as mapping configuration container
 - `MapConfigPropertyAttribute(sourcePropertyName, targetPropertyName)` - Renames properties in mapping
 - `MapConfigIgnoreAttribute(propertyName)` - Excludes properties from mapping
@@ -1332,7 +1320,7 @@ The project follows the pattern from `atc-analyzer` for managing diagnostic iden
 ### When Modifying Generators
 
 1. **Target Framework**: Generators must target `netstandard2.0` for Roslyn compatibility
-2. **Attribute Generation**: All generators ALWAYS emit their attribute definitions (and `Lifetime`, `OptionsLifetime`, `PropertyNameStrategy`, `MappingBuilder`) in `PostInitialization`, as `internal` types marked `[global::Microsoft.CodeAnalysis.EmbeddedAttribute]` (`ctx.AddEmbeddedAttributeDefinition()`). Embedded types are invisible to other compilations, so projects that reference each other don't see each other's copies (no CS0436). Only a project that also references the unpublished `Atc.SourceGenerators.Annotations` project (the samples) still gets CS0436 and suppresses it
+2. **Attribute Generation**: All generators ALWAYS emit their attribute definitions (and `Lifetime`, `OptionsLifetime`, `PropertyNameStrategy`, `MappingBuilder`) in `PostInitialization`, as `internal` types marked `[global::Microsoft.CodeAnalysis.EmbeddedAttribute]` (`ctx.AddEmbeddedAttributeDefinition()`). Embedded types are invisible to other compilations, so projects that reference each other don't see each other's copies (no CS0436).
 3. **Generated Code Attributes**: Always include best-practice attributes on generated types:
    - `[GeneratedCode]` - Marks code as auto-generated
    - `[EditorBrowsable(Never)]` - Hides from IntelliSense
@@ -1386,7 +1374,7 @@ When using these source generators with OpenAPI/Swagger documentation (e.g., `Mi
 ```xml
 <PropertyGroup>
   <GenerateDocumentationFile>false</GenerateDocumentationFile>
-  <NoWarn>$(NoWarn);CS0436;SA0001;CS1591;IDE0005</NoWarn>
+  <NoWarn>$(NoWarn);SA0001;CS1591;IDE0005</NoWarn>
 </PropertyGroup>
 ```
 
@@ -1394,27 +1382,18 @@ When using these source generators with OpenAPI/Swagger documentation (e.g., `Mi
 ```xml
 <PropertyGroup>
   <GenerateDocumentationFile>true</GenerateDocumentationFile>
-  <NoWarn>$(NoWarn);CS0436;SA0001;CS1591;IDE0005</NoWarn>
-</PropertyGroup>
-```
-
-**Annotations Assembly**:
-```xml
-<PropertyGroup>
-  <GenerateDocumentationFile>false</GenerateDocumentationFile>
-  <NoWarn>$(NoWarn);EnableGenerateDocumentationFile</NoWarn>
+  <NoWarn>$(NoWarn);SA0001;CS1591;IDE0005</NoWarn>
 </PropertyGroup>
 ```
 
 ### Why This Configuration?
 
-1. **Fallback Attributes**: Each generator emits attribute definitions in `PostInitialization` for projects that don't reference `Atc.SourceGenerators.Annotations`
+1. **Generated Attributes**: Each generator emits its attribute definitions in `PostInitialization`, as internal `[Embedded]` types
 2. **Duplicate Prevention**: If multiple projects generate XML docs for the same types (via fallback attributes), OpenAPI will throw `ArgumentException: An item with the same key has already been added`
 3. **Standard Practice**: Library projects typically don't need XML documentation files; only the final API project needs them for OpenAPI/Swagger
 
 ### Warning Suppressions Explained
 
-- **CS0436**: "The type 'X' in 'Y' conflicts with the imported type 'X' in 'Z'" - Only needed in projects that reference the `Atc.SourceGenerators.Annotations` project (the samples); the generated attributes themselves are internal and embedded
 - **SA0001**: StyleCop warning - typically disabled for generated code
 - **CS1591**: "Missing XML comment for publicly visible type" - Common to suppress in projects without XML docs
 - **IDE0005**: "Remove unnecessary usings" - May conflict with generated code
@@ -1447,10 +1426,7 @@ These attributes:
 - Restart IDE/OmniSharp if using VS Code
 
 ### Attribute CS0436 Warnings
-The generated attributes are `internal` and `[Embedded]`, so projects that use the generators and reference each other don't report CS0436. A project that also references the unpublished `Atc.SourceGenerators.Annotations` project (as the samples do) sees its public copies and needs:
-```xml
-<NoWarn>$(NoWarn);CS0436</NoWarn>
-```
+The generated attributes are `internal` and `[Embedded]`, so projects that use the generators and reference each other don't report CS0436 and need no suppression. Versions 0.1.67 and earlier generated public attributes and needed `<NoWarn>$(NoWarn);CS0436</NoWarn>`.
 
 ### XML Documentation Duplicate Key Errors
 If you encounter `System.ArgumentException: An item with the same key has already been added` when using OpenAPI/Swagger:
@@ -1463,11 +1439,6 @@ If you encounter `System.ArgumentException: An item with the same key has alread
 2. Enable XML documentation **only** for the final **API project**:
    ```xml
    <GenerateDocumentationFile>true</GenerateDocumentationFile>
-   ```
-
-3. Ensure the Annotations project has the warning suppressed:
-   ```xml
-   <NoWarn>$(NoWarn);EnableGenerateDocumentationFile</NoWarn>
    ```
 
 See the **XML Documentation Configuration** section above for detailed explanation.
