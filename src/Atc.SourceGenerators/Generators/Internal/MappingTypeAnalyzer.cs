@@ -624,4 +624,124 @@ internal static class MappingTypeAnalyzer
         ITypeSymbol targetType)
         => (UnwrapNullable(sourceType).TypeKind == TypeKind.Enum && UnwrapNullable(targetType).TypeKind == TypeKind.Enum) ||
            IsNestedMapping(sourceType, targetType);
+
+    /// <summary>
+    /// Returns true when a mapping can produce the constructor parameter from the source property: the same or an
+    /// implicitly convertible type, a nullable value type wrapping, an enum or nested mapping, a built-in conversion,
+    /// or a collection whose elements can be mapped. Generators add what only they support.
+    /// </summary>
+    internal static bool IsConstructorParameterCompatible(
+        ITypeSymbol sourceType,
+        ITypeSymbol parameterType)
+        => SymbolEqualityComparer.Default.Equals(sourceType, parameterType) ||
+           IsImplicitlyConvertible(sourceType, parameterType) ||
+           IsNullableValueTypeWrapping(sourceType, parameterType) ||
+           AreBothCustomOrEnumTypes(sourceType, parameterType) ||
+           IsBuiltInTypeConversion(sourceType, parameterType) ||
+           AreCollectionsWithCompatibleElements(sourceType, parameterType, AreBothCustomOrEnumTypes);
+
+    /// <summary>
+    /// Finds the public constructor to map to. First the constructor with the most parameters whose parameters all
+    /// have a compatible source property; then, for types without a parameterless constructor (positional records),
+    /// the one with the most parameters where every matched parameter is compatible - its unmatched parameters get
+    /// a default value.
+    /// </summary>
+    /// <param name="targetType">The target type.</param>
+    /// <param name="findSourceProperty">Finds the source property for a parameter name.</param>
+    /// <param name="canMapParameter">Decides whether the source property type can produce the parameter type.</param>
+    internal static (IMethodSymbol? Constructor, List<string> ParameterNames, List<ConstructorDefaultParameter> DefaultParameters) FindBestConstructor(
+        INamedTypeSymbol targetType,
+        Func<string, IPropertySymbol?> findSourceProperty,
+        Func<ITypeSymbol, ITypeSymbol, bool> canMapParameter)
+    {
+        var constructors = targetType
+            .Constructors
+            .Where(c => c.DeclaredAccessibility == Accessibility.Public && !c.IsStatic)
+            .OrderByDescending(c => c.Parameters.Length)
+            .ToList();
+
+        // First pass: every parameter has a compatible source property
+        foreach (var constructor in constructors.Where(c => c.Parameters.Length > 0))
+        {
+            var parameterNames = new List<string>();
+            foreach (var parameter in constructor.Parameters)
+            {
+                var sourceProperty = findSourceProperty(parameter.Name);
+                if (sourceProperty is null || !canMapParameter(sourceProperty.Type, parameter.Type))
+                {
+                    break;
+                }
+
+                parameterNames.Add(parameter.Name);
+            }
+
+            if (parameterNames.Count == constructor.Parameters.Length)
+            {
+                return (constructor, parameterNames, []);
+            }
+        }
+
+        // Second pass: types without a parameterless constructor (e.g. positional records) fill unmatched
+        // parameters with defaults
+        return constructors.Any(c => c.Parameters.Length == 0)
+            ? (null, [], [])
+            : FindConstructorWithDefaults(constructors, findSourceProperty, canMapParameter);
+    }
+
+    private static (IMethodSymbol? Constructor, List<string> ParameterNames, List<ConstructorDefaultParameter> DefaultParameters) FindConstructorWithDefaults(
+        List<IMethodSymbol> constructors,
+        Func<string, IPropertySymbol?> findSourceProperty,
+        Func<ITypeSymbol, ITypeSymbol, bool> canMapParameter)
+    {
+        foreach (var constructor in constructors)
+        {
+            var matchedNames = new List<string>();
+            var defaultParameters = new List<ConstructorDefaultParameter>();
+            var hasIncompatibleParameter = false;
+
+            foreach (var parameter in constructor.Parameters)
+            {
+                var sourceProperty = findSourceProperty(parameter.Name);
+                if (sourceProperty is null)
+                {
+                    defaultParameters.Add(new ConstructorDefaultParameter(
+                        parameter.Name,
+                        parameter.Type,
+                        GetDefaultExpression(parameter.Type)));
+                    continue;
+                }
+
+                if (!canMapParameter(sourceProperty.Type, parameter.Type))
+                {
+                    hasIncompatibleParameter = true;
+                    break;
+                }
+
+                matchedNames.Add(parameter.Name);
+            }
+
+            if (!hasIncompatibleParameter && matchedNames.Count > 0)
+            {
+                return (constructor, matchedNames, defaultParameters);
+            }
+        }
+
+        return (null, [], []);
+    }
+
+    /// <summary>
+    /// Gets the default value expression for a constructor parameter without a source property.
+    /// </summary>
+    internal static string GetDefaultExpression(ITypeSymbol type)
+    {
+        // Nullable reference type (string?, object?, etc.) or nullable value type (int?, DateTime?, etc.)
+        if (type.NullableAnnotation == NullableAnnotation.Annotated ||
+            type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T })
+        {
+            return "null";
+        }
+
+        // Value types (int, bool, enums, structs); non-nullable reference types
+        return type.IsValueType ? "default" : "default!";
+    }
 }

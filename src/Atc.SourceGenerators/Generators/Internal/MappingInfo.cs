@@ -16,4 +16,5 @@ internal sealed record MappingInfo(
     bool GenerateProjection,
     bool IsGeneric,
     bool IncludePrivateMembers,
-    PropertyNameStrategy PropertyNameStrategy);
+    PropertyNameStrategy PropertyNameStrategy,
+    List<ConstructorDefaultParameter>? ConstructorDefaultParameters = null);
