@@ -106,6 +106,22 @@ For `[MapTo]`, exclude a single target property with `[MapIgnore]`.
 | DependencyRegistration | Direct `services.AddXxx<TService, TImplementation>()` calls | ✅ No reflection, except decorators, which use `ActivatorUtilities.CreateInstance` |
 | OptionsBinding | `AddOptions<T>().Bind(...)`, and `ValidateDataAnnotations()` when enabled | ⚠️ Uses the reflection-based configuration binder and DataAnnotations validation, so Native AOT and trimming report warnings for it |
 
+For reflection-free options validation, let Microsoft's options validation source generator implement the validator and register it with `Validator`, instead of `ValidateDataAnnotations`:
+
+```csharp
+[OptionsValidator]
+public partial class DatabaseOptionsValidator : IValidateOptions<DatabaseOptions>
+{
+}
+
+[OptionsBinding("Database", Validator = typeof(DatabaseOptionsValidator), ValidateOnStart = true)]
+public partial class DatabaseOptions
+{
+    [Required]
+    public string ConnectionString { get; set; } = string.Empty;
+}
+```
+
 ## ⚙️ Requirements
 
 - **.NET 10 SDK** required at build time (Roslyn 5.0.0)
