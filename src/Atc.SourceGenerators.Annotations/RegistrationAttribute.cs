@@ -49,6 +49,13 @@ public sealed class RegistrationAttribute : Attribute
     public bool Decorator { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether to replace an existing registration of the service type
+    /// (services.Replace). Use it to override a default registered by a library. Default is false.
+    /// Can't be combined with TryAdd, Key, Decorator or a hosted service.
+    /// </summary>
+    public bool Replace { get; set; }
+
+    /// <summary>
     /// Gets or sets the name of a static field, property, or parameterless method that provides a pre-created instance.
     /// When specified, the instance will be registered as a singleton.
     /// </summary>

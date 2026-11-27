@@ -99,6 +99,15 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
         isEnabledByDefault: true,
         helpLinkUri: DiagnosticHelpLink.For(RuleIdentifierConstants.DependencyInjection.InstanceAndFactoryMutuallyExclusive));
 
+    private static readonly DiagnosticDescriptor ReplaceNotSupportedWithOptionDescriptor = new(
+        id: RuleIdentifierConstants.DependencyInjection.ReplaceNotSupportedWithOption,
+        title: "Replace cannot be combined with this option",
+        messageFormat: "Replace cannot be combined with {0} on '{1}': Replace swaps the existing registration of the service type for this one",
+        category: RuleCategoryConstants.DependencyInjection,
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        helpLinkUri: DiagnosticHelpLink.For(RuleIdentifierConstants.DependencyInjection.ReplaceNotSupportedWithOption));
+
     private static readonly DiagnosticDescriptor InstanceRequiresSingletonLifetimeDescriptor = new(
         id: RuleIdentifierConstants.DependencyInjection.InstanceRequiresSingletonLifetime,
         title: "Instance registration requires Singleton lifetime",
@@ -236,6 +245,7 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
         string? key = null;
         string? factoryMethodName = null;
         var tryAdd = false;
+        var replace = false;
         var decorator = false;
         string? instanceMemberName = null;
         string? condition = null;
@@ -276,6 +286,13 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
                     if (namedArg.Value.Value is bool tryAddValue)
                     {
                         tryAdd = tryAddValue;
+                    }
+
+                    break;
+                case "Replace":
+                    if (namedArg.Value.Value is bool replaceValue)
+                    {
+                        replace = replaceValue;
                     }
 
                     break;
@@ -335,7 +352,8 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
             classSymbol.AllInterfaces.Select(i => i.OriginalDefinition.ToDisplayString()));
         var isInstanceMethod = !string.IsNullOrEmpty(instanceMemberName) &&
                                classSymbol.GetMembers(instanceMemberName!).OfType<IMethodSymbol>().Any(m => m.Parameters.Length == 0);
-        var validationError = ValidateService(classSymbol, asTypes, lifetime, isHostedService, factoryMethodName, instanceMemberName, location);
+        var validationError = ValidateReplace(classSymbol, replace, tryAdd, key, decorator, isHostedService, location) ??
+                              ValidateService(classSymbol, asTypes, lifetime, isHostedService, factoryMethodName, instanceMemberName, location);
 
         return new ServiceRegistrationInfo(
             ClassName: classSymbol.Name,
@@ -352,6 +370,7 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
             FactoryMethodName: factoryMethodName,
             FactoryNeedsCastForSelf: NeedsFactoryCast(factoryReturnType, classSymbol),
             TryAdd: tryAdd,
+            Replace: replace,
             Decorator: decorator,
             InstanceMemberName: instanceMemberName,
             IsInstanceMethod: isInstanceMethod,
@@ -369,6 +388,47 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
         ITypeSymbol registeredType)
         => factoryReturnType is not null &&
            !SymbolEqualityComparer.Default.Equals(factoryReturnType, registeredType);
+
+    /// <summary>
+    /// Replace swaps the existing registration of the service type, so it can't be combined with TryAdd (keep the
+    /// existing one), Key (Replace matches by service type only), Decorator or a hosted service.
+    /// </summary>
+    private static DiagnosticInfo? ValidateReplace(
+        INamedTypeSymbol classSymbol,
+        bool replace,
+        bool tryAdd,
+        string? key,
+        bool decorator,
+        bool isHostedService,
+        Location location)
+    {
+        if (!replace)
+        {
+            return null;
+        }
+
+        string? conflict = null;
+        if (tryAdd)
+        {
+            conflict = "TryAdd";
+        }
+        else if (key is not null)
+        {
+            conflict = "Key";
+        }
+        else if (decorator)
+        {
+            conflict = "Decorator";
+        }
+        else if (isHostedService)
+        {
+            conflict = "a hosted service";
+        }
+
+        return conflict is null
+            ? null
+            : DiagnosticInfo.FromLocation(ReplaceNotSupportedWithOptionDescriptor, location, conflict, classSymbol.Name);
+    }
 
     private static FilterRulesInfo ParseFilterRulesInfo(
         IAssemblySymbol assemblySymbol)
@@ -1514,6 +1574,10 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
                     sb.AppendLineLf($"{registrationIndent}services.AddHostedService<{implementationType}>();");
                 }
             }
+            else if (service.Replace)
+            {
+                GenerateReplaceRegistrations(sb, service, implementationType, registrationIndent);
+            }
             else if (hasInstance)
             {
                 // Instance registration - pre-created singleton instances
@@ -1882,6 +1946,60 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
     }
 
     /// <summary>
+    /// Generates services.Replace(ServiceDescriptor...) for each registered type, which removes the first
+    /// registration of the service type and adds this one.
+    /// </summary>
+    private static void GenerateReplaceRegistrations(
+        StringBuilder sb,
+        ServiceRegistrationInfo service,
+        string implementationType,
+        string indent)
+    {
+        const string serviceDescriptor = "global::Microsoft.Extensions.DependencyInjection.ServiceDescriptor";
+        var lifetime = service.Lifetime switch
+        {
+            ServiceLifetime.Scoped => "Scoped",
+            ServiceLifetime.Transient => "Transient",
+            _ => "Singleton",
+        };
+
+        // Registered types: the As types, plus the class itself with AsSelf (or when there are no As types)
+        var registrations = service.AsTypes
+            .Select(t => (Name: t.DisplayName, t.IsGeneric, t.OpenGenericName, t.FactoryNeedsCast))
+            .ToList();
+        if (registrations.Count == 0 || service.AsSelf)
+        {
+            registrations.Add((implementationType, service.IsGeneric, service.OpenGenericClassName, service.FactoryNeedsCastForSelf));
+        }
+
+        foreach (var (serviceType, isGenericService, openGenericServiceType, factoryNeedsCast) in registrations)
+        {
+            string descriptor;
+            if (!string.IsNullOrEmpty(service.InstanceMemberName))
+            {
+                var instance = service.IsInstanceMethod
+                    ? $"{implementationType}.{service.InstanceMemberName}()"
+                    : $"{implementationType}.{service.InstanceMemberName}";
+                descriptor = $"{serviceDescriptor}.Singleton<{serviceType}>({instance})";
+            }
+            else if (!string.IsNullOrEmpty(service.FactoryMethodName))
+            {
+                descriptor = $"{serviceDescriptor}.{lifetime}<{serviceType}>(sp => {GetFactoryCall(service, factoryNeedsCast, serviceType, implementationType)})";
+            }
+            else if (service.IsGeneric && isGenericService)
+            {
+                descriptor = $"{serviceDescriptor}.Describe(typeof({openGenericServiceType}), typeof({service.OpenGenericClassName}), global::Microsoft.Extensions.DependencyInjection.ServiceLifetime.{lifetime})";
+            }
+            else
+            {
+                descriptor = $"{serviceDescriptor}.{lifetime}<{serviceType}, {implementationType}>()";
+            }
+
+            sb.AppendLineLf($"{indent}services.Replace({descriptor});");
+        }
+    }
+
+    /// <summary>
     /// Gets the factory call for a registration, with a cast when the factory's return type differs from the
     /// registered type (see <see cref="NeedsFactoryCast"/>).
     /// </summary>
@@ -2089,6 +2207,13 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
                  /// </code>
                  /// </example>
                  public bool TryAdd { get; set; }
+
+                 /// <summary>
+                 /// Gets or sets a value indicating whether to replace an existing registration of the service type
+                 /// (services.Replace). Use it to override a default registered by a library. Default is false.
+                 /// Can't be combined with TryAdd, Key, Decorator or a hosted service.
+                 /// </summary>
+                 public bool Replace { get; set; }
 
                  /// <summary>
                  /// Gets or sets a value indicating whether this service is a decorator.

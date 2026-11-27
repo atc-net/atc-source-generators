@@ -156,6 +156,13 @@ internal sealed class RegistrationAttribute : global::System.Attribute
     public bool TryAdd { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether to replace an existing registration of the service type
+    /// (services.Replace). Use it to override a default registered by a library. Default is false.
+    /// Can't be combined with TryAdd, Key, Decorator or a hosted service.
+    /// </summary>
+    public bool Replace { get; set; }
+
+    /// <summary>
     /// Gets or sets a value indicating whether this service is a decorator.
     /// When true, this service wraps the previous registration of the same interface.
     /// </summary>
