@@ -613,4 +613,15 @@ internal static class MappingTypeAnalyzer
         return SymbolEqualityComparer.Default.Equals(sourceElement, targetElement) ||
                areElementsMappable(sourceElement, targetElement);
     }
+
+    /// <summary>
+    /// Returns true when a mapping can bridge the two types: both are enums (enum mapping), or both are classes or
+    /// structs outside the BCL (nested mapping). The same rule decides how a property is mapped, so a constructor
+    /// parameter is only accepted when its property can be mapped.
+    /// </summary>
+    internal static bool AreBothCustomOrEnumTypes(
+        ITypeSymbol sourceType,
+        ITypeSymbol targetType)
+        => (UnwrapNullable(sourceType).TypeKind == TypeKind.Enum && UnwrapNullable(targetType).TypeKind == TypeKind.Enum) ||
+           IsNestedMapping(sourceType, targetType);
 }

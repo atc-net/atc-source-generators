@@ -932,8 +932,9 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                 var parameterType = parameter.Type;
                 if (!SymbolEqualityComparer.Default.Equals(sourcePropertyType, parameterType) &&
                     !MappingTypeAnalyzer.IsImplicitlyConvertible(sourcePropertyType, parameterType) &&
-                    !AreBothCustomOrEnumTypes(sourcePropertyType, parameterType) &&
-                    !MappingTypeAnalyzer.AreCollectionsWithCompatibleElements(sourcePropertyType, parameterType, AreBothCustomOrEnumTypes) &&
+                    !MappingTypeAnalyzer.IsNullableValueTypeWrapping(sourcePropertyType, parameterType) &&
+                    !MappingTypeAnalyzer.AreBothCustomOrEnumTypes(sourcePropertyType, parameterType) &&
+                    !MappingTypeAnalyzer.AreCollectionsWithCompatibleElements(sourcePropertyType, parameterType, MappingTypeAnalyzer.AreBothCustomOrEnumTypes) &&
                     !IsMappableDictionary(sourcePropertyType, parameterType))
                 {
                     allParametersMatch = false;
@@ -964,49 +965,6 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         {
             namespaces.Add(ns!);
         }
-    }
-
-    /// <summary>
-    /// Returns true if both types are custom (non-primitive, non-system) types or enums,
-    /// meaning a mapping extension method could bridge the type gap.
-    /// </summary>
-    private static bool AreBothCustomOrEnumTypes(
-        ITypeSymbol sourceType,
-        ITypeSymbol targetType)
-    {
-        // Strip nullable wrapper
-        if (sourceType is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T } ns)
-        {
-            sourceType = ns.TypeArguments[0];
-        }
-
-        if (targetType is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T } nt)
-        {
-            targetType = nt.TypeArguments[0];
-        }
-
-        // Both enums — enum mapping methods can bridge
-        if (sourceType.TypeKind == TypeKind.Enum && targetType.TypeKind == TypeKind.Enum)
-        {
-            return true;
-        }
-
-        // Both are custom reference types (class/record/struct) — mapping methods can bridge
-        var sourceIsCustom = IsCustomType(sourceType);
-        var targetIsCustom = IsCustomType(targetType);
-        return sourceIsCustom && targetIsCustom;
-    }
-
-    private static bool IsCustomType(ITypeSymbol type)
-    {
-        if (type.SpecialType != SpecialType.None)
-        {
-            return false;
-        }
-
-        var ns = type.ContainingNamespace?.ToDisplayString() ?? string.Empty;
-        return !ns.StartsWith("System", StringComparison.Ordinal) &&
-               !ns.StartsWith("Microsoft", StringComparison.Ordinal);
     }
 
     /// <summary>

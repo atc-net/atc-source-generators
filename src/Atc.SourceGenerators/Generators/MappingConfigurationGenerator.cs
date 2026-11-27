@@ -1650,11 +1650,12 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
                 var parameterType = parameter.Type;
                 if (!SymbolEqualityComparer.Default.Equals(sourcePropertyType, parameterType) &&
                     !MappingTypeAnalyzer.IsImplicitlyConvertible(sourcePropertyType, parameterType) &&
+                    !MappingTypeAnalyzer.IsNullableValueTypeWrapping(sourcePropertyType, parameterType) &&
                     !TryGetUserConversion(conversions, sourcePropertyType, parameterType, out _) &&
-                    !AreBothCustomOrEnumTypes(sourcePropertyType, parameterType) &&
+                    !MappingTypeAnalyzer.AreBothCustomOrEnumTypes(sourcePropertyType, parameterType) &&
                     !MappingTypeAnalyzer.IsNumericTypeConversion(sourcePropertyType, parameterType) &&
                     !MappingTypeAnalyzer.IsBuiltInTypeConversion(sourcePropertyType, parameterType) &&
-                    !MappingTypeAnalyzer.AreCollectionsWithCompatibleElements(sourcePropertyType, parameterType, AreBothCustomOrEnumTypes) &&
+                    !MappingTypeAnalyzer.AreCollectionsWithCompatibleElements(sourcePropertyType, parameterType, MappingTypeAnalyzer.AreBothCustomOrEnumTypes) &&
                     !IsMappableDictionary(sourcePropertyType, parameterType, out _, out _))
                 {
                     allParametersMatch = false;
@@ -1700,10 +1701,11 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
                     var parameterType = parameter.Type;
                     if (!SymbolEqualityComparer.Default.Equals(sourcePropertyType, parameterType) &&
                         !MappingTypeAnalyzer.IsImplicitlyConvertible(sourcePropertyType, parameterType) &&
+                        !MappingTypeAnalyzer.IsNullableValueTypeWrapping(sourcePropertyType, parameterType) &&
                     !TryGetUserConversion(conversions, sourcePropertyType, parameterType, out _) &&
-                        !AreBothCustomOrEnumTypes(sourcePropertyType, parameterType) &&
+                        !MappingTypeAnalyzer.AreBothCustomOrEnumTypes(sourcePropertyType, parameterType) &&
                         !MappingTypeAnalyzer.IsNumericTypeConversion(sourcePropertyType, parameterType) &&
-                        !MappingTypeAnalyzer.AreCollectionsWithCompatibleElements(sourcePropertyType, parameterType, AreBothCustomOrEnumTypes) &&
+                        !MappingTypeAnalyzer.AreCollectionsWithCompatibleElements(sourcePropertyType, parameterType, MappingTypeAnalyzer.AreBothCustomOrEnumTypes) &&
                         !IsMappableDictionary(sourcePropertyType, parameterType, out _, out _))
                     {
                         hasIncompatibleParam = true;
@@ -1842,33 +1844,6 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         }
 
         return null;
-    }
-
-    private static bool AreBothCustomOrEnumTypes(
-        ITypeSymbol sourceType,
-        ITypeSymbol targetType)
-    {
-        if (sourceType is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T } ns)
-        {
-            sourceType = ns.TypeArguments[0];
-        }
-
-        if (targetType is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T } nt)
-        {
-            targetType = nt.TypeArguments[0];
-        }
-
-        if (sourceType.TypeKind == TypeKind.Enum && targetType.TypeKind == TypeKind.Enum)
-        {
-            return true;
-        }
-
-        var isSourceCustom = sourceType.TypeKind is TypeKind.Class or TypeKind.Struct &&
-                             sourceType.SpecialType == SpecialType.None;
-        var isTargetCustom = targetType.TypeKind is TypeKind.Class or TypeKind.Struct &&
-                             targetType.SpecialType == SpecialType.None;
-
-        return isSourceCustom && isTargetCustom;
     }
 
     private static void AddNamespace(
