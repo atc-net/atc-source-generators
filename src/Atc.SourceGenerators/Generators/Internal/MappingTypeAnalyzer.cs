@@ -744,4 +744,75 @@ internal static class MappingTypeAnalyzer
         // Value types (int, bool, enums, structs); non-nullable reference types
         return type.IsValueType ? "default" : "default!";
     }
+
+    /// <summary>
+    /// Gets the flattened mappings: a target property named {SourceProperty}{NestedProperty} with the nested
+    /// property's type (Address.City -> AddressCity), for source properties of non-BCL class or struct types.
+    /// </summary>
+    /// <param name="sourceProperties">The source properties.</param>
+    /// <param name="targetProperties">The target properties.</param>
+    /// <param name="isIgnored">Whether a source property is excluded from the mapping.</param>
+    /// <param name="createMapping">Creates the mapping from the source property, the target property and the nested property.</param>
+    internal static List<PropertyMapping> GetFlattenedMappings(
+        List<IPropertySymbol> sourceProperties,
+        List<IPropertySymbol> targetProperties,
+        Func<IPropertySymbol, bool> isIgnored,
+        Func<IPropertySymbol, IPropertySymbol, IPropertySymbol, PropertyMapping> createMapping)
+    {
+        var mappings = new List<PropertyMapping>();
+        foreach (var sourceProp in sourceProperties)
+        {
+            // Only flatten nested objects: class/struct types outside the BCL (string, DateTime, Guid, List<T>, ...)
+            if (isIgnored(sourceProp) ||
+                sourceProp.Type is not INamedTypeSymbol namedType ||
+                (namedType.TypeKind != TypeKind.Class && namedType.TypeKind != TypeKind.Struct) ||
+                IsSystemType(namedType))
+            {
+                continue;
+            }
+
+            var nestedProperties = namedType
+                .GetMembers()
+                .OfType<IPropertySymbol>()
+                .Where(p => p.GetMethod is not null && !HasMapIgnoreAttribute(p));
+
+            foreach (var nestedProp in nestedProperties)
+            {
+                var flattenedName = $"{sourceProp.Name}{nestedProp.Name}";
+                var targetProp = targetProperties.FirstOrDefault(t =>
+                    string.Equals(t.Name, flattenedName, StringComparison.OrdinalIgnoreCase) &&
+                    SymbolEqualityComparer.Default.Equals(t.Type, nestedProp.Type));
+
+                if (targetProp is not null)
+                {
+                    mappings.Add(createMapping(sourceProp, targetProp, nestedProp));
+                }
+            }
+        }
+
+        return mappings;
+    }
+
+    /// <summary>
+    /// Creates a flattened property mapping (source.Address.City -> target.AddressCity).
+    /// </summary>
+    internal static PropertyMapping CreateFlattenedMapping(
+        IPropertySymbol sourceProp,
+        IPropertySymbol targetProp,
+        IPropertySymbol nestedProp)
+        => new(
+            SourceProperty: sourceProp,
+            TargetProperty: targetProp,
+            RequiresConversion: false,
+            IsNested: false,
+            HasEnumMapping: false,
+            IsCollection: false,
+            CollectionElementType: null,
+            SourceCollectionElementType: null,
+            CollectionTargetType: null,
+            IsFlattened: true,
+            FlattenedNestedProperty: nestedProp,
+            IsBuiltInTypeConversion: false,
+            SourceRequiresUnsafeAccessor: false,
+            TargetRequiresUnsafeAccessor: false);
 }

@@ -1476,58 +1476,11 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         // Handle flattening if enabled
         if (enableFlattening)
         {
-            foreach (var sourceProp in sourceProperties)
-            {
-                if (ignoredProperties.Any(ip =>
-                    string.Equals(ip, sourceProp.Name, StringComparison.OrdinalIgnoreCase)))
-                {
-                    continue;
-                }
-
-                if (sourceProp.Type is not INamedTypeSymbol namedType ||
-                    (namedType.TypeKind != TypeKind.Class && namedType.TypeKind != TypeKind.Struct))
-                {
-                    continue;
-                }
-
-                if (MappingTypeAnalyzer.IsSystemType(namedType))
-                {
-                    continue;
-                }
-
-                var nestedProperties = namedType
-                    .GetMembers()
-                    .OfType<IPropertySymbol>()
-                    .Where(p => p.GetMethod is not null)
-                    .ToList();
-
-                foreach (var nestedProp in nestedProperties)
-                {
-                    var flattenedName = $"{sourceProp.Name}{nestedProp.Name}";
-                    var targetProp = targetProperties.FirstOrDefault(t =>
-                        string.Equals(t.Name, flattenedName, StringComparison.OrdinalIgnoreCase) &&
-                        SymbolEqualityComparer.Default.Equals(t.Type, nestedProp.Type));
-
-                    if (targetProp is not null)
-                    {
-                        mappings.Add(new PropertyMapping(
-                            SourceProperty: sourceProp,
-                            TargetProperty: targetProp,
-                            RequiresConversion: false,
-                            IsNested: false,
-                            HasEnumMapping: false,
-                            IsCollection: false,
-                            CollectionElementType: null,
-                            SourceCollectionElementType: null,
-                            CollectionTargetType: null,
-                            IsFlattened: true,
-                            FlattenedNestedProperty: nestedProp,
-                            IsBuiltInTypeConversion: false,
-                            SourceRequiresUnsafeAccessor: false,
-                            TargetRequiresUnsafeAccessor: false));
-                    }
-                }
-            }
+            mappings.AddRange(MappingTypeAnalyzer.GetFlattenedMappings(
+                sourceProperties,
+                targetProperties,
+                sourceProp => ignoredProperties.Any(ip => string.Equals(ip, sourceProp.Name, StringComparison.OrdinalIgnoreCase)),
+                MappingTypeAnalyzer.CreateFlattenedMapping));
         }
 
         // Report settable target properties that nothing maps to (Info by default; raise it with
