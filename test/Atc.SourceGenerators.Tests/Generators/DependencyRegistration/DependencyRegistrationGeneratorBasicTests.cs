@@ -12,8 +12,8 @@ public partial class DependencyRegistrationGeneratorTests
         var (diagnostics, output) = GetGeneratedOutput(source);
 
         Assert.Empty(diagnostics);
-        Assert.Contains("public enum Lifetime", output, StringComparison.Ordinal);
-        Assert.Contains("public sealed class RegistrationAttribute", output, StringComparison.Ordinal);
+        Assert.Contains("internal enum Lifetime", output, StringComparison.Ordinal);
+        Assert.Contains("internal sealed class RegistrationAttribute", output, StringComparison.Ordinal);
         Assert.Contains("Singleton = 0", output, StringComparison.Ordinal);
         Assert.Contains("Scoped = 1", output, StringComparison.Ordinal);
         Assert.Contains("Transient = 2", output, StringComparison.Ordinal);
@@ -396,7 +396,7 @@ public partial class DependencyRegistrationGeneratorTests
 
         Assert.Empty(diagnostics);
         Assert.DoesNotContain("AddDependencyRegistrationsFromTestAssembly", output, StringComparison.Ordinal);
-        Assert.Contains("public enum Lifetime", output, StringComparison.Ordinal); // Attribute should still be generated
+        Assert.Contains("internal enum Lifetime", output, StringComparison.Ordinal); // Attribute should still be generated
     }
 
     [Fact]

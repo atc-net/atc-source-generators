@@ -164,9 +164,10 @@ public class OptionsBindingGenerator : IIncrementalGenerator
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         // Generate the attribute definition as fallback
-        // If Atc.SourceGenerators.Annotations are referenced, CS0436 warning will be suppressed via project settings
+        // as internal [Embedded] types, so projects referencing each other don't see each other's copies (no CS0436)
         context.RegisterPostInitializationOutput(ctx =>
         {
+            ctx.AddEmbeddedAttributeDefinition();
             ctx.AddSource("OptionsBindingAttribute.g.cs", SourceText.From(GenerateAttributeSource(), Encoding.UTF8));
         });
 
@@ -1926,7 +1927,8 @@ public static class OptionsBindingExtensions{{methodSuffix}}
                /// </summary>
                [global::System.CodeDom.Compiler.GeneratedCode("Atc.SourceGenerators.OptionsBinding", "1.0.0")]
                [global::System.ComponentModel.EditorBrowsable(global::System.ComponentModel.EditorBrowsableState.Never)]
-               public enum OptionsLifetime
+               [global::Microsoft.CodeAnalysis.EmbeddedAttribute]
+               internal enum OptionsLifetime
                {
                    /// <summary>
                    /// Specifies that options will be resolved using IOptions&lt;T&gt; (singleton).
@@ -1961,7 +1963,8 @@ public static class OptionsBindingExtensions{{methodSuffix}}
                [global::System.Diagnostics.DebuggerNonUserCode]
                [global::System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
                [global::System.AttributeUsage(global::System.AttributeTargets.Class, Inherited = false, AllowMultiple = true)]
-               public sealed class OptionsBindingAttribute : global::System.Attribute
+               [global::Microsoft.CodeAnalysis.EmbeddedAttribute]
+               internal sealed class OptionsBindingAttribute : global::System.Attribute
                {
                    /// <summary>
                    /// Initializes a new instance of the <see cref="OptionsBindingAttribute"/> class.
