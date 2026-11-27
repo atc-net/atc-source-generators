@@ -251,4 +251,47 @@ public partial class ObjectMappingGeneratorTests
         Assert.DoesNotContain("source.Address?.City", output, StringComparison.Ordinal);
         Assert.Contains("?.City", output, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void Generator_Should_Map_Two_Private_Nested_Properties_In_One_Mapping()
+    {
+        const string source = """
+                              #nullable enable
+                              using Atc.SourceGenerators.Annotations;
+
+                              namespace TestNamespace;
+
+                              public class AddressDto
+                              {
+                                  public string City { get; set; } = string.Empty;
+                              }
+
+                              [MapTo(typeof(AddressDto))]
+                              public partial class Address
+                              {
+                                  public string City { get; set; } = string.Empty;
+                              }
+
+                              public class CustomerDto
+                              {
+                                  public AddressDto? Home { get; set; }
+
+                                  public AddressDto? Work { get; set; }
+                              }
+
+                              [MapTo(typeof(CustomerDto), IncludePrivateMembers = true)]
+                              public partial class Customer
+                              {
+                                  private Address? Home { get; set; }
+
+                                  private Address? Work { get; set; }
+                              }
+                              """;
+
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        Assert.Empty(diagnostics);
+        Assert.Contains("is { } __home ? __home.MapToAddressDto() : default!", output, StringComparison.Ordinal);
+        Assert.Contains("is { } __work ? __work.MapToAddressDto() : default!", output, StringComparison.Ordinal);
+    }
 }
