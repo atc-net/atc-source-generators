@@ -69,6 +69,15 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         isEnabledByDefault: true,
         helpLinkUri: DiagnosticHelpLink.For(RuleIdentifierConstants.ObjectMapping.TargetPropertyNotMapped));
 
+    private static readonly DiagnosticDescriptor NestedMappingNotFoundDescriptor = new(
+        id: RuleIdentifierConstants.ObjectMapping.NestedMappingNotFound,
+        title: "Nested property type has no mapping",
+        messageFormat: "Property '{0}' is not mapped: there is no mapping from '{1}' to '{2}'. Add [MapTo(typeof({2}))] to '{1}', or declare a '{3}' extension method.",
+        category: RuleCategoryConstants.ObjectMapping,
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        helpLinkUri: DiagnosticHelpLink.For(RuleIdentifierConstants.ObjectMapping.NestedMappingNotFound));
+
     private static readonly DiagnosticDescriptor HookMethodNotCallableDescriptor = new(
         id: RuleIdentifierConstants.ObjectMapping.HookMethodNotCallable,
         title: "Mapping hook method cannot be called",
@@ -160,9 +169,47 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         // Two mappings from the same source type must not generate the same MapToX method (CS0111)
         var skippedReverseMappings = RemoveDuplicateMappingMethods(mappingsToGenerate, context);
 
+        // Nested properties whose MapTo{Target}() call wouldn't bind are skipped and reported (ATCMAP015)
+        var nestedMappers = CreateNestedMapperLookup(compilation, mappingsToGenerate, skippedReverseMappings);
+        foreach (var mapping in mappingsToGenerate)
+        {
+            mapping.PropertyMappings.RemoveAll(p => p.IsNested && !nestedMappers.HasMapper(p));
+        }
+
         // Generate mapping extensions
-        var source = GenerateMappingExtensions(mappingsToGenerate, skippedReverseMappings);
+        var source = GenerateMappingExtensions(mappingsToGenerate, skippedReverseMappings, nestedMappers);
         context.AddSource("ObjectMappingExtensions.g.cs", SourceText.From(source, Encoding.UTF8));
+
+        foreach (var (property, sourceType, targetType) in nestedMappers.Missing)
+        {
+            context.ReportDiagnostic(
+                Diagnostic.Create(
+                    NestedMappingNotFoundDescriptor,
+                    property.Locations.FirstOrDefault(l => l.IsInSource) ?? Location.None,
+                    property.Name,
+                    sourceType.WithNullableAnnotation(NullableAnnotation.NotAnnotated).ToDisplayString(),
+                    MappingTypeAnalyzer.UnwrapNullable(targetType).WithNullableAnnotation(NullableAnnotation.NotAnnotated).ToDisplayString(),
+                    NestedMapperLookup.GetMethodName(targetType)));
+        }
+    }
+
+    private static NestedMapperLookup CreateNestedMapperLookup(
+        Compilation compilation,
+        List<MappingInfo> mappings,
+        HashSet<MappingInfo> skippedReverseMappings)
+    {
+        // The mappers this generator generates: forward, and reverse for bidirectional mappings
+        var generated = new List<(INamedTypeSymbol Source, INamedTypeSymbol Target)>();
+        foreach (var mapping in mappings)
+        {
+            generated.Add((mapping.SourceType, mapping.TargetType));
+            if (mapping.Bidirectional && !skippedReverseMappings.Contains(mapping))
+            {
+                generated.Add((mapping.TargetType, mapping.SourceType));
+            }
+        }
+
+        return new NestedMapperLookup(compilation, generated, GetGeneratedNamespaces(mappings));
     }
 
     private static List<MappingInfo>? ExtractMappingInfo(
@@ -1137,12 +1184,12 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                 targetType.ToDisplayString(),
                 methodName));
 
-    private static string GenerateMappingExtensions(
-        List<MappingInfo> mappings,
-        HashSet<MappingInfo> skippedReverseMappings)
+    /// <summary>
+    /// Gets the namespaces the generated file imports.
+    /// </summary>
+    private static HashSet<string> GetGeneratedNamespaces(
+        List<MappingInfo> mappings)
     {
-        var sb = new StringBuilder();
-
         // System.Linq for the collection and dictionary Select/ToList/ToArray/ToDictionary calls,
         // so the generated code also compiles in projects without implicit usings
         var namespaces = new HashSet<string>(StringComparer.Ordinal) { "System.Linq" };
@@ -1157,6 +1204,18 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                 namespaces,
                 mapping.TargetType.ContainingNamespace?.ToDisplayString());
         }
+
+        return namespaces;
+    }
+
+    private static string GenerateMappingExtensions(
+        List<MappingInfo> mappings,
+        HashSet<MappingInfo> skippedReverseMappings,
+        NestedMapperLookup nestedMappers)
+    {
+        var sb = new StringBuilder();
+
+        var namespaces = GetGeneratedNamespaces(mappings);
 
         sb.AppendLineLf("// <auto-generated/>");
         sb.AppendLineLf("#nullable enable");
@@ -1185,7 +1244,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
 
             if (mapping.Bidirectional && mapping.IncludePrivateMembers && !skippedReverseMappings.Contains(mapping))
             {
-                GenerateUnsafeAccessors(sb, BuildReverseMapping(mapping), accessorsGenerated);
+                GenerateUnsafeAccessors(sb, BuildReverseMapping(mapping, nestedMappers), accessorsGenerated);
             }
         }
 
@@ -1202,7 +1261,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
             // Generate reverse mapping if bidirectional (unless it already exists or would clash)
             if (mapping.Bidirectional && !skippedReverseMappings.Contains(mapping))
             {
-                var reverseMapping = BuildReverseMapping(mapping);
+                var reverseMapping = BuildReverseMapping(mapping, nestedMappers);
 
                 GenerateMappingMethod(sb, reverseMapping);
             }
@@ -1353,16 +1412,13 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                     }
                 }
 
-                // Order constructor props by parameter order
-                var orderedConstructorProps = new List<PropertyMapping>();
+                // Order constructor props by parameter order. A parameter whose property mapping was skipped
+                // (reported, e.g. ATCMAP011 or ATCMAP015) gets default, so the call still has every argument.
+                var orderedConstructorProps = new List<PropertyMapping?>();
                 foreach (var paramName in mapping.ConstructorParameterNames)
                 {
-                    var prop = constructorProps.FirstOrDefault(p =>
-                        string.Equals(p.TargetProperty.Name, paramName, StringComparison.OrdinalIgnoreCase));
-                    if (prop is not null)
-                    {
-                        orderedConstructorProps.Add(prop);
-                    }
+                    orderedConstructorProps.Add(constructorProps.FirstOrDefault(p =>
+                        string.Equals(p.TargetProperty.Name, paramName, StringComparison.OrdinalIgnoreCase)));
                 }
 
                 // Generate constructor call
@@ -1381,7 +1437,9 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                     var isLast = i == orderedConstructorProps.Count - 1;
                     var comma = isLast ? string.Empty : ",";
 
-                    var value = GeneratePropertyMappingValue(prop, "source", mapping.SourceType);
+                    var value = prop is null
+                        ? "default!"
+                        : GeneratePropertyMappingValue(prop, "source", mapping.SourceType);
                     sb.AppendLineLf($"            {value}{comma}");
                 }
 
@@ -1791,7 +1849,9 @@ public class ObjectMappingGenerator : IIncrementalGenerator
     /// <summary>
     /// Builds the reverse (target to source) mapping of a bidirectional mapping.
     /// </summary>
-    private static MappingInfo BuildReverseMapping(MappingInfo mapping)
+    private static MappingInfo BuildReverseMapping(
+        MappingInfo mapping,
+        NestedMapperLookup nestedMappers)
     {
         // For generic mappings, construct the reverse source type with type parameters
         var reverseSourceType = mapping.TargetType;
@@ -1809,6 +1869,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
             enableFlattening: mapping.EnableFlattening,
             includePrivateMembers: mapping.IncludePrivateMembers,
             propertyNameStrategy: mapping.PropertyNameStrategy);
+        reverseMappings.RemoveAll(p => p.IsNested && !nestedMappers.HasMapper(p));
 
         // Find best matching constructor for reverse mapping
         var (reverseConstructor, reverseConstructorParams) = FindBestConstructor(reverseSourceType, mapping.SourceType);

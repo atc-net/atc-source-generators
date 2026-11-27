@@ -26,4 +26,5 @@ ATCMAP013 | ObjectMapping | Error | BeforeMap, AfterMap or Factory method cannot
 ATCMCF009 | MappingConfiguration | Error | Mapping method must have exactly one parameter
 ATCMCF012 | MappingConfiguration | Error | Map() argument must be a typeof() expression
 ATCMAP014 | ObjectMapping | Info | Target property is not mapped
+ATCMAP015 | ObjectMapping | Error | Nested property type has no mapping to the target property type
 ATCMCF016 | MappingConfiguration | Info | Target property is not mapped

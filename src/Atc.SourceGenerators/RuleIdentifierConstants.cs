@@ -192,6 +192,11 @@ internal static class RuleIdentifierConstants
         /// ATCMAP014: Target property is not mapped (no matching source property).
         /// </summary>
         internal const string TargetPropertyNotMapped = "ATCMAP014";
+
+        /// <summary>
+        /// ATCMAP015: Nested property is not mapped because its type has no mapping to the target property type.
+        /// </summary>
+        internal const string NestedMappingNotFound = "ATCMAP015";
     }
 
     /// <summary>
