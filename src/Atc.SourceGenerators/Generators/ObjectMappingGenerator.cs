@@ -1676,7 +1676,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         if (prop.IsBuiltInTypeConversion)
         {
             // Built-in type conversion (DateTime ↔ string, Guid ↔ string, numeric ↔ string, bool ↔ string)
-            return GenerateBuiltInTypeConversion(prop, sourceVariable);
+            return MappingCodeEmitter.GetBuiltInTypeConversion(prop, sourceVariable);
         }
 
         if (prop.IsDictionary)
@@ -1771,93 +1771,6 @@ public class ObjectMappingGenerator : IIncrementalGenerator
 
         // Direct property mapping
         return GenerateSourcePropertyAccess(prop, sourceVariable, sourceType);
-    }
-
-    private static string GenerateBuiltInTypeConversion(
-        PropertyMapping prop,
-        string sourceVariable)
-    {
-        var sourceTypeName = prop.SourceProperty.Type.ToDisplayString();
-        var targetTypeName = prop.TargetProperty.Type.ToDisplayString();
-        var sourcePropertyAccess = $"{sourceVariable}.{prop.SourceProperty.Name}";
-
-        // DateTime → string (ISO 8601 format)
-        if (sourceTypeName == "System.DateTime" && targetTypeName == "string")
-        {
-            return $"{sourcePropertyAccess}.ToString(\"O\", global::System.Globalization.CultureInfo.InvariantCulture)";
-        }
-
-        // DateTimeOffset → string (ISO 8601 format)
-        if (sourceTypeName == "System.DateTimeOffset" && targetTypeName == "string")
-        {
-            return $"{sourcePropertyAccess}.ToString(\"O\", global::System.Globalization.CultureInfo.InvariantCulture)";
-        }
-
-        // string → DateTime
-        if (sourceTypeName == "string" && targetTypeName == "System.DateTime")
-        {
-            return $"global::System.DateTime.Parse({sourcePropertyAccess}, global::System.Globalization.CultureInfo.InvariantCulture)";
-        }
-
-        // string → DateTimeOffset
-        if (sourceTypeName == "string" && targetTypeName == "System.DateTimeOffset")
-        {
-            return $"global::System.DateTimeOffset.Parse({sourcePropertyAccess}, global::System.Globalization.CultureInfo.InvariantCulture)";
-        }
-
-        // Guid → string
-        if (sourceTypeName == "System.Guid" && targetTypeName == "string")
-        {
-            return $"{sourcePropertyAccess}.ToString()";
-        }
-
-        // string → Guid
-        if (sourceTypeName == "string" && targetTypeName == "System.Guid")
-        {
-            return $"global::System.Guid.Parse({sourcePropertyAccess})";
-        }
-
-        // Numeric types → string
-        if (MappingTypeAnalyzer.IsNumericType(sourceTypeName) && targetTypeName == "string")
-        {
-            return $"{sourcePropertyAccess}.ToString(global::System.Globalization.CultureInfo.InvariantCulture)";
-        }
-
-        // string → Numeric types
-        if (sourceTypeName == "string" && MappingTypeAnalyzer.IsNumericType(targetTypeName))
-        {
-            // Get just the type name without namespace
-            var parts = targetTypeName.Split('.');
-            var simpleTypeName = parts[parts.Length - 1];
-            return $"{simpleTypeName}.Parse({sourcePropertyAccess}, global::System.Globalization.CultureInfo.InvariantCulture)";
-        }
-
-        // bool → string
-        if (sourceTypeName == "bool" && targetTypeName == "string")
-        {
-            return $"{sourcePropertyAccess}.ToString()";
-        }
-
-        // string → bool
-        if (sourceTypeName == "string" && targetTypeName == "bool")
-        {
-            return $"bool.Parse({sourcePropertyAccess})";
-        }
-
-        // DateTimeOffset -> DateTime
-        if (sourceTypeName == "System.DateTimeOffset" && targetTypeName == "System.DateTime")
-        {
-            return $"{sourcePropertyAccess}.DateTime";
-        }
-
-        // DateTime -> DateTimeOffset
-        if (sourceTypeName == "System.DateTime" && targetTypeName == "System.DateTimeOffset")
-        {
-            return $"new global::System.DateTimeOffset({sourcePropertyAccess})";
-        }
-
-        // Fallback (should not reach here if IsBuiltInTypeConversion is correct)
-        return sourcePropertyAccess;
     }
 
     private static void GenerateUnsafeAccessors(
