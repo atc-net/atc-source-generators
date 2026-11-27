@@ -5,8 +5,8 @@
     <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
     <IsRoslynComponent>true</IsRoslynComponent>
     <PackageId>Atc.SourceGenerators</PackageId>
-    <PackageTags>roslyn;source-generator;code-generation;csharp;dependency-injection;options-binding</PackageTags>
-    <Description>Roslyn source generators for automatic dependency injection registration and configuration options binding in C# projects</Description>
+    <PackageTags>roslyn;source-generator;code-generation;csharp;dependency-injection;options-binding;object-mapping;mapper;mapping;enum-mapping;dataannotations</PackageTags>
+    <Description>Roslyn source generators for C#: dependency injection registration, configuration options binding, object mapping (attribute-based or configured for third-party types), enum mapping, and compile-time constants from DataAnnotation attributes</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <!-- Ensure PDB generation for all configurations -->
     <DebugType>embedded</DebugType>

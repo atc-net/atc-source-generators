@@ -4,6 +4,7 @@ global using System.Globalization;
 global using System.IO.Compression;
 global using System.Reflection;
 global using System.Text.RegularExpressions;
+global using System.Xml.Linq;
 global using Atc.SourceGenerators.Generators;
 
 global using Microsoft.CodeAnalysis;
