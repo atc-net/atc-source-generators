@@ -601,63 +601,15 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         // Handle flattening if enabled
         if (enableFlattening)
         {
-            foreach (var sourceProp in sourceProperties)
-            {
-                // Skip properties that are already mapped or ignored
-                if (MappingTypeAnalyzer.HasMapIgnoreAttribute(sourceProp))
+            mappings.AddRange(MappingTypeAnalyzer.GetFlattenedMappings(
+                sourceProperties,
+                targetProperties,
+                MappingTypeAnalyzer.HasMapIgnoreAttribute,
+                (sourceProp, targetProp, nestedProp) => MappingTypeAnalyzer.CreateFlattenedMapping(sourceProp, targetProp, nestedProp) with
                 {
-                    continue;
-                }
-
-                // Only flatten class/struct types (nested objects)
-                if (sourceProp.Type is not INamedTypeSymbol namedType ||
-                    (namedType.TypeKind != TypeKind.Class && namedType.TypeKind != TypeKind.Struct))
-                {
-                    continue;
-                }
-
-                // Skip BCL types (string, DateTime, Guid, DateTimeOffset, List<T>, ...)
-                if (MappingTypeAnalyzer.IsSystemType(namedType))
-                {
-                    continue;
-                }
-
-                // Get properties from the nested object
-                var nestedProperties = namedType
-                    .GetMembers()
-                    .OfType<IPropertySymbol>()
-                    .Where(p => p.GetMethod is not null && !MappingTypeAnalyzer.HasMapIgnoreAttribute(p))
-                    .ToList();
-
-                // Try to match flattened properties: {PropertyName}{NestedPropertyName}
-                foreach (var nestedProp in nestedProperties)
-                {
-                    var flattenedName = $"{sourceProp.Name}{nestedProp.Name}";
-                    var targetProp = targetProperties.FirstOrDefault(t =>
-                        string.Equals(t.Name, flattenedName, StringComparison.OrdinalIgnoreCase) &&
-                        SymbolEqualityComparer.Default.Equals(t.Type, nestedProp.Type));
-
-                    if (targetProp is not null)
-                    {
-                        // Add flattened mapping
-                        mappings.Add(new PropertyMapping(
-                            SourceProperty: sourceProp,
-                            TargetProperty: targetProp,
-                            RequiresConversion: false,
-                            IsNested: false,
-                            HasEnumMapping: false,
-                            IsCollection: false,
-                            CollectionElementType: null,
-                            SourceCollectionElementType: null,
-                            CollectionTargetType: null,
-                            IsFlattened: true,
-                            FlattenedNestedProperty: nestedProp,
-                            IsBuiltInTypeConversion: false,
-                            SourceRequiresUnsafeAccessor: includePrivateMembers && RequiresUnsafeAccessorForReading(sourceProp),
-                            TargetRequiresUnsafeAccessor: includePrivateMembers && RequiresUnsafeAccessorForWriting(targetProp)));
-                    }
-                }
-            }
+                    SourceRequiresUnsafeAccessor = includePrivateMembers && RequiresUnsafeAccessorForReading(sourceProp),
+                    TargetRequiresUnsafeAccessor = includePrivateMembers && RequiresUnsafeAccessorForWriting(targetProp),
+                }));
         }
 
         // Validate required properties
