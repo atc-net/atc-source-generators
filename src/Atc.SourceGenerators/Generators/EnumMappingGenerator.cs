@@ -19,7 +19,8 @@ public class EnumMappingGenerator : IIncrementalGenerator
         messageFormat: "Target type '{0}' must be an enum type for enum mapping",
         category: RuleCategoryConstants.EnumMapping,
         DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
+        isEnabledByDefault: true,
+        helpLinkUri: DiagnosticHelpLink.For(RuleIdentifierConstants.EnumMapping.TargetTypeMustBeEnum));
 
     private static readonly DiagnosticDescriptor UnmappedEnumValueDescriptor = new(
         id: RuleIdentifierConstants.EnumMapping.UnmappedEnumValue,
@@ -27,7 +28,8 @@ public class EnumMappingGenerator : IIncrementalGenerator
         messageFormat: "Enum value '{0}.{1}' has no matching value in target enum '{2}'",
         category: RuleCategoryConstants.EnumMapping,
         DiagnosticSeverity.Warning,
-        isEnabledByDefault: true);
+        isEnabledByDefault: true,
+        helpLinkUri: DiagnosticHelpLink.For(RuleIdentifierConstants.EnumMapping.UnmappedEnumValue));
 
     private static readonly DiagnosticDescriptor FlagEnumMappingWarningDescriptor = new(
         id: RuleIdentifierConstants.EnumMapping.FlagEnumMappingWarning,
@@ -35,7 +37,8 @@ public class EnumMappingGenerator : IIncrementalGenerator
         messageFormat: "Enum '{0}' has the [Flags] attribute and generated switch-based mapping may produce incorrect results for combined flag values",
         category: RuleCategoryConstants.EnumMapping,
         DiagnosticSeverity.Warning,
-        isEnabledByDefault: true);
+        isEnabledByDefault: true,
+        helpLinkUri: DiagnosticHelpLink.For(RuleIdentifierConstants.EnumMapping.FlagEnumMappingWarning));
 
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
