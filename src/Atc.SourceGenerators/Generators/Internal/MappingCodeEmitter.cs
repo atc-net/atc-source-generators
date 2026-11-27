@@ -130,11 +130,10 @@ internal static class MappingCodeEmitter
     [SuppressMessage("Meziantou.Analyzer", "MA0051:Method is too long", Justification = "OK - one branch per conversion")]
     public static string GetBuiltInTypeConversion(
         PropertyMapping prop,
-        string sourceVariable)
+        string sourcePropertyAccess)
     {
         var sourceTypeName = prop.SourceProperty.Type.ToDisplayString();
         var targetTypeName = prop.TargetProperty.Type.ToDisplayString();
-        var sourcePropertyAccess = $"{sourceVariable}.{prop.SourceProperty.Name}";
 
         // Normalize type names by stripping nullable annotation for matching
         var normalizedSource = sourceTypeName.TrimEnd('?');

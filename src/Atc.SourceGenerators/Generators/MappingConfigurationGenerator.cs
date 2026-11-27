@@ -2171,7 +2171,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
 
         if (prop.IsBuiltInTypeConversion)
         {
-            return MappingCodeEmitter.GetBuiltInTypeConversion(prop, sourceVariable);
+            return MappingCodeEmitter.GetBuiltInTypeConversion(prop, $"{sourceVariable}.{prop.SourceProperty.Name}");
         }
 
         if (prop.IsDictionary)

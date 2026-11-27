@@ -1663,17 +1663,17 @@ public class ObjectMappingGenerator : IIncrementalGenerator
             {
                 // source.Address?.ZipCode is int? for an int member: coalesce for an int target (not '!')
                 var suffix = MappingTypeAnalyzer.GetNullConditionalSuffix(prop.FlattenedNestedProperty.Type, prop.TargetProperty.Type);
-                return $"{sourceVariable}.{prop.SourceProperty.Name}?.{prop.FlattenedNestedProperty.Name}{suffix}";
+                return $"{GenerateSourcePropertyAccess(prop, sourceVariable, sourceType)}?.{prop.FlattenedNestedProperty.Name}{suffix}";
             }
 
             var nullForgiving = isNestedNullable ? "!" : string.Empty;
-            return $"{sourceVariable}.{prop.SourceProperty.Name}.{prop.FlattenedNestedProperty.Name}{nullForgiving}";
+            return $"{GenerateSourcePropertyAccess(prop, sourceVariable, sourceType)}.{prop.FlattenedNestedProperty.Name}{nullForgiving}";
         }
 
         if (prop.IsBuiltInTypeConversion)
         {
             // Built-in type conversion (DateTime ↔ string, Guid ↔ string, numeric ↔ string, bool ↔ string)
-            return MappingCodeEmitter.GetBuiltInTypeConversion(prop, sourceVariable);
+            return MappingCodeEmitter.GetBuiltInTypeConversion(prop, GenerateSourcePropertyAccess(prop, sourceVariable, sourceType));
         }
 
         if (prop.IsDictionary)
@@ -1696,7 +1696,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
             var copyElements = SymbolEqualityComparer.Default.Equals(prop.SourceCollectionElementType, prop.CollectionElementType) &&
                                !IsSelfMapped(prop.SourceCollectionElementType, prop.CollectionElementType);
             return MappingCodeEmitter.GetCollectionConversion(
-                $"{sourceVariable}.{prop.SourceProperty.Name}",
+                GenerateSourcePropertyAccess(prop, sourceVariable, sourceType),
                 collectionType,
                 prop.CollectionElementType,
                 copyElements ? null : $"x => x.{mappingMethodName}()");
@@ -1712,7 +1712,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
             }
 
             // Numeric cast, or a simple enum cast when no enum mapping is defined
-            return MappingCodeEmitter.GetCastConversion(prop, $"{sourceVariable}.{prop.SourceProperty.Name}");
+            return MappingCodeEmitter.GetCastConversion(prop, GenerateSourcePropertyAccess(prop, sourceVariable, sourceType));
         }
 
         if (prop.IsNested)

@@ -190,4 +190,65 @@ public partial class ObjectMappingGeneratorTests
         Assert.Contains("UnsafeGetSource_PrivateCode", output, StringComparison.Ordinal);
         Assert.Contains("UnsafeGetSource_InternalLevel", output, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void Generator_Should_Read_Private_Members_Through_UnsafeAccessor_For_Conversions()
+    {
+        const string source = """
+                              #nullable enable
+                              using System;
+                              using System.Collections.Generic;
+                              using Atc.SourceGenerators.Annotations;
+
+                              namespace TestNamespace;
+
+                              public class LineDto
+                              {
+                                  public int Quantity { get; set; }
+                              }
+
+                              [MapTo(typeof(LineDto))]
+                              public partial class Line
+                              {
+                                  public int Quantity { get; set; }
+                              }
+
+                              public class Address
+                              {
+                                  public string City { get; set; } = string.Empty;
+                              }
+
+                              public class OrderDto
+                              {
+                                  public long Count { get; set; }
+
+                                  public string Created { get; set; } = string.Empty;
+
+                                  public List<LineDto> Lines { get; set; } = [];
+
+                                  public string? AddressCity { get; set; }
+                              }
+
+                              [MapTo(typeof(OrderDto), IncludePrivateMembers = true, EnableFlattening = true)]
+                              public partial class Order
+                              {
+                                  private int Count { get; set; }
+
+                                  private DateTime Created { get; set; }
+
+                                  private List<Line> Lines { get; set; } = [];
+
+                                  private Address? Address { get; set; }
+                              }
+                              """;
+
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        Assert.Empty(diagnostics);
+        Assert.DoesNotContain("source.Count", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("source.Created", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("source.Lines", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("source.Address?.City", output, StringComparison.Ordinal);
+        Assert.Contains("?.City", output, StringComparison.Ordinal);
+    }
 }
