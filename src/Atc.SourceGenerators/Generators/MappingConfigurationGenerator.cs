@@ -2667,23 +2667,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         {
             if (prop.HasEnumMapping)
             {
-                var sourceIsNullable = MappingTypeAnalyzer.IsNullableValueType(prop.SourceProperty.Type);
-                var targetIsNullable = MappingTypeAnalyzer.IsNullableValueType(prop.TargetProperty.Type);
-                var unwrappedTarget = MappingTypeAnalyzer.UnwrapNullable(prop.TargetProperty.Type);
-                var enumMappingMethodName = $"MapTo{TypeNameSanitizer.SanitizeForIdentifier(unwrappedTarget.Name)}";
-
-                if (sourceIsNullable && targetIsNullable)
-                {
-                    var varName = $"__{char.ToLowerInvariant(prop.SourceProperty.Name[0])}{prop.SourceProperty.Name.Substring(1)}";
-                    return $"{sourceVariable}.{prop.SourceProperty.Name} is {{ }} {varName} ? {varName}.{enumMappingMethodName}() : null";
-                }
-
-                if (sourceIsNullable)
-                {
-                    return $"{sourceVariable}.{prop.SourceProperty.Name}!.Value.{enumMappingMethodName}()";
-                }
-
-                return $"{sourceVariable}.{prop.SourceProperty.Name}.{enumMappingMethodName}()";
+                return MappingCodeEmitter.GetEnumMappingCall(prop, $"{sourceVariable}.{prop.SourceProperty.Name}");
             }
 
             // Numeric conversion - handle nullable wrapping

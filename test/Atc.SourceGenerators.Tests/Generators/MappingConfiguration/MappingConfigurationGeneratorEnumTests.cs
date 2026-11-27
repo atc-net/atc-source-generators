@@ -182,4 +182,53 @@ public partial class MappingConfigurationGeneratorTests
         Assert.Empty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
         Assert.Contains("SourceKind.@class => global::TestNamespace.TargetKind.@class,", output, StringComparison.Ordinal);
     }
+
+    [Theory]
+    [InlineData("OrderStatusDto", "Status = source.Status is { } __status ? __status.MapToOrderStatusDto() : default")]
+    [InlineData("OrderStatusDto?", "Status = source.Status is { } __status ? __status.MapToOrderStatusDto() : null")]
+    public void Config_Should_Map_Nullable_Enum_Without_Throwing_For_Null(
+        string targetType,
+        string expected)
+    {
+        var source = $$"""
+                       #nullable enable
+                       using Atc.SourceGenerators.Annotations;
+
+                       namespace MyApp
+                       {
+                           public enum OrderStatus
+                           {
+                               Pending,
+                               Shipped,
+                           }
+
+                           public enum OrderStatusDto
+                           {
+                               Pending,
+                               Shipped,
+                           }
+
+                           public class Order
+                           {
+                               public OrderStatus? Status { get; set; }
+                           }
+
+                           public class OrderDto
+                           {
+                               public {{targetType}} Status { get; set; }
+                           }
+
+                           [MappingConfiguration]
+                           public static partial class Mappings
+                           {
+                               public static partial OrderDto MapToOrderDto(this Order source);
+                           }
+                       }
+                       """;
+
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        Assert.DoesNotContain(diagnostics, d => d.Severity >= DiagnosticSeverity.Warning);
+        Assert.Contains(expected, output, StringComparison.Ordinal);
+    }
 }
