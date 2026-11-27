@@ -389,4 +389,71 @@ public partial class ObjectMappingGeneratorTests
         Assert.DoesNotContain("source.Name,", output, StringComparison.Ordinal);
         Assert.Contains("Description = source.Description", output, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void Generator_Should_Use_Constructor_With_Inherited_Source_Properties()
+    {
+        const string source = """
+                              #nullable enable
+                              using System;
+                              using Atc.SourceGenerators.Annotations;
+
+                              namespace TestNamespace;
+
+                              public sealed record UserDto(Guid Id, string Name);
+
+                              public abstract class EntityBase
+                              {
+                                  public Guid Id { get; set; }
+                              }
+
+                              [MapTo(typeof(UserDto))]
+                              public partial class User : EntityBase
+                              {
+                                  public string Name { get; set; } = string.Empty;
+                              }
+                              """;
+
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        Assert.Empty(diagnostics);
+        Assert.Contains("return new global::TestNamespace.UserDto(", output, StringComparison.Ordinal);
+        Assert.Contains("source.Id,", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generator_Should_Use_Constructor_With_Collection_Parameter()
+    {
+        const string source = """
+                              #nullable enable
+                              using System.Collections.Generic;
+                              using Atc.SourceGenerators.Annotations;
+
+                              namespace TestNamespace;
+
+                              public sealed record OrderLineDto(int Quantity);
+
+                              public sealed record OrderDto(int Id, List<OrderLineDto> Lines);
+
+                              [MapTo(typeof(OrderLineDto))]
+                              public partial class OrderLine
+                              {
+                                  public int Quantity { get; set; }
+                              }
+
+                              [MapTo(typeof(OrderDto))]
+                              public partial class Order
+                              {
+                                  public int Id { get; set; }
+
+                                  public List<OrderLine> Lines { get; set; } = [];
+                              }
+                              """;
+
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        Assert.Empty(diagnostics);
+        Assert.Contains("return new global::TestNamespace.OrderDto(", output, StringComparison.Ordinal);
+        Assert.Contains("source.Lines?.Select(x => x.MapToOrderLineDto()).ToList()!", output, StringComparison.Ordinal);
+    }
 }

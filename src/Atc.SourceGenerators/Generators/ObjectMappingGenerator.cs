@@ -925,12 +925,8 @@ public class ObjectMappingGenerator : IIncrementalGenerator
             return (null, []);
         }
 
-        // Get source properties that we can map from
-        var sourceProperties = sourceType
-            .GetMembers()
-            .OfType<IPropertySymbol>()
-            .Where(p => p.GetMethod is not null && !MappingTypeAnalyzer.HasMapIgnoreAttribute(p))
-            .ToList();
+        // Get source properties that we can map from, including inherited ones
+        var sourceProperties = MappingTypeAnalyzer.GetAllProperties(sourceType, includePrivateMembers: true);
 
         // Find constructor where all parameters match source properties (case-insensitive)
         foreach (var constructor in constructors.OrderByDescending(c => c.Parameters.Length))
@@ -958,6 +954,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                 if (!SymbolEqualityComparer.Default.Equals(sourcePropertyType, parameterType) &&
                     !MappingTypeAnalyzer.IsImplicitlyConvertible(sourcePropertyType, parameterType) &&
                     !AreBothCustomOrEnumTypes(sourcePropertyType, parameterType) &&
+                    !MappingTypeAnalyzer.AreCollectionsWithCompatibleElements(sourcePropertyType, parameterType, AreBothCustomOrEnumTypes) &&
                     !IsMappableDictionary(sourcePropertyType, parameterType))
                 {
                     allParametersMatch = false;
