@@ -17,4 +17,5 @@ internal sealed record MappingInfo(
     bool IsGeneric,
     bool IncludePrivateMembers,
     PropertyNameStrategy PropertyNameStrategy,
-    List<ConstructorDefaultParameter>? ConstructorDefaultParameters = null);
+    List<ConstructorDefaultParameter>? ConstructorDefaultParameters = null,
+    bool DeepClone = false);

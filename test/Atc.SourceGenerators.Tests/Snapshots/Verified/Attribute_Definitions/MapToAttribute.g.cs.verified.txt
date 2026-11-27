@@ -116,6 +116,15 @@ namespace Atc.SourceGenerators.Annotations
         public bool IncludePrivateMembers { get; set; }
 
         /// <summary>
+        /// Gets or sets a value indicating whether properties of the same type are copied instead of shared:
+        /// collections and dictionaries get new instances, and nested types, elements and values with a
+        /// self-mapping ([MapTo(typeof(T))] on T) are cloned. Use it on a self-mapping
+        /// ([MapTo(typeof(Order), DeepClone = true)] on Order) for a deep copy. Reference cycles are not supported.
+        /// Default is false.
+        /// </summary>
+        public bool DeepClone { get; set; }
+
+        /// <summary>
         /// Gets or sets the naming strategy for property name conversion during mapping.
         /// Allows automatic mapping between different naming conventions (PascalCase, camelCase, snake_case, kebab-case).
         /// Default is PascalCase (no transformation - exact match).
