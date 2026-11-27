@@ -916,6 +916,7 @@ UserDto (API)
 - `ATCMAP003` - MapProperty target property not found (Error)
 - `ATCMAP012` - Two mappings from the same source type would generate a `MapTo{TargetName}` method with the same name (Error)
 - `ATCMAP013` - `BeforeMap`, `AfterMap` or `Factory` method is missing, not static, or private (Error)
+- `ATCMAP014` - Target property is not mapped (Info; raise via `.editorconfig` for strict mapping)
 
 ### EnumMappingGenerator
 
@@ -1093,6 +1094,7 @@ When mapping properties with different enum types (e.g., `ContactType` → `Cust
 - `ATCMCF013` - AddMappings() requires a lambda expression argument (Error)
 - `ATCMCF014` - Type could not be resolved, possibly from sibling source generator (Warning)
 - `ATCMCF015` - Property with a matching name is not mapped because the types are not compatible (Warning)
+- `ATCMCF016` - Target property is not mapped (Info; raise via `.editorconfig` for strict mapping)
 - `ATCMAP005` - Duplicate mapping: attribute-based [MapTo] takes precedence over configuration (Warning)
 - `ATCMAP006` - Duplicate configuration mapping for same source→target pair (Warning)
 

@@ -187,6 +187,11 @@ internal static class RuleIdentifierConstants
         /// ATCMAP013: BeforeMap, AfterMap or Factory method is missing, not static, or not accessible from generated code.
         /// </summary>
         internal const string HookMethodNotCallable = "ATCMAP013";
+
+        /// <summary>
+        /// ATCMAP014: Target property is not mapped (no matching source property).
+        /// </summary>
+        internal const string TargetPropertyNotMapped = "ATCMAP014";
     }
 
     /// <summary>
@@ -294,6 +299,11 @@ internal static class RuleIdentifierConstants
         /// ATCMCF015: Property with a matching name is not mapped because the types are not compatible.
         /// </summary>
         internal const string PropertyTypesNotCompatible = "ATCMCF015";
+
+        /// <summary>
+        /// ATCMCF016: Target property is not mapped (no matching source property).
+        /// </summary>
+        internal const string TargetPropertyNotMapped = "ATCMCF016";
     }
 
     /// <summary>

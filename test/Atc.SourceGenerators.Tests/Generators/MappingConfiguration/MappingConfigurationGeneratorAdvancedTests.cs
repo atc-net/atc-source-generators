@@ -415,7 +415,8 @@ public partial class MappingConfigurationGeneratorTests
 
         var (diagnostics, output) = GetGeneratedOutput(source);
 
-        Assert.Empty(diagnostics);
+        // Target properties without a source are reported as Info (ATCMCF016), nothing else
+        Assert.All(diagnostics, d => Assert.Equal("ATCMCF016", d.Id));
         Assert.Contains("new global::MyApp.TargetProduct(", output, StringComparison.Ordinal);
         Assert.Contains("source.Name", output, StringComparison.Ordinal);
         Assert.Contains("source.Price", output, StringComparison.Ordinal);
@@ -459,7 +460,8 @@ public partial class MappingConfigurationGeneratorTests
 
         var (diagnostics, output) = GetGeneratedOutput(source);
 
-        Assert.Empty(diagnostics);
+        // Target properties without a source are reported as Info (ATCMCF016), nothing else
+        Assert.All(diagnostics, d => Assert.Equal("ATCMCF016", d.Id));
 
         // Should use object initializer, not constructor (class has parameterless constructor)
         Assert.Contains("new global::MyApp.TargetItem", output, StringComparison.Ordinal);

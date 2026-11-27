@@ -83,6 +83,20 @@ When several of your projects use the generators and reference each other, each 
 </PropertyGroup>
 ```
 
+## 🔎 Strict mapping
+
+Mapping generators report target properties that nothing maps to, so they don't silently keep their default value:
+`ATCMAP014` for `[MapTo]` and `ATCMCF016` for `[MappingConfiguration]`. They are **Info** by default. To make
+unmapped target properties a build error, raise their severity in `.editorconfig`:
+
+```ini
+[*.cs]
+dotnet_diagnostic.ATCMAP014.severity = error
+dotnet_diagnostic.ATCMCF016.severity = error
+```
+
+For `[MapTo]`, exclude a single target property with `[MapIgnore]`.
+
 ## 🚀 Native AOT and trimming
 
 | Generator | Generated code | AOT / trimming |

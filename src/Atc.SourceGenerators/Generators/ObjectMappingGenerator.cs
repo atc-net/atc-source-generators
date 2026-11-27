@@ -55,6 +55,14 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         DiagnosticSeverity.Warning,
         isEnabledByDefault: true);
 
+    private static readonly DiagnosticDescriptor TargetPropertyNotMappedDescriptor = new(
+        id: RuleIdentifierConstants.ObjectMapping.TargetPropertyNotMapped,
+        title: "Target property is not mapped",
+        messageFormat: "Target property '{0}' of '{1}' is not mapped from '{2}' and keeps its default value",
+        category: RuleCategoryConstants.ObjectMapping,
+        DiagnosticSeverity.Info,
+        isEnabledByDefault: true);
+
     private static readonly DiagnosticDescriptor HookMethodNotCallableDescriptor = new(
         id: RuleIdentifierConstants.ObjectMapping.HookMethodNotCallable,
         title: "Mapping hook method cannot be called",
@@ -886,6 +894,18 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                     Diagnostic.Create(
                         RequiredPropertyNotMappedDescriptor,
                         targetType.Locations.FirstOrDefault() ?? Location.None,
+                        targetProp.Name,
+                        targetType.Name,
+                        sourceType.Name));
+            }
+            else
+            {
+                // Any other settable target property without a source keeps its default value: report it (Info by
+                // default; raise it with "dotnet_diagnostic.ATCMAP014.severity = error" for strict mapping)
+                context.ReportDiagnostic(
+                    Diagnostic.Create(
+                        TargetPropertyNotMappedDescriptor,
+                        sourceType.Locations.FirstOrDefault() ?? Location.None,
                         targetProp.Name,
                         targetType.Name,
                         sourceType.Name));

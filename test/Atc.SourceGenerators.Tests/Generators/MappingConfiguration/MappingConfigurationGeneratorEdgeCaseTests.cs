@@ -143,7 +143,8 @@ public partial class MappingConfigurationGeneratorTests
 
         var (diagnostics, output) = GetGeneratedOutput(source);
 
-        Assert.Empty(diagnostics);
+        // Target properties without a source are reported as Info (ATCMCF016), nothing else
+        Assert.All(diagnostics, d => Assert.Equal("ATCMCF016", d.Id));
 
         // Should still generate the method, but with empty initializer
         Assert.Contains("MapToTarget", output, StringComparison.Ordinal);
