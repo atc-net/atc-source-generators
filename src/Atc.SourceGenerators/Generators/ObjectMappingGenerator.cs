@@ -1693,23 +1693,11 @@ public class ObjectMappingGenerator : IIncrementalGenerator
             var mappingMethodName = $"MapTo{elementTypeName}";
             var collectionType = prop.CollectionTargetType!;
 
-            if (collectionType == "Array")
-            {
-                return $"{sourceVariable}.{prop.SourceProperty.Name}?.Select(x => x.{mappingMethodName}()).ToArray()!";
-            }
-
-            if (collectionType == "Collection")
-            {
-                return $"new global::System.Collections.ObjectModel.Collection<{prop.CollectionElementType.ToGlobalDisplayString()}>({sourceVariable}.{prop.SourceProperty.Name}?.Select(x => x.{mappingMethodName}()).ToList()!)";
-            }
-
-            if (collectionType == "ReadOnlyCollection")
-            {
-                return $"new global::System.Collections.ObjectModel.ReadOnlyCollection<{prop.CollectionElementType.ToGlobalDisplayString()}>({sourceVariable}.{prop.SourceProperty.Name}?.Select(x => x.{mappingMethodName}()).ToList()!)";
-            }
-
-            // Default to List (handles List, IEnumerable, ICollection, IList, IReadOnlyList, IReadOnlyCollection)
-            return $"{sourceVariable}.{prop.SourceProperty.Name}?.Select(x => x.{mappingMethodName}()).ToList()!";
+            return MappingCodeEmitter.GetCollectionConversion(
+                $"{sourceVariable}.{prop.SourceProperty.Name}",
+                collectionType,
+                prop.CollectionElementType,
+                $"x => x.{mappingMethodName}()");
         }
 
         if (prop.RequiresConversion)

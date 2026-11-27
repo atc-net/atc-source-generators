@@ -2647,22 +2647,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
             if (sameElementType)
             {
                 // Same element type - just convert the collection type
-                if (collectionType == "Array")
-                {
-                    return $"{sourceAccess}?.ToArray()!";
-                }
-
-                if (collectionType == "Collection")
-                {
-                    return $"new global::System.Collections.ObjectModel.Collection<{prop.CollectionElementType!.ToGlobalDisplayString()}>({sourceAccess}?.ToList()!)";
-                }
-
-                if (collectionType == "ReadOnlyCollection")
-                {
-                    return $"new global::System.Collections.ObjectModel.ReadOnlyCollection<{prop.CollectionElementType!.ToGlobalDisplayString()}>({sourceAccess}?.ToList()!)";
-                }
-
-                return $"{sourceAccess}?.ToList()!";
+                return MappingCodeEmitter.GetCollectionConversion(sourceAccess, collectionType, prop.CollectionElementType!, elementSelector: null);
             }
 
             var elementTypeName = prop.CollectionElementType!.Name;
@@ -2675,22 +2660,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
                 ? $"x.{mappingMethodName}()"
                 : $"{mappingMethodName}(x)";
 
-            if (collectionType == "Array")
-            {
-                return $"{sourceAccess}?.Select(x => {elementMapCall}).ToArray()!";
-            }
-
-            if (collectionType == "Collection")
-            {
-                return $"new global::System.Collections.ObjectModel.Collection<{prop.CollectionElementType.ToGlobalDisplayString()}>({sourceAccess}?.Select(x => {elementMapCall}).ToList()!)";
-            }
-
-            if (collectionType == "ReadOnlyCollection")
-            {
-                return $"new global::System.Collections.ObjectModel.ReadOnlyCollection<{prop.CollectionElementType.ToGlobalDisplayString()}>({sourceAccess}?.Select(x => {elementMapCall}).ToList()!)";
-            }
-
-            return $"{sourceAccess}?.Select(x => {elementMapCall}).ToList()!";
+            return MappingCodeEmitter.GetCollectionConversion(sourceAccess, collectionType, prop.CollectionElementType, $"x => {elementMapCall}");
         }
 
         if (prop.RequiresConversion)
