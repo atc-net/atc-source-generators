@@ -753,13 +753,16 @@ internal static class MappingTypeAnalyzer
     /// <param name="targetProperties">The target properties.</param>
     /// <param name="isIgnored">Whether a source property is excluded from the mapping.</param>
     /// <param name="createMapping">Creates the mapping from the source property, the target property and the nested property.</param>
+    /// <param name="existingMappings">The mappings found so far; their target properties are not flattened again.</param>
     internal static List<PropertyMapping> GetFlattenedMappings(
         List<IPropertySymbol> sourceProperties,
         List<IPropertySymbol> targetProperties,
         Func<IPropertySymbol, bool> isIgnored,
-        Func<IPropertySymbol, IPropertySymbol, IPropertySymbol, PropertyMapping> createMapping)
+        Func<IPropertySymbol, IPropertySymbol, IPropertySymbol, PropertyMapping> createMapping,
+        IReadOnlyCollection<PropertyMapping> existingMappings)
     {
         var mappings = new List<PropertyMapping>();
+        var mappedTargets = new HashSet<string>(existingMappings.Select(m => m.TargetProperty.Name), StringComparer.Ordinal);
         foreach (var sourceProp in sourceProperties)
         {
             // Only flatten nested objects: class/struct types outside the BCL (string, DateTime, Guid, List<T>, ...)
@@ -783,7 +786,8 @@ internal static class MappingTypeAnalyzer
                     string.Equals(t.Name, flattenedName, StringComparison.OrdinalIgnoreCase) &&
                     SymbolEqualityComparer.Default.Equals(t.Type, nestedProp.Type));
 
-                if (targetProp is not null)
+                // A target that is already mapped (by name, renamed or by a source path) keeps that mapping
+                if (targetProp is not null && mappedTargets.Add(targetProp.Name))
                 {
                     mappings.Add(createMapping(sourceProp, targetProp, nestedProp));
                 }

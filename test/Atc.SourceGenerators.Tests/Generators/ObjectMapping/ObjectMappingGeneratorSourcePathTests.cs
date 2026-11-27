@@ -181,4 +181,34 @@ public partial class ObjectMappingGeneratorTests
         Assert.Empty(diagnostics);
         Assert.Contains("CustomerName = source.Customer?.Name!", output, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void Generator_Should_Not_Flatten_A_Target_Mapped_By_A_Source_Path()
+    {
+        const string source = $$"""
+                                #nullable enable
+                                using Atc.SourceGenerators.Annotations;
+
+                                namespace TestNamespace;
+
+                                {{SourcePathModel}}
+
+                                public class CustomerDto
+                                {
+                                    public string? AddressCity { get; set; }
+                                }
+
+                                [MapTo(typeof(CustomerDto), EnableFlattening = true)]
+                                [MapProperty("Address.City", "AddressCity")]
+                                public partial class CustomerSource
+                                {
+                                    public Address? Address { get; set; }
+                                }
+                                """;
+
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        Assert.Empty(diagnostics);
+        Assert.Single(System.Text.RegularExpressions.Regex.Matches(output, "AddressCity = "));
+    }
 }

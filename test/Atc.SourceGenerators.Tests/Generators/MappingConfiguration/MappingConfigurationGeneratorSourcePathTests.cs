@@ -156,4 +156,44 @@ public partial class MappingConfigurationGeneratorTests
         var diagnostic = Assert.Single(diagnostics, d => d.Id == "ATCMCF006");
         Assert.Contains("Customer.Missing", diagnostic.GetMessage(CultureInfo.InvariantCulture), StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void Config_Should_Not_Flatten_A_Target_Mapped_By_A_Source_Path()
+    {
+        const string source = """
+                              #nullable enable
+                              using Atc.SourceGenerators.Annotations;
+
+                              namespace MyApp
+                              {
+                                  public class Address
+                                  {
+                                      public string City { get; set; } = string.Empty;
+                                  }
+
+                                  public class Customer
+                                  {
+                                      public Address? Address { get; set; }
+                                  }
+
+                                  public class CustomerDto
+                                  {
+                                      public string? AddressCity { get; set; }
+                                  }
+
+                                  [MappingConfiguration]
+                                  public static partial class Mappings
+                                  {
+                                      [MapConfigOptions(EnableFlattening = true)]
+                                      [MapConfigProperty("Address.City", "AddressCity")]
+                                      public static partial CustomerDto MapToCustomerDto(this Customer source);
+                                  }
+                              }
+                              """;
+
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        Assert.DoesNotContain(diagnostics, d => d.Severity >= DiagnosticSeverity.Warning);
+        Assert.Single(System.Text.RegularExpressions.Regex.Matches(output, "AddressCity = "));
+    }
 }
