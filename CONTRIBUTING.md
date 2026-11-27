@@ -28,6 +28,7 @@ dotnet test --project test/Atc.SourceGenerators.Tests/Atc.SourceGenerators.Tests
 
 - Every generator test compiles the generated code, and fails on compiler errors in it. Use the existing `GetGeneratedOutput` helpers, which go through `GeneratorTestHarness`.
 - For a bug fix, add a test that fails before the fix.
+- `Snapshots/SnapshotTests` compare the complete generated output for one representative input per generator with the files in `Snapshots/Verified/`. When a change to the generated code is intended, rerun the tests with the environment variable `ATC_SG_ACCEPT_SNAPSHOTS=1` and review the snapshot diff in the pull request.
 - New or changed diagnostics need an entry in `src/Atc.SourceGenerators/AnalyzerReleases.Unshipped.md` and a section in the [Diagnostics Reference](https://github.com/atc-net/atc-source-generators/wiki/Diagnostics-Reference).
 
 ## Commit messages
