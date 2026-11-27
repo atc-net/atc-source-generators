@@ -10,13 +10,7 @@ public partial class MappingConfigurationGeneratorTests
         string? diagnosticPrefix = null)
     {
         var syntaxTree = CSharpSyntaxTree.ParseText(source);
-        var references = AppDomain
-            .CurrentDomain
-            .GetAssemblies()
-            .Where(assembly => !assembly.IsDynamic &&
-                               !string.IsNullOrWhiteSpace(assembly.Location))
-            .Select(assembly => MetadataReference.CreateFromFile(assembly.Location))
-            .Cast<MetadataReference>();
+        var references = GeneratorTestHarness.References;
 
         var compilation = CSharpCompilation.Create(
             "TestAssembly",
@@ -33,6 +27,7 @@ public partial class MappingConfigurationGeneratorTests
             compilation,
             out var outputCompilation,
             out var generatorDiagnostics);
+        GeneratorTestHarness.AssertGeneratedCodeCompiles(compilation, outputCompilation);
 
         var prefix = diagnosticPrefix ?? "ATCM";
         var allDiagnostics = outputCompilation
@@ -59,13 +54,7 @@ public partial class MappingConfigurationGeneratorTests
     private static byte[] CompileToAssembly(string source)
     {
         var syntaxTree = CSharpSyntaxTree.ParseText(source);
-        var references = AppDomain
-            .CurrentDomain
-            .GetAssemblies()
-            .Where(assembly => !assembly.IsDynamic &&
-                               !string.IsNullOrWhiteSpace(assembly.Location))
-            .Select(assembly => MetadataReference.CreateFromFile(assembly.Location))
-            .Cast<MetadataReference>();
+        var references = GeneratorTestHarness.References;
 
         var compilation = CSharpCompilation.Create(
             "ExternalAssembly",
@@ -98,14 +87,7 @@ public partial class MappingConfigurationGeneratorTests
         string? diagnosticPrefix = null)
     {
         var syntaxTree = CSharpSyntaxTree.ParseText(source);
-        var references = AppDomain
-            .CurrentDomain
-            .GetAssemblies()
-            .Where(assembly => !assembly.IsDynamic &&
-                               !string.IsNullOrWhiteSpace(assembly.Location))
-            .Select(assembly => MetadataReference.CreateFromFile(assembly.Location))
-            .Cast<MetadataReference>()
-            .ToList();
+        var references = GeneratorTestHarness.References.ToList();
 
         // Add the external assembly as a metadata reference
         references.Add(MetadataReference.CreateFromImage(assemblyBytes));
@@ -124,6 +106,7 @@ public partial class MappingConfigurationGeneratorTests
             compilation,
             out var outputCompilation,
             out var generatorDiagnostics);
+        GeneratorTestHarness.AssertGeneratedCodeCompiles(compilation, outputCompilation);
 
         var prefix = diagnosticPrefix ?? "ATCM";
         var allDiagnostics = outputCompilation

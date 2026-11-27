@@ -193,10 +193,6 @@ public partial class ObjectMappingGeneratorTests
                               }
                               """;
 
-        // The test compilation references the assemblies loaded in the AppDomain; make sure the
-        // projection's Expression<T> type is available even when this test runs on its own
-        Assert.NotNull(typeof(System.Linq.Expressions.Expression).Assembly.Location);
-
         var (diagnostics, output) = GetGeneratedOutput(source, "CS");
 
         Assert.Empty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));

@@ -9,13 +9,7 @@ public partial class EnumMappingGeneratorTests
         string source)
     {
         var syntaxTree = CSharpSyntaxTree.ParseText(source);
-        var references = AppDomain
-            .CurrentDomain
-            .GetAssemblies()
-            .Where(assembly => !assembly.IsDynamic &&
-                               !string.IsNullOrWhiteSpace(assembly.Location))
-            .Select(assembly => MetadataReference.CreateFromFile(assembly.Location))
-            .Cast<MetadataReference>();
+        var references = GeneratorTestHarness.References;
 
         var compilation = CSharpCompilation.Create(
             "TestAssembly",
@@ -31,6 +25,7 @@ public partial class EnumMappingGeneratorTests
             compilation,
             out var outputCompilation,
             out var generatorDiagnostics);
+        GeneratorTestHarness.AssertGeneratedCodeCompiles(compilation, outputCompilation);
 
         var allDiagnostics = outputCompilation
             .GetDiagnostics()

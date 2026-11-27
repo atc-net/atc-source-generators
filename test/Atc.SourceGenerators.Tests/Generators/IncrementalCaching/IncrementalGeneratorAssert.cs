@@ -21,17 +21,7 @@ internal static class IncrementalGeneratorAssert
         string trackingName,
         bool outputStepsMustBeCached = false)
     {
-        var references = AppDomain
-            .CurrentDomain
-            .GetAssemblies()
-            .Where(assembly => !assembly.IsDynamic &&
-                               !string.IsNullOrWhiteSpace(assembly.Location))
-            .Select(assembly => MetadataReference.CreateFromFile(assembly.Location))
-            .Cast<MetadataReference>()
-            .ToList();
-
-        // DataAnnotations isn't necessarily loaded in the test AppDomain yet
-        references.Add(MetadataReference.CreateFromFile(typeof(System.ComponentModel.DataAnnotations.RequiredAttribute).Assembly.Location));
+        var references = GeneratorTestHarness.References;
 
         var compilation = CSharpCompilation.Create(
             "TestAssembly",

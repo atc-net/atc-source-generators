@@ -139,14 +139,7 @@ public class GlobalNamespaceTests
         string source)
     {
         var syntaxTree = CSharpSyntaxTree.ParseText(source);
-        var references = AppDomain
-            .CurrentDomain
-            .GetAssemblies()
-            .Where(assembly => !assembly.IsDynamic &&
-                               !string.IsNullOrWhiteSpace(assembly.Location))
-            .Select(assembly => MetadataReference.CreateFromFile(assembly.Location))
-            .Cast<MetadataReference>()
-            .ToList();
+        var references = GeneratorTestHarness.References.ToList();
         references.Add(MetadataReference.CreateFromFile(typeof(System.ComponentModel.DataAnnotations.RequiredAttribute).Assembly.Location));
 
         var compilation = CSharpCompilation.Create(
