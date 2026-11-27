@@ -1413,10 +1413,17 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         sb.AppendLineLf("public static class ObjectMappingExtensions");
         sb.AppendLineLf("{");
 
-        // Generate UnsafeAccessor methods for all mappings that need them
+        // Generate UnsafeAccessor methods for all mappings that need them (also the reverse direction of
+        // bidirectional mappings), each accessor once
+        var accessorsGenerated = new HashSet<string>(StringComparer.Ordinal);
         foreach (var mapping in mappings)
         {
-            GenerateUnsafeAccessors(sb, mapping);
+            GenerateUnsafeAccessors(sb, mapping, accessorsGenerated);
+
+            if (mapping.Bidirectional && mapping.IncludePrivateMembers && !skippedReverseMappings.Contains(mapping))
+            {
+                GenerateUnsafeAccessors(sb, BuildReverseMapping(mapping), accessorsGenerated);
+            }
         }
 
         foreach (var mapping in mappings)
@@ -1432,43 +1439,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
             // Generate reverse mapping if bidirectional (unless it already exists or would clash)
             if (mapping.Bidirectional && !skippedReverseMappings.Contains(mapping))
             {
-                // For generic mappings, construct the reverse source type with type parameters
-                var reverseSourceType = mapping.TargetType;
-                if (mapping.IsGeneric)
-                {
-                    var typeArguments = mapping.SourceType.TypeParameters
-                        .Cast<ITypeSymbol>()
-                        .ToArray();
-                    reverseSourceType = mapping.TargetType.ConstructedFrom.Construct(typeArguments);
-                }
-
-                var reverseMappings = GetPropertyMappings(
-                    sourceType: reverseSourceType,
-                    targetType: mapping.SourceType,
-                    enableFlattening: mapping.EnableFlattening,
-                    includePrivateMembers: mapping.IncludePrivateMembers,
-                    propertyNameStrategy: mapping.PropertyNameStrategy);
-
-                // Find best matching constructor for reverse mapping
-                var (reverseConstructor, reverseConstructorParams) = FindBestConstructor(reverseSourceType, mapping.SourceType);
-
-                var reverseMapping = new MappingInfo(
-                    SourceType: reverseSourceType,
-                    TargetType: mapping.SourceType,
-                    PropertyMappings: reverseMappings,
-                    Bidirectional: false, // Don't generate reverse of reverse
-                    EnableFlattening: mapping.EnableFlattening,
-                    Constructor: reverseConstructor,
-                    ConstructorParameterNames: reverseConstructorParams,
-                    DerivedTypeMappings: [], // No derived type mappings for reverse
-                    BeforeMap: null, // No hooks for reverse mapping
-                    AfterMap: null, // No hooks for reverse mapping
-                    Factory: null, // No factory for reverse mapping
-                    UpdateTarget: false, // No update target for reverse mapping
-                    GenerateProjection: false, // No projection for reverse mapping
-                    IsGeneric: mapping.IsGeneric, // Preserve generic flag for reverse mapping
-                    IncludePrivateMembers: mapping.IncludePrivateMembers, // Preserve private member access for reverse mapping
-                    PropertyNameStrategy: mapping.PropertyNameStrategy); // Preserve property name strategy for reverse mapping
+                var reverseMapping = BuildReverseMapping(mapping);
 
                 GenerateMappingMethod(sb, reverseMapping);
             }
@@ -1569,7 +1540,14 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         }
 
         // Determine if we need to use a variable for AfterMap hook or Factory
-        var needsTargetVariable = !string.IsNullOrWhiteSpace(mapping.AfterMap) || !string.IsNullOrWhiteSpace(mapping.Factory);
+        // Private target members can't be set in an object initializer: they are set through the generated
+        // UnsafeAccessor setter after the target is created
+        var privateTargetProps = mapping.PropertyMappings.Where(p => p.TargetRequiresUnsafeAccessor).ToList();
+        var initializableProps = mapping.PropertyMappings.Where(p => !p.TargetRequiresUnsafeAccessor).ToList();
+
+        var needsTargetVariable = !string.IsNullOrWhiteSpace(mapping.AfterMap) ||
+                                  !string.IsNullOrWhiteSpace(mapping.Factory) ||
+                                  privateTargetProps.Count > 0;
 
         // Check if we should use factory method
         var useFactory = !string.IsNullOrWhiteSpace(mapping.Factory);
@@ -1581,7 +1559,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
             sb.AppendLineLf();
 
             // Apply property mappings to the factory-created instance
-            foreach (var prop in mapping.PropertyMappings)
+            foreach (var prop in initializableProps)
             {
                 var value = GeneratePropertyMappingValue(prop, "source", mapping.SourceType);
                 sb.AppendLineLf($"        target.{prop.TargetProperty.Name} = {value};");
@@ -1606,7 +1584,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                     {
                         constructorProps.Add(prop);
                     }
-                    else
+                    else if (!prop.TargetRequiresUnsafeAccessor)
                     {
                         initializerProps.Add(prop);
                     }
@@ -1669,9 +1647,16 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                 }
 
                 sb.AppendLineLf("        {");
-                GeneratePropertyInitializers(sb, mapping.PropertyMappings, mapping.SourceType);
+                GeneratePropertyInitializers(sb, initializableProps, mapping.SourceType);
                 sb.AppendLineLf("        };");
             }
+        }
+
+        // Set private target members through their UnsafeAccessor setters
+        foreach (var prop in privateTargetProps.Where(p => !mapping.ConstructorParameterNames.Contains(p.TargetProperty.Name, StringComparer.OrdinalIgnoreCase) || useFactory))
+        {
+            var setterName = GetAccessorMethodName(mapping.TargetType, prop.TargetProperty.Name, isGetter: false);
+            sb.AppendLineLf($"        {setterName}(target, {GeneratePropertyMappingValue(prop, "source", mapping.SourceType)});");
         }
 
         // Generate AfterMap hook call and return statement
@@ -2157,14 +2142,13 @@ public class ObjectMappingGenerator : IIncrementalGenerator
 
     private static void GenerateUnsafeAccessors(
         StringBuilder sb,
-        MappingInfo mapping)
+        MappingInfo mapping,
+        HashSet<string> accessorsGenerated)
     {
         if (!mapping.IncludePrivateMembers)
         {
             return;
         }
-
-        var accessorsGenerated = new HashSet<string>(StringComparer.Ordinal);
 
         foreach (var prop in mapping.PropertyMappings)
         {
@@ -2196,6 +2180,52 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// Builds the reverse (target to source) mapping of a bidirectional mapping.
+    /// </summary>
+    private static MappingInfo BuildReverseMapping(MappingInfo mapping)
+    {
+        // For generic mappings, construct the reverse source type with type parameters
+        var reverseSourceType = mapping.TargetType;
+        if (mapping.IsGeneric)
+        {
+            var typeArguments = mapping.SourceType.TypeParameters
+                .Cast<ITypeSymbol>()
+                .ToArray();
+            reverseSourceType = mapping.TargetType.ConstructedFrom.Construct(typeArguments);
+        }
+
+        var reverseMappings = GetPropertyMappings(
+            sourceType: reverseSourceType,
+            targetType: mapping.SourceType,
+            enableFlattening: mapping.EnableFlattening,
+            includePrivateMembers: mapping.IncludePrivateMembers,
+            propertyNameStrategy: mapping.PropertyNameStrategy);
+
+        // Find best matching constructor for reverse mapping
+        var (reverseConstructor, reverseConstructorParams) = FindBestConstructor(reverseSourceType, mapping.SourceType);
+
+        var reverseMapping = new MappingInfo(
+            SourceType: reverseSourceType,
+            TargetType: mapping.SourceType,
+            PropertyMappings: reverseMappings,
+            Bidirectional: false, // Don't generate reverse of reverse
+            EnableFlattening: mapping.EnableFlattening,
+            Constructor: reverseConstructor,
+            ConstructorParameterNames: reverseConstructorParams,
+            DerivedTypeMappings: [], // No derived type mappings for reverse
+            BeforeMap: null, // No hooks for reverse mapping
+            AfterMap: null, // No hooks for reverse mapping
+            Factory: null, // No factory for reverse mapping
+            UpdateTarget: false, // No update target for reverse mapping
+            GenerateProjection: false, // No projection for reverse mapping
+            IsGeneric: mapping.IsGeneric, // Preserve generic flag for reverse mapping
+            IncludePrivateMembers: mapping.IncludePrivateMembers, // Preserve private member access for reverse mapping
+            PropertyNameStrategy: mapping.PropertyNameStrategy); // Preserve property name strategy for reverse mapping
+
+        return reverseMapping;
     }
 
     private static string GetAccessorMethodName(
