@@ -449,12 +449,13 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         var mappings = new List<PropertyMapping>();
 
         // [MapTo] requires a [MapTo] mapping for collection elements and dictionary values (ATCMAP011 otherwise),
-        // uses enum mappings from [MapTo] on enums and the conversion methods of the [MapTo] class, and has no numeric casts
+        // uses enum mappings from [MapTo] on enums and the conversion methods of the [MapTo] class, and casts numeric types
         var rules = new PropertyMappingRules
         {
             FindConversionMethod = (source, target) => MappingTypeAnalyzer.FindConversionMethod(conversions, source, target),
             CanMapDictionaryValue = HasObjectMappingToType,
             CanMapCollectionElement = HasObjectMappingToType,
+            AllowNumericConversions = true,
         };
 
         // Collect properties from the source type including inherited properties from base classes
@@ -974,6 +975,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
             (sourcePropertyType, parameterType) =>
                 MappingTypeAnalyzer.IsConstructorParameterCompatible(sourcePropertyType, parameterType) ||
                 MappingTypeAnalyzer.FindConversionMethod(conversions, sourcePropertyType, parameterType) is not null ||
+                MappingTypeAnalyzer.IsNumericTypeConversion(sourcePropertyType, parameterType) ||
                 IsMappableDictionary(sourcePropertyType, parameterType));
     }
 

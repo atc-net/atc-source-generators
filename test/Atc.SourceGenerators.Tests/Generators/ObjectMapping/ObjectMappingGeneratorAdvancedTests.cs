@@ -734,4 +734,68 @@ public partial class ObjectMappingGeneratorTests
         Assert.Empty(diagnostics);
         Assert.Contains(expected, output, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void Generator_Should_Cast_Numeric_Types()
+    {
+        const string source = """
+                              #nullable enable
+                              using Atc.SourceGenerators.Annotations;
+
+                              namespace TestNamespace;
+
+                              public class ProductDto
+                              {
+                                  public short Count { get; set; }
+
+                                  public double Price { get; set; }
+
+                                  public long Total { get; set; }
+                              }
+
+                              [MapTo(typeof(ProductDto))]
+                              public partial class Product
+                              {
+                                  public int Count { get; set; }
+
+                                  public decimal Price { get; set; }
+
+                                  public int Total { get; set; }
+                              }
+                              """;
+
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        Assert.Empty(diagnostics);
+        Assert.Contains("Count = (short)source.Count", output, StringComparison.Ordinal);
+        Assert.Contains("Price = (double)source.Price", output, StringComparison.Ordinal);
+        Assert.Contains("Total = (long)source.Total", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generator_Should_Cast_Numeric_Type_For_Constructor_Parameter()
+    {
+        const string source = """
+                              #nullable enable
+                              using Atc.SourceGenerators.Annotations;
+
+                              namespace TestNamespace;
+
+                              public sealed record ProductDto(string Name, short Count);
+
+                              [MapTo(typeof(ProductDto))]
+                              public partial class Product
+                              {
+                                  public string Name { get; set; } = string.Empty;
+
+                                  public int Count { get; set; }
+                              }
+                              """;
+
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        Assert.Empty(diagnostics);
+        Assert.Contains("return new global::TestNamespace.ProductDto(", output, StringComparison.Ordinal);
+        Assert.Contains("(short)source.Count", output, StringComparison.Ordinal);
+    }
 }
