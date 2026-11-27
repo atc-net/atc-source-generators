@@ -17,6 +17,23 @@ public sealed class PackageTests(PackageFixture fixture) : IClassFixture<Package
     }
 
     [Fact]
+    public void Package_Metadata_Should_Describe_All_Generators()
+    {
+        var metadata = GetNuspecMetadata();
+        var description = metadata.Element(metadata.Name.Namespace + "description")?.Value ?? string.Empty;
+        var tags = (metadata.Element(metadata.Name.Namespace + "tags")?.Value ?? string.Empty)
+            .Split([' ', ';'], StringSplitOptions.RemoveEmptyEntries);
+
+        Assert.Contains("mapping", description, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("enum", description, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("DataAnnotation", description, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("object-mapping", tags, StringComparer.Ordinal);
+        Assert.Contains("mapper", tags, StringComparer.Ordinal);
+        Assert.Contains("enum-mapping", tags, StringComparer.Ordinal);
+        Assert.Contains("dataannotations", tags, StringComparer.Ordinal);
+    }
+
+    [Fact]
     public async Task Consumer_Should_Build_And_Run_Against_The_Package()
     {
         var consumerDirectory = await CreateConsumerProjectAsync();
@@ -39,6 +56,17 @@ public sealed class PackageTests(PackageFixture fixture) : IClassFixture<Package
     {
         using var archive = ZipFile.OpenRead(fixture.PackagePath);
         return archive.Entries.Select(e => e.FullName).ToList();
+    }
+
+    private XElement GetNuspecMetadata()
+    {
+        using var archive = ZipFile.OpenRead(fixture.PackagePath);
+        var nuspec = archive.Entries.Single(e => e.FullName.EndsWith(".nuspec", StringComparison.Ordinal));
+        using var stream = nuspec.Open();
+        var document = XDocument.Load(stream);
+        var root = document.Root ?? throw new InvalidOperationException("The nuspec has no root element");
+        return root.Element(root.Name.Namespace + "metadata")
+               ?? throw new InvalidOperationException("The nuspec has no metadata element");
     }
 
     private async Task<string> CreateConsumerProjectAsync()
