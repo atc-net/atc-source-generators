@@ -69,4 +69,166 @@ internal static class MappingCodeEmitter
 
         return callValueMapper(methodName, value);
     }
+
+    /// <summary>
+    /// Gets the conversion expression of a built-in type conversion (DateTime, DateTimeOffset, Guid, numeric and bool
+    /// to and from string, DateTime to and from DateTimeOffset, string to and from Uri and enum), including the
+    /// nullable variants. Each generator decides with its own predicate which conversions it uses.
+    /// </summary>
+    [SuppressMessage("Meziantou.Analyzer", "MA0051:Method is too long", Justification = "OK - one branch per conversion")]
+    public static string GetBuiltInTypeConversion(
+        PropertyMapping prop,
+        string sourceVariable)
+    {
+        var sourceTypeName = prop.SourceProperty.Type.ToDisplayString();
+        var targetTypeName = prop.TargetProperty.Type.ToDisplayString();
+        var sourcePropertyAccess = $"{sourceVariable}.{prop.SourceProperty.Name}";
+
+        // Normalize type names by stripping nullable annotation for matching
+        var normalizedSource = sourceTypeName.TrimEnd('?');
+        var normalizedTarget = targetTypeName.TrimEnd('?');
+        var sourceIsNullableRef = sourceTypeName.EndsWith("?", StringComparison.Ordinal) &&
+                                  !prop.SourceProperty.Type.IsValueType;
+        var targetIsNullableRef = targetTypeName.EndsWith("?", StringComparison.Ordinal) &&
+                                  !prop.TargetProperty.Type.IsValueType;
+
+        if (sourceTypeName is "System.DateTime" or "System.DateTimeOffset" && targetTypeName == "string")
+        {
+            return $"{sourcePropertyAccess}.ToString(\"O\", global::System.Globalization.CultureInfo.InvariantCulture)";
+        }
+
+        if (sourceTypeName == "string" && targetTypeName == "System.DateTime")
+        {
+            return $"global::System.DateTime.Parse({sourcePropertyAccess}, global::System.Globalization.CultureInfo.InvariantCulture)";
+        }
+
+        if (sourceTypeName == "string" && targetTypeName == "System.DateTimeOffset")
+        {
+            return $"global::System.DateTimeOffset.Parse({sourcePropertyAccess}, global::System.Globalization.CultureInfo.InvariantCulture)";
+        }
+
+        if (sourceTypeName == "System.Guid" && targetTypeName == "string")
+        {
+            return $"{sourcePropertyAccess}.ToString()";
+        }
+
+        if (sourceTypeName == "string" && targetTypeName == "System.Guid")
+        {
+            return $"global::System.Guid.Parse({sourcePropertyAccess})";
+        }
+
+        if (MappingTypeAnalyzer.IsNumericType(sourceTypeName) && targetTypeName == "string")
+        {
+            return $"{sourcePropertyAccess}.ToString(global::System.Globalization.CultureInfo.InvariantCulture)";
+        }
+
+        if (sourceTypeName == "string" && MappingTypeAnalyzer.IsNumericType(targetTypeName))
+        {
+            var parts = targetTypeName.Split('.');
+            var simpleTypeName = parts[parts.Length - 1];
+            return $"{simpleTypeName}.Parse({sourcePropertyAccess}, global::System.Globalization.CultureInfo.InvariantCulture)";
+        }
+
+        if (sourceTypeName == "bool" && targetTypeName == "string")
+        {
+            return $"{sourcePropertyAccess}.ToString()";
+        }
+
+        if (sourceTypeName == "string" && targetTypeName == "bool")
+        {
+            return $"bool.Parse({sourcePropertyAccess})";
+        }
+
+        // DateTimeOffset <-> DateTime conversions
+        if (normalizedSource == "System.DateTimeOffset" && normalizedTarget == "System.DateTime")
+        {
+            var sourceIsNullableValue = MappingTypeAnalyzer.IsNullableValueType(prop.SourceProperty.Type);
+            var targetIsNullableValue = MappingTypeAnalyzer.IsNullableValueType(prop.TargetProperty.Type);
+
+            if (sourceIsNullableValue && targetIsNullableValue)
+            {
+                return $"{sourcePropertyAccess}?.DateTime";
+            }
+
+            if (sourceIsNullableValue)
+            {
+                return $"{sourcePropertyAccess}!.Value.DateTime";
+            }
+
+            return $"{sourcePropertyAccess}.DateTime";
+        }
+
+        if (normalizedSource == "System.DateTime" && normalizedTarget == "System.DateTimeOffset")
+        {
+            var sourceIsNullableValue = MappingTypeAnalyzer.IsNullableValueType(prop.SourceProperty.Type);
+            var targetIsNullableValue = MappingTypeAnalyzer.IsNullableValueType(prop.TargetProperty.Type);
+
+            if (sourceIsNullableValue && targetIsNullableValue)
+            {
+                var varName = $"__{char.ToLowerInvariant(prop.SourceProperty.Name[0])}{prop.SourceProperty.Name.Substring(1)}";
+                return $"{sourcePropertyAccess} is {{ }} {varName} ? new global::System.DateTimeOffset({varName}) : null";
+            }
+
+            if (sourceIsNullableValue)
+            {
+                return $"new global::System.DateTimeOffset({sourcePropertyAccess}!.Value)";
+            }
+
+            return $"new global::System.DateTimeOffset({sourcePropertyAccess})";
+        }
+
+        // string <-> Uri conversions
+        if (normalizedSource == "string" && normalizedTarget == "System.Uri")
+        {
+            if (sourceIsNullableRef || targetIsNullableRef)
+            {
+                return $"!string.IsNullOrEmpty({sourcePropertyAccess}) ? new global::System.Uri({sourcePropertyAccess}) : null";
+            }
+
+            return $"new global::System.Uri({sourcePropertyAccess})";
+        }
+
+        if (normalizedSource == "System.Uri" && normalizedTarget == "string")
+        {
+            if (sourceIsNullableRef)
+            {
+                return $"{sourcePropertyAccess}?.ToString()";
+            }
+
+            return $"{sourcePropertyAccess}.ToString()";
+        }
+
+        // string <-> enum conversions
+        var unwrappedSourceType = MappingTypeAnalyzer.UnwrapNullable(prop.SourceProperty.Type);
+        var unwrappedTargetType = MappingTypeAnalyzer.UnwrapNullable(prop.TargetProperty.Type);
+
+        if (normalizedSource == "string" && unwrappedTargetType.TypeKind == TypeKind.Enum)
+        {
+            var enumType = unwrappedTargetType.ToGlobalDisplayString();
+            var sourceIsNullable = sourceIsNullableRef ||
+                                   prop.SourceProperty.Type.NullableAnnotation == NullableAnnotation.Annotated;
+            var targetIsNullableValue = MappingTypeAnalyzer.IsNullableValueType(prop.TargetProperty.Type);
+
+            if (sourceIsNullable && targetIsNullableValue)
+            {
+                var varName = $"__{char.ToLowerInvariant(prop.SourceProperty.Name[0])}{prop.SourceProperty.Name.Substring(1)}";
+                return $"{sourcePropertyAccess} is {{ }} {varName} ? (global::System.Enum.TryParse<{enumType}>({varName}, out var __parsed) ? __parsed : default({enumType}?)) : null";
+            }
+
+            return $"global::System.Enum.TryParse<{enumType}>({sourcePropertyAccess}, out var __parsed) ? __parsed : default({enumType})";
+        }
+
+        if (unwrappedSourceType.TypeKind == TypeKind.Enum && normalizedTarget == "string")
+        {
+            var sourceIsNullableValue = MappingTypeAnalyzer.IsNullableValueType(prop.SourceProperty.Type);
+            if (sourceIsNullableValue)
+            {
+                return $"{sourcePropertyAccess}?.ToString()";
+            }
+
+            return $"{sourcePropertyAccess}.ToString()";
+        }
+
+        return sourcePropertyAccess;
+    }
 }

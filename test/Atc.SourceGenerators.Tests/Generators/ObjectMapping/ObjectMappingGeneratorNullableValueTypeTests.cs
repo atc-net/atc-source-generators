@@ -225,4 +225,39 @@ public partial class ObjectMappingGeneratorTests
         Assert.DoesNotContain("MapToNullable", output, StringComparison.Ordinal);
         Assert.Contains("Kind = (global::TestNamespace.KindDto?)source.Kind", output, StringComparison.Ordinal);
     }
+
+    [Theory]
+    [InlineData("DateTimeOffset?", "DateTime?", "Value = source.Value?.DateTime")]
+    [InlineData("DateTimeOffset?", "DateTime", "Value = source.Value!.Value.DateTime")]
+    [InlineData("DateTime?", "DateTimeOffset?", "Value = source.Value is { } __value ? new global::System.DateTimeOffset(__value) : null")]
+    [InlineData("DateTime?", "DateTimeOffset", "Value = new global::System.DateTimeOffset(source.Value!.Value)")]
+    public void Generator_Should_Convert_Nullable_DateTime_And_DateTimeOffset(
+        string sourceType,
+        string targetType,
+        string expected)
+    {
+        var source = $$"""
+                       #nullable enable
+                       using System;
+                       using Atc.SourceGenerators.Annotations;
+
+                       namespace TestNamespace;
+
+                       public class TargetDto
+                       {
+                           public {{targetType}} Value { get; set; }
+                       }
+
+                       [MapTo(typeof(TargetDto))]
+                       public partial class Source
+                       {
+                           public {{sourceType}} Value { get; set; }
+                       }
+                       """;
+
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        Assert.Empty(diagnostics);
+        Assert.Contains(expected, output, StringComparison.Ordinal);
+    }
 }
