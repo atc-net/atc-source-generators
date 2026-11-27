@@ -24,6 +24,7 @@ public partial class DependencyRegistrationGeneratorTests
             compilation,
             out var outputCompilation,
             out var generatorDiagnostics);
+        GeneratorTestHarness.DumpIfRequested(compilation, outputCompilation, generatorDiagnostics);
         GeneratorTestHarness.AssertGeneratedCodeCompiles(compilation, outputCompilation);
 
         var allDiagnostics = outputCompilation
@@ -96,6 +97,7 @@ public partial class DependencyRegistrationGeneratorTests
             currentCompilation,
             out var currentOutputCompilation,
             out var generatorDiagnostics);
+        GeneratorTestHarness.DumpIfRequested(currentCompilation, currentOutputCompilation, generatorDiagnostics);
         GeneratorTestHarness.AssertGeneratedCodeCompiles(currentCompilation, currentOutputCompilation);
 
         var allDiagnostics = currentOutputCompilation
@@ -141,6 +143,7 @@ public partial class DependencyRegistrationGeneratorTests
                 compilation,
                 out var outputCompilation,
                 out var generatorDiagnostics);
+            GeneratorTestHarness.DumpIfRequested(compilation, outputCompilation, generatorDiagnostics);
             GeneratorTestHarness.AssertGeneratedCodeCompiles(compilation, outputCompilation);
 
             allDiagnostics.AddRange(

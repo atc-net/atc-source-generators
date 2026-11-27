@@ -7,6 +7,7 @@ namespace Atc.SourceGenerators.Tests.Generators;
 internal static class GeneratorTestHarness
 {
     private static readonly Lazy<ImmutableArray<MetadataReference>> LazyReferences = new(CreateReferences);
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, int> DumpRunCounts = new(StringComparer.Ordinal);
 
     /// <summary>
     /// Gets the metadata references for test compilations: the platform and application assemblies of the
@@ -56,6 +57,51 @@ internal static class GeneratorTestHarness
         var message = "The generated code does not compile:" + Environment.NewLine +
                       string.Join(Environment.NewLine, errors.Select(e => e.ToString()));
         Assert.True(errors.IsEmpty, message);
+    }
+
+    /// <summary>
+    /// When the <c>ATC_SG_DUMP_DIR</c> environment variable is set, writes the generated files and the generator
+    /// diagnostics of this run to <c>{dir}/{test name}/</c>. Dumps from two commits can be compared with
+    /// <c>diff -r</c> to check that a refactoring doesn't change any generated output.
+    /// </summary>
+    public static void DumpIfRequested(
+        Compilation inputCompilation,
+        Compilation outputCompilation,
+        ImmutableArray<Diagnostic> generatorDiagnostics)
+    {
+        var root = Environment.GetEnvironmentVariable("ATC_SG_DUMP_DIR");
+        if (string.IsNullOrEmpty(root))
+        {
+            return;
+        }
+
+        var testName = TestContext.Current.Test?.TestDisplayName ?? "unknown";
+        var runIndex = DumpRunCounts.AddOrUpdate(testName, 0, (_, count) => count + 1);
+        var directory = Path.Combine(root, ToDirectoryName(testName), runIndex.ToString(CultureInfo.InvariantCulture));
+        Directory.CreateDirectory(directory);
+
+        var inputTrees = new HashSet<SyntaxTree>(inputCompilation.SyntaxTrees);
+        foreach (var tree in outputCompilation.SyntaxTrees.Where(t => !inputTrees.Contains(t)))
+        {
+            File.WriteAllText(Path.Combine(directory, Path.GetFileName(tree.FilePath)), tree.ToString());
+        }
+
+        var diagnostics = generatorDiagnostics
+            .Select(d => $"{d.Id} {d.Severity} {d.Location.GetLineSpan().Span}: {d.GetMessage(CultureInfo.InvariantCulture)}")
+            .OrderBy(line => line, StringComparer.Ordinal);
+        File.WriteAllLines(Path.Combine(directory, "_diagnostics.txt"), diagnostics);
+    }
+
+    private static string ToDirectoryName(string testName)
+    {
+        var name = new string(testName.Select(c => char.IsLetterOrDigit(c) || c is '_' or '.' ? c : '_').ToArray());
+        if (name.Length <= 120)
+        {
+            return name;
+        }
+
+        var hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(testName)));
+        return name[..100] + "_" + hash[..16];
     }
 
     private static ImmutableArray<MetadataReference> CreateReferences()

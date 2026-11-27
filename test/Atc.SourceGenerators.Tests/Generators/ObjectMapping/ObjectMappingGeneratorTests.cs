@@ -29,6 +29,7 @@ public partial class ObjectMappingGeneratorTests
             compilation,
             out var outputCompilation,
             out var generatorDiagnostics);
+        GeneratorTestHarness.DumpIfRequested(compilation, outputCompilation, generatorDiagnostics);
         if (!allowGeneratedCodeErrors)
         {
             GeneratorTestHarness.AssertGeneratedCodeCompiles(compilation, outputCompilation);
