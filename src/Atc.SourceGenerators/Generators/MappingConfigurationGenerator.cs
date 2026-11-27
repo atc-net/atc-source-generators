@@ -1206,6 +1206,21 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
     {
         var mappings = new List<PropertyMapping>();
 
+        // Configuration mappings use the configuration class's conversion methods, generate the nested mappers of
+        // collection elements and dictionary values, auto-detect enum mappings and cast numeric types
+        var rules = new PropertyMappingRules
+        {
+            FindConversionMethod = (source, target) => TryGetUserConversion(conversions, source, target, out var method) ? method : null,
+            CanMapDictionaryValue = MappingTypeAnalyzer.IsDictionaryValueNestedMapping,
+            UnmappableDictionaryFallsThrough = true,
+            ResolveEnumMapping = (source, target) =>
+                MappingTypeAnalyzer.HasEnumMappingAttribute(source, target) ||
+                (source is INamedTypeSymbol sourceEnum &&
+                 target is INamedTypeSymbol targetEnum &&
+                 TryAutoDetectEnumMapping(sourceEnum, targetEnum, autoDetectedEnums, context)),
+            AllowNumericConversions = true,
+        };
+
         var sourceProperties = MappingTypeAnalyzer.GetAllProperties(sourceType, includePrivateMembers: false);
         var targetProperties = MappingTypeAnalyzer.GetAllProperties(targetType, includePrivateMembers: false);
 
@@ -1233,198 +1248,36 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
             if (targetProp is not null)
             {
                 // Direct type match
-                mappings.Add(new PropertyMapping(
-                    SourceProperty: sourceProp,
-                    TargetProperty: targetProp,
-                    RequiresConversion: false,
-                    IsNested: false,
-                    HasEnumMapping: false,
-                    IsCollection: false,
-                    CollectionElementType: null,
-                    SourceCollectionElementType: null,
-                    CollectionTargetType: null,
-                    IsFlattened: false,
-                    FlattenedNestedProperty: null,
-                    IsBuiltInTypeConversion: false,
-                    SourceRequiresUnsafeAccessor: false,
-                    TargetRequiresUnsafeAccessor: false));
+                mappings.Add(PropertyPairClassifier.Create(sourceProp, targetProp));
+                continue;
             }
-            else
+
+            // Types differ: find the target by name and classify the pair (conversion method, nested, enum, ...)
+            targetProp = targetProperties.FirstOrDefault(t =>
+                string.Equals(t.Name, targetPropertyName, StringComparison.OrdinalIgnoreCase));
+            if (targetProp is null)
             {
-                // Check for different but mappable types
-                targetProp = targetProperties.FirstOrDefault(t =>
-                    string.Equals(t.Name, targetPropertyName, StringComparison.OrdinalIgnoreCase));
+                continue;
+            }
 
-                if (targetProp is not null &&
-                    TryGetUserConversion(conversions, sourceProp.Type, targetProp.Type, out var conversionMethod))
-                {
-                    // A user-implemented conversion method of the configuration class for these types
-                    mappings.Add(new PropertyMapping(
-                        SourceProperty: sourceProp,
-                        TargetProperty: targetProp,
-                        RequiresConversion: false,
-                        IsNested: false,
-                        HasEnumMapping: false,
-                        IsCollection: false,
-                        CollectionElementType: null,
-                        SourceCollectionElementType: null,
-                        CollectionTargetType: null,
-                        IsFlattened: false,
-                        FlattenedNestedProperty: null,
-                        IsBuiltInTypeConversion: false,
-                        SourceRequiresUnsafeAccessor: false,
-                        TargetRequiresUnsafeAccessor: false,
-                        ConversionMethod: conversionMethod));
-                }
-                else if (targetProp is not null &&
-                    IsMappableDictionary(sourceProp.Type, targetProp.Type, out var sourceValueType, out var targetValueType))
-                {
-                    // Dictionary with the same key type but a different dictionary type and/or a value type
-                    // that needs a nested or enum mapping (e.g. IReadOnlyDictionary<K, A> → Dictionary<K, B>):
-                    // copied with ToDictionary, converting each value
-                    var hasDictionaryEnumMapping = false;
-                    if (MappingTypeAnalyzer.IsDictionaryValueEnumConversion(sourceValueType!, targetValueType!))
-                    {
-                        hasDictionaryEnumMapping = MappingTypeAnalyzer.HasEnumMappingAttribute(sourceValueType!, targetValueType!);
-
-                        if (!hasDictionaryEnumMapping &&
-                            sourceValueType is INamedTypeSymbol sourceValueEnum &&
-                            targetValueType is INamedTypeSymbol targetValueEnum)
-                        {
-                            hasDictionaryEnumMapping = TryAutoDetectEnumMapping(
-                                sourceValueEnum, targetValueEnum, autoDetectedEnums, context);
-                        }
-                    }
-
-                    mappings.Add(new PropertyMapping(
-                        SourceProperty: sourceProp,
-                        TargetProperty: targetProp,
-                        RequiresConversion: false,
-                        IsNested: false,
-                        HasEnumMapping: hasDictionaryEnumMapping,
-                        IsCollection: false,
-                        CollectionElementType: targetValueType,
-                        SourceCollectionElementType: sourceValueType,
-                        CollectionTargetType: null,
-                        IsFlattened: false,
-                        FlattenedNestedProperty: null,
-                        IsBuiltInTypeConversion: false,
-                        SourceRequiresUnsafeAccessor: false,
-                        TargetRequiresUnsafeAccessor: false,
-                        IsDictionary: true));
-                }
-                else if (targetProp is not null)
-                {
-                    // Check for collection mapping
-                    var isSourceCollection = MappingTypeAnalyzer.IsCollectionType(sourceProp.Type, out var sourceElementType);
-                    var isTargetCollection = MappingTypeAnalyzer.IsCollectionType(targetProp.Type, out var targetElementType);
-
-                    if (isSourceCollection && isTargetCollection && sourceElementType is not null && targetElementType is not null)
-                    {
-                        // Auto-detect enum mapping for collection element types
-                        var hasCollectionEnumMapping = false;
-                        if (MappingTypeAnalyzer.IsEnumConversion(sourceElementType, targetElementType))
-                        {
-                            hasCollectionEnumMapping = MappingTypeAnalyzer.HasEnumMappingAttribute(sourceElementType, targetElementType);
-
-                            if (!hasCollectionEnumMapping &&
-                                sourceElementType is INamedTypeSymbol sourceElementEnumType &&
-                                targetElementType is INamedTypeSymbol targetElementEnumType)
-                            {
-                                hasCollectionEnumMapping = TryAutoDetectEnumMapping(
-                                    sourceElementEnumType, targetElementEnumType, autoDetectedEnums, context);
-                            }
-                        }
-
-                        mappings.Add(new PropertyMapping(
-                            SourceProperty: sourceProp,
-                            TargetProperty: targetProp,
-                            RequiresConversion: false,
-                            IsNested: false,
-                            HasEnumMapping: hasCollectionEnumMapping,
-                            IsCollection: true,
-                            CollectionElementType: targetElementType,
-                            SourceCollectionElementType: sourceElementType,
-                            CollectionTargetType: MappingTypeAnalyzer.GetCollectionTargetType(targetProp.Type),
-                            IsFlattened: false,
-                            FlattenedNestedProperty: null,
-                            IsBuiltInTypeConversion: false,
-                            SourceRequiresUnsafeAccessor: false,
-                            TargetRequiresUnsafeAccessor: false));
-                    }
-                    else
-                    {
-                        var requiresConversion = MappingTypeAnalyzer.IsEnumConversion(sourceProp.Type, targetProp.Type);
-                        var isNested = MappingTypeAnalyzer.IsNestedMapping(sourceProp.Type, targetProp.Type);
-                        var isBuiltInTypeConversion = MappingTypeAnalyzer.IsBuiltInTypeConversion(sourceProp.Type, targetProp.Type);
-                        var isNumericConversion = MappingTypeAnalyzer.IsNumericTypeConversion(sourceProp.Type, targetProp.Type);
-                        var isNullableValueTypeWrapping = MappingTypeAnalyzer.IsNullableValueTypeWrapping(sourceProp.Type, targetProp.Type);
-
-                        // Same value type with only nullability differing (e.g. Guid? → Guid) is a direct assignment
-                        if (isNullableValueTypeWrapping)
-                        {
-                            isNested = false;
-                        }
-
-                        // Auto-detect enum mapping (unwrap nullable for enum checks)
-                        var hasEnumMapping = false;
-                        if (requiresConversion)
-                        {
-                            var unwrappedSourceType = MappingTypeAnalyzer.UnwrapNullable(sourceProp.Type);
-                            var unwrappedTargetType = MappingTypeAnalyzer.UnwrapNullable(targetProp.Type);
-                            hasEnumMapping = MappingTypeAnalyzer.HasEnumMappingAttribute(unwrappedSourceType, unwrappedTargetType);
-
-                            // If no explicit mapping, try auto-detection
-                            if (!hasEnumMapping &&
-                                unwrappedSourceType is INamedTypeSymbol sourceEnumType &&
-                                unwrappedTargetType is INamedTypeSymbol targetEnumType)
-                            {
-                                var autoMapping = TryAutoDetectEnumMapping(
-                                    sourceEnumType, targetEnumType, autoDetectedEnums, context);
-                                hasEnumMapping = autoMapping;
-                            }
-                        }
-
-                        // Built-in type conversions take precedence over nested mapping detection
-                        if (isBuiltInTypeConversion)
-                        {
-                            isNested = false;
-                        }
-
-                        if (requiresConversion || isNested || isBuiltInTypeConversion || isNumericConversion || isNullableValueTypeWrapping)
-                        {
-                            mappings.Add(new PropertyMapping(
-                                SourceProperty: sourceProp,
-                                TargetProperty: targetProp,
-                                RequiresConversion: requiresConversion || isNumericConversion,
-                                IsNested: isNested,
-                                HasEnumMapping: hasEnumMapping,
-                                IsCollection: false,
-                                CollectionElementType: null,
-                                SourceCollectionElementType: null,
-                                CollectionTargetType: null,
-                                IsFlattened: false,
-                                FlattenedNestedProperty: null,
-                                IsBuiltInTypeConversion: isBuiltInTypeConversion,
-                                SourceRequiresUnsafeAccessor: false,
-                                TargetRequiresUnsafeAccessor: false));
-                        }
-                        else
-                        {
-                            // Same name, but no conversion between the types: say so instead of
-                            // leaving the property out silently (which also breaks constructor calls).
-                            context.ReportDiagnostic(
-                                Diagnostic.Create(
-                                    PropertyTypesNotCompatibleDescriptor,
-                                    diagnosticLocation ?? Location.None,
-                                    sourceProp.Name,
-                                    sourceType.Name,
-                                    targetType.Name,
-                                    sourceProp.Type.ToDisplayString(),
-                                    targetProp.Type.ToDisplayString()));
-                        }
-                    }
-                }
+            var result = PropertyPairClassifier.Classify(sourceProp, targetProp, rules);
+            if (result.Mapping is not null)
+            {
+                mappings.Add(result.Mapping);
+            }
+            else if (result.Failure == PropertyPairFailure.IncompatibleTypes)
+            {
+                // Same name, but no conversion between the types: say so instead of
+                // leaving the property out silently (which also breaks constructor calls).
+                context.ReportDiagnostic(
+                    Diagnostic.Create(
+                        PropertyTypesNotCompatibleDescriptor,
+                        diagnosticLocation ?? Location.None,
+                        sourceProp.Name,
+                        sourceType.Name,
+                        targetType.Name,
+                        sourceProp.Type.ToDisplayString(),
+                        targetProp.Type.ToDisplayString()));
             }
         }
 
