@@ -1614,140 +1614,18 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         List<(string Source, string Target)>? propertyRenames = null,
         Dictionary<string, string>? conversions = null)
     {
-        var constructors = targetType
-            .Constructors
-            .Where(c => c.DeclaredAccessibility == Accessibility.Public && !c.IsStatic)
-            .ToList();
-
-        if (constructors.Count == 0)
-        {
-            return (null, [], []);
-        }
-
         var sourceProperties = MappingTypeAnalyzer.GetAllProperties(sourceType, includePrivateMembers: false);
 
-        // First pass: try exact match (all parameters have matching source properties)
-        foreach (var constructor in constructors.OrderByDescending(c => c.Parameters.Length))
-        {
-            var parameterNames = new List<string>();
-            var allParametersMatch = true;
-
-            foreach (var parameter in constructor.Parameters)
-            {
-                var matchingSourceProperty = FindSourcePropertyForParameter(
-                    sourceProperties, parameter.Name, propertyRenames);
-
-                if (matchingSourceProperty is null)
-                {
-                    allParametersMatch = false;
-                    break;
-                }
-
-                // Verify type compatibility: reject clear mismatches (e.g., string vs int)
-                // Allow custom type mismatches since mapping methods may bridge the gap
-                // (e.g., Address → AddressDto, StatusEnum → StatusEnumDto)
-                var sourcePropertyType = matchingSourceProperty.Type;
-                var parameterType = parameter.Type;
-                if (!SymbolEqualityComparer.Default.Equals(sourcePropertyType, parameterType) &&
-                    !MappingTypeAnalyzer.IsImplicitlyConvertible(sourcePropertyType, parameterType) &&
-                    !MappingTypeAnalyzer.IsNullableValueTypeWrapping(sourcePropertyType, parameterType) &&
-                    !TryGetUserConversion(conversions, sourcePropertyType, parameterType, out _) &&
-                    !MappingTypeAnalyzer.AreBothCustomOrEnumTypes(sourcePropertyType, parameterType) &&
-                    !MappingTypeAnalyzer.IsNumericTypeConversion(sourcePropertyType, parameterType) &&
-                    !MappingTypeAnalyzer.IsBuiltInTypeConversion(sourcePropertyType, parameterType) &&
-                    !MappingTypeAnalyzer.AreCollectionsWithCompatibleElements(sourcePropertyType, parameterType, MappingTypeAnalyzer.AreBothCustomOrEnumTypes) &&
-                    !IsMappableDictionary(sourcePropertyType, parameterType, out _, out _))
-                {
-                    allParametersMatch = false;
-                    break;
-                }
-
-                parameterNames.Add(parameter.Name);
-            }
-
-            if (allParametersMatch && constructor.Parameters.Length > 0)
-            {
-                return (constructor, parameterNames, []);
-            }
-        }
-
-        // Second pass: partial match for types without parameterless constructor
-        // (e.g., positional records). Fill unmatched parameters with defaults.
-        var hasParameterlessConstructor = constructors.Any(c => c.Parameters.Length == 0);
-        if (!hasParameterlessConstructor)
-        {
-            foreach (var constructor in constructors.OrderByDescending(c => c.Parameters.Length))
-            {
-                var matchedNames = new List<string>();
-                var defaultParams = new List<ConstructorDefaultParameter>();
-                var hasIncompatibleParam = false;
-
-                foreach (var parameter in constructor.Parameters)
-                {
-                    var matchingSourceProperty = FindSourcePropertyForParameter(
-                        sourceProperties, parameter.Name, propertyRenames);
-
-                    if (matchingSourceProperty is null)
-                    {
-                        // Unmatched parameter: will use default value
-                        defaultParams.Add(new ConstructorDefaultParameter(
-                            parameter.Name,
-                            parameter.Type,
-                            GetDefaultExpression(parameter.Type)));
-                        continue;
-                    }
-
-                    var sourcePropertyType = matchingSourceProperty.Type;
-                    var parameterType = parameter.Type;
-                    if (!SymbolEqualityComparer.Default.Equals(sourcePropertyType, parameterType) &&
-                        !MappingTypeAnalyzer.IsImplicitlyConvertible(sourcePropertyType, parameterType) &&
-                        !MappingTypeAnalyzer.IsNullableValueTypeWrapping(sourcePropertyType, parameterType) &&
-                    !TryGetUserConversion(conversions, sourcePropertyType, parameterType, out _) &&
-                        !MappingTypeAnalyzer.AreBothCustomOrEnumTypes(sourcePropertyType, parameterType) &&
-                        !MappingTypeAnalyzer.IsNumericTypeConversion(sourcePropertyType, parameterType) &&
-                        !MappingTypeAnalyzer.AreCollectionsWithCompatibleElements(sourcePropertyType, parameterType, MappingTypeAnalyzer.AreBothCustomOrEnumTypes) &&
-                        !IsMappableDictionary(sourcePropertyType, parameterType, out _, out _))
-                    {
-                        hasIncompatibleParam = true;
-                        break;
-                    }
-
-                    matchedNames.Add(parameter.Name);
-                }
-
-                // Accept if at least one parameter matched and no type incompatibilities
-                if (!hasIncompatibleParam && matchedNames.Count > 0)
-                {
-                    return (constructor, matchedNames, defaultParams);
-                }
-            }
-        }
-
-        return (null, [], []);
-    }
-
-    private static string GetDefaultExpression(ITypeSymbol type)
-    {
-        // Nullable reference type (string?, object?, etc.)
-        if (type.NullableAnnotation == NullableAnnotation.Annotated)
-        {
-            return "null";
-        }
-
-        // Nullable value type (int?, DateTime?, etc.)
-        if (type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T })
-        {
-            return "null";
-        }
-
-        // Value types (int, bool, enums, structs)
-        if (type.IsValueType)
-        {
-            return "default";
-        }
-
-        // Non-nullable reference types
-        return "default!";
+        // Configuration mappings also convert with user conversion methods and numeric casts, and generate the
+        // nested mappers of dictionary values
+        return MappingTypeAnalyzer.FindBestConstructor(
+            targetType,
+            parameterName => FindSourcePropertyForParameter(sourceProperties, parameterName, propertyRenames),
+            (sourcePropertyType, parameterType) =>
+                MappingTypeAnalyzer.IsConstructorParameterCompatible(sourcePropertyType, parameterType) ||
+                TryGetUserConversion(conversions, sourcePropertyType, parameterType, out _) ||
+                MappingTypeAnalyzer.IsNumericTypeConversion(sourcePropertyType, parameterType) ||
+                IsMappableDictionary(sourcePropertyType, parameterType, out _, out _));
     }
 
     /// <summary>

@@ -538,4 +538,36 @@ public partial class ObjectMappingGeneratorTests
         Assert.Contains("return new global::TestNamespace.TargetDto(", output, StringComparison.Ordinal);
         Assert.Contains("source.Id ?? default,", output, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void Generator_Should_Fill_Unmatched_Record_Parameters_With_Defaults()
+    {
+        // No parameterless constructor: parameters without a source property get a default value
+        const string source = """
+                              #nullable enable
+                              using Atc.SourceGenerators.Annotations;
+
+                              namespace TestNamespace;
+
+                              public sealed record UserDto(int Id, string Name, string? Nickname, int Age, string Email);
+
+                              [MapTo(typeof(UserDto))]
+                              public partial class User
+                              {
+                                  public int Id { get; set; }
+
+                                  public string Name { get; set; } = string.Empty;
+                              }
+                              """;
+
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        Assert.Empty(diagnostics);
+        Assert.Contains("return new global::TestNamespace.UserDto(", output, StringComparison.Ordinal);
+        Assert.Contains("source.Id,", output, StringComparison.Ordinal);
+        Assert.Contains("source.Name,", output, StringComparison.Ordinal);
+        Assert.Contains("null,", output, StringComparison.Ordinal);
+        Assert.Contains("default,", output, StringComparison.Ordinal);
+        Assert.Contains("default!", output, StringComparison.Ordinal);
+    }
 }

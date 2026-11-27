@@ -347,7 +347,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
             var propertyMappings = GetPropertyMappings(classSymbol, targetType, enableFlattening, includePrivateMembers, propertyNameStrategy, context);
 
             // Find best matching constructor
-            var (constructor, constructorParameterNames) = FindBestConstructor(classSymbol, targetType);
+            var (constructor, constructorParameterNames, constructorDefaultParameters) = FindBestConstructor(classSymbol, targetType);
 
             // Extract derived type mappings from MapDerivedType attributes
             var derivedTypeMappings = GetDerivedTypeMappings(classSymbol);
@@ -378,9 +378,9 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                 : propertyMappings;
 
             // Find best matching constructor (using constructed target type for generics)
-            var (constructorForGeneric, constructorParamsForGeneric) = isGenericMapping
+            var (constructorForGeneric, constructorParamsForGeneric, constructorDefaultsForGeneric) = isGenericMapping
                 ? FindBestConstructor(classSymbol, targetTypeForMapping)
-                : (constructor, constructorParameterNames);
+                : (constructor, constructorParameterNames, constructorDefaultParameters);
 
             mappings.Add(new MappingInfo(
                 SourceType: classSymbol,
@@ -390,6 +390,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                 EnableFlattening: enableFlattening,
                 Constructor: isGenericMapping ? constructorForGeneric : constructor,
                 ConstructorParameterNames: isGenericMapping ? constructorParamsForGeneric : constructorParameterNames,
+                ConstructorDefaultParameters: isGenericMapping ? constructorDefaultsForGeneric : constructorDefaultParameters,
                 DerivedTypeMappings: derivedTypeMappings,
                 BeforeMap: beforeMap,
                 AfterMap: afterMap,
@@ -889,68 +890,20 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         return false;
     }
 
-    private static (IMethodSymbol? Constructor, List<string> ParameterNames) FindBestConstructor(
+    private static (IMethodSymbol? Constructor, List<string> ParameterNames, List<ConstructorDefaultParameter> DefaultParameters) FindBestConstructor(
         INamedTypeSymbol sourceType,
         INamedTypeSymbol targetType)
     {
-        // Get all public constructors
-        var constructors = targetType
-            .Constructors
-            .Where(c => c.DeclaredAccessibility == Accessibility.Public && !c.IsStatic)
-            .ToList();
-
-        if (constructors.Count == 0)
-        {
-            return (null, []);
-        }
-
-        // Get source properties that we can map from, including inherited ones
+        // Source properties that we can map from, including inherited ones
         var sourceProperties = MappingTypeAnalyzer.GetAllProperties(sourceType, includePrivateMembers: true);
 
-        // Find constructor where all parameters match source properties (case-insensitive)
-        foreach (var constructor in constructors.OrderByDescending(c => c.Parameters.Length))
-        {
-            var parameterNames = new List<string>();
-            var allParametersMatch = true;
-
-            foreach (var parameter in constructor.Parameters)
-            {
-                // Check if we have a matching source property (case-insensitive name AND compatible type)
-                var matchingSourceProperty = sourceProperties.FirstOrDefault(p =>
-                    string.Equals(p.Name, parameter.Name, StringComparison.OrdinalIgnoreCase));
-
-                if (matchingSourceProperty is null)
-                {
-                    allParametersMatch = false;
-                    break;
-                }
-
-                // Verify type compatibility: reject clear mismatches (e.g., string vs int)
-                // Allow custom type mismatches since mapping methods may bridge the gap
-                // (e.g., Address → AddressDto, StatusEnum → StatusEnumDto)
-                var sourcePropertyType = matchingSourceProperty.Type;
-                var parameterType = parameter.Type;
-                if (!SymbolEqualityComparer.Default.Equals(sourcePropertyType, parameterType) &&
-                    !MappingTypeAnalyzer.IsImplicitlyConvertible(sourcePropertyType, parameterType) &&
-                    !MappingTypeAnalyzer.IsNullableValueTypeWrapping(sourcePropertyType, parameterType) &&
-                    !MappingTypeAnalyzer.AreBothCustomOrEnumTypes(sourcePropertyType, parameterType) &&
-                    !MappingTypeAnalyzer.AreCollectionsWithCompatibleElements(sourcePropertyType, parameterType, MappingTypeAnalyzer.AreBothCustomOrEnumTypes) &&
-                    !IsMappableDictionary(sourcePropertyType, parameterType))
-                {
-                    allParametersMatch = false;
-                    break;
-                }
-
-                parameterNames.Add(parameter.Name);
-            }
-
-            if (allParametersMatch && constructor.Parameters.Length > 0)
-            {
-                return (constructor, parameterNames);
-            }
-        }
-
-        return (null, []);
+        return MappingTypeAnalyzer.FindBestConstructor(
+            targetType,
+            parameterName => sourceProperties.FirstOrDefault(p =>
+                string.Equals(p.Name, parameterName, StringComparison.OrdinalIgnoreCase)),
+            (sourcePropertyType, parameterType) =>
+                MappingTypeAnalyzer.IsConstructorParameterCompatible(sourcePropertyType, parameterType) ||
+                IsMappableDictionary(sourcePropertyType, parameterType));
     }
 
     /// <summary>
@@ -1302,13 +1255,25 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                     }
                 }
 
-                // Order constructor props by parameter order. A parameter whose property mapping was skipped
-                // (reported, e.g. ATCMAP011 or ATCMAP015) gets default, so the call still has every argument.
-                var orderedConstructorProps = new List<PropertyMapping?>();
-                foreach (var paramName in mapping.ConstructorParameterNames)
+                // Arguments in parameter order. A parameter without a source property (positional record) gets its
+                // default value; one whose property mapping was skipped (reported, e.g. ATCMAP011 or ATCMAP015)
+                // gets default, so the call still has every argument.
+                var defaultArguments = (mapping.ConstructorDefaultParameters ?? [])
+                    .ToDictionary(d => d.Name, d => d.DefaultExpression, StringComparer.Ordinal);
+                var constructorArguments = new List<string>();
+                foreach (var parameter in mapping.Constructor!.Parameters)
                 {
-                    orderedConstructorProps.Add(constructorProps.FirstOrDefault(p =>
-                        string.Equals(p.TargetProperty.Name, paramName, StringComparison.OrdinalIgnoreCase)));
+                    if (defaultArguments.TryGetValue(parameter.Name, out var defaultArgument))
+                    {
+                        constructorArguments.Add(defaultArgument);
+                        continue;
+                    }
+
+                    var prop = constructorProps.FirstOrDefault(p =>
+                        string.Equals(p.TargetProperty.Name, parameter.Name, StringComparison.OrdinalIgnoreCase));
+                    constructorArguments.Add(prop is null
+                        ? "default!"
+                        : GeneratePropertyMappingValue(prop, "source", mapping.SourceType));
                 }
 
                 // Generate constructor call
@@ -1321,16 +1286,10 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                     sb.AppendLineLf($"        return new {targetTypeName}{typeParamList}(");
                 }
 
-                for (var i = 0; i < orderedConstructorProps.Count; i++)
+                for (var i = 0; i < constructorArguments.Count; i++)
                 {
-                    var prop = orderedConstructorProps[i];
-                    var isLast = i == orderedConstructorProps.Count - 1;
-                    var comma = isLast ? string.Empty : ",";
-
-                    var value = prop is null
-                        ? "default!"
-                        : GeneratePropertyMappingValue(prop, "source", mapping.SourceType);
-                    sb.AppendLineLf($"            {value}{comma}");
+                    var comma = i == constructorArguments.Count - 1 ? string.Empty : ",";
+                    sb.AppendLineLf($"            {constructorArguments[i]}{comma}");
                 }
 
                 if (initializerProps.Count > 0)
@@ -1762,7 +1721,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         reverseMappings.RemoveAll(p => p.IsNested && !nestedMappers.HasMapper(p));
 
         // Find best matching constructor for reverse mapping
-        var (reverseConstructor, reverseConstructorParams) = FindBestConstructor(reverseSourceType, mapping.SourceType);
+        var (reverseConstructor, reverseConstructorParams, reverseConstructorDefaults) = FindBestConstructor(reverseSourceType, mapping.SourceType);
 
         var reverseMapping = new MappingInfo(
             SourceType: reverseSourceType,
@@ -1772,6 +1731,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
             EnableFlattening: mapping.EnableFlattening,
             Constructor: reverseConstructor,
             ConstructorParameterNames: reverseConstructorParams,
+            ConstructorDefaultParameters: reverseConstructorDefaults,
             DerivedTypeMappings: [], // No derived type mappings for reverse
             BeforeMap: null, // No hooks for reverse mapping
             AfterMap: null, // No hooks for reverse mapping
