@@ -652,4 +652,43 @@ public partial class ObjectMappingGeneratorTests
         // Assert
         Assert.Empty(diagnostics);
     }
+
+    [Fact]
+    public void Generator_Should_Report_Unmapped_Target_Properties_As_Error_When_Configured()
+    {
+        // Strict mapping: "dotnet_diagnostic.ATCMAP014.severity = error" ends up as a specific diagnostic option
+        const string source = """
+            using Atc.SourceGenerators.Annotations;
+
+            namespace TestNamespace;
+
+            public class UserDto
+            {
+                public int Id { get; set; }
+
+                public string DisplayName { get; set; } = string.Empty;
+            }
+
+            [MapTo(typeof(UserDto))]
+            public partial class User
+            {
+                public int Id { get; set; }
+            }
+            """;
+
+        var compilation = GeneratorTestHarness
+            .CreateCompilation(source)
+            .WithOptions(new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary)
+                .WithSpecificDiagnosticOptions(new Dictionary<string, ReportDiagnostic>(StringComparer.Ordinal)
+                {
+                    ["ATCMAP014"] = ReportDiagnostic.Error,
+                }));
+
+        CSharpGeneratorDriver
+            .Create(new ObjectMappingGenerator(), new EnumMappingGenerator())
+            .RunGeneratorsAndUpdateCompilation(compilation, out _, out var generatorDiagnostics, TestContext.Current.CancellationToken);
+
+        var diagnostic = Assert.Single(generatorDiagnostics, d => d.Id == "ATCMAP014");
+        Assert.Equal(DiagnosticSeverity.Error, diagnostic.Severity);
+    }
 }
