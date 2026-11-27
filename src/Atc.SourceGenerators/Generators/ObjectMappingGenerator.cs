@@ -537,7 +537,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         // Nested source paths from [MapProperty("Customer.Address.City", "City")] on the class
         foreach (var (path, target) in sourcePaths ?? [])
         {
-            AddSourcePathMapping(mappings, sourceProperties, targetProperties, sourceType, targetType, path, target, context);
+            AddSourcePathMapping(mappings, sourceProperties, targetProperties, sourceType, targetType, path, target, includePrivateMembers, context);
         }
 
         // Handle flattening if enabled
@@ -670,6 +670,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         INamedTypeSymbol targetType,
         string path,
         string target,
+        bool includePrivateMembers,
         SourceProductionContext? context)
     {
         var location = sourceType.Locations.FirstOrDefault() ?? Location.None;
@@ -719,7 +720,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         }
 
         mappings.RemoveAll(m => string.Equals(m.TargetProperty.Name, targetProp.Name, StringComparison.Ordinal));
-        mappings.Add(PropertyPairClassifier.Create(chain[0], targetProp) with { SourcePath = sourcePath });
+        mappings.Add(WithAccessorFlags(PropertyPairClassifier.Create(chain[0], targetProp) with { SourcePath = sourcePath }, includePrivateMembers));
     }
 
     private static PropertyMapping WithAccessorFlags(
@@ -1637,8 +1638,10 @@ public class ObjectMappingGenerator : IIncrementalGenerator
 
         if (prop.SourcePath is not null)
         {
-            // Nested source path of a class-level [MapProperty]
-            return $"{sourceVariable}.{prop.SourcePath}";
+            // Nested source path of a class-level [MapProperty]; a private first segment is read through its accessor
+            return prop.SourceRequiresUnsafeAccessor
+                ? GenerateSourcePropertyAccess(prop, sourceVariable, sourceType) + prop.SourcePath.Substring(prop.SourceProperty.Name.Length)
+                : $"{sourceVariable}.{prop.SourcePath}";
         }
 
         if (prop.IsFlattened && prop.FlattenedNestedProperty is not null)
