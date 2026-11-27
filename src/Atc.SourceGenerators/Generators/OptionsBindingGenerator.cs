@@ -67,7 +67,7 @@ public class OptionsBindingGenerator : IIncrementalGenerator
     private static readonly DiagnosticDescriptor OnChangeCallbackInvalidSignatureDescriptor = new(
         RuleIdentifierConstants.OptionsBinding.OnChangeCallbackInvalidSignature,
         "OnChange callback method has invalid signature",
-        "OnChange callback method '{0}' must have signature: static void {0}({1} options, string? name)",
+        "OnChange callback method '{0}' must be internal or public with signature: static void {0}({1} options, string? name)",
         RuleCategoryConstants.OptionsBinding,
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
@@ -91,7 +91,7 @@ public class OptionsBindingGenerator : IIncrementalGenerator
     private static readonly DiagnosticDescriptor PostConfigureCallbackInvalidSignatureDescriptor = new(
         RuleIdentifierConstants.OptionsBinding.PostConfigureCallbackInvalidSignature,
         "PostConfigure callback method has invalid signature",
-        "PostConfigure callback method '{0}' must have signature: static void {0}({1} options)",
+        "PostConfigure callback method '{0}' must be internal or public with signature: static void {0}({1} options)",
         RuleCategoryConstants.OptionsBinding,
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
@@ -115,7 +115,7 @@ public class OptionsBindingGenerator : IIncrementalGenerator
     private static readonly DiagnosticDescriptor ConfigureAllCallbackInvalidSignatureDescriptor = new(
         RuleIdentifierConstants.OptionsBinding.ConfigureAllCallbackInvalidSignature,
         "ConfigureAll callback method has invalid signature",
-        "ConfigureAll callback method '{0}' must have signature: static void {0}({1} options)",
+        "ConfigureAll callback method '{0}' must be internal or public with signature: static void {0}({1} options)",
         RuleCategoryConstants.OptionsBinding,
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
@@ -298,6 +298,7 @@ public class OptionsBindingGenerator : IIncrementalGenerator
                         .ToList();
                 }
                 else if (!callbackMethod.IsStatic ||
+                         !IsCallableFromGeneratedCode(callbackMethod) ||
                          !callbackMethod.ReturnsVoid ||
                          callbackMethod.Parameters.Length != 1 ||
                          !SymbolEqualityComparer.Default.Equals(callbackMethod.Parameters[0].Type, classSymbol))
@@ -526,6 +527,7 @@ public class OptionsBindingGenerator : IIncrementalGenerator
 
             // Validate method signature: static void MethodName(TOptions options, string? name)
             if (!callbackMethod.IsStatic ||
+                !IsCallableFromGeneratedCode(callbackMethod) ||
                 !callbackMethod.ReturnsVoid ||
                 callbackMethod.Parameters.Length != 2)
             {
@@ -593,6 +595,7 @@ public class OptionsBindingGenerator : IIncrementalGenerator
 
             // Validate method signature: static void MethodName(TOptions options)
             if (!callbackMethod.IsStatic ||
+                !IsCallableFromGeneratedCode(callbackMethod) ||
                 !callbackMethod.ReturnsVoid ||
                 callbackMethod.Parameters.Length != 1)
             {
@@ -680,6 +683,13 @@ public class OptionsBindingGenerator : IIncrementalGenerator
                 alsoRegisterDirectType),
         ];
     }
+
+    /// <summary>
+    /// Checks whether a callback can be called from the generated code, which is another class in the same
+    /// assembly: the method must be internal or public (not private or protected).
+    /// </summary>
+    private static bool IsCallableFromGeneratedCode(IMethodSymbol method)
+        => method.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal or Accessibility.ProtectedOrInternal;
 
     /// <summary>
     /// Gets the name of the generated OnChange hosted service: "{ClassName}ChangeListener", or, when another

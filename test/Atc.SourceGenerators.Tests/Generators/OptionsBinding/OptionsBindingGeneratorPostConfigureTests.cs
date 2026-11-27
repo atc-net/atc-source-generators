@@ -19,7 +19,7 @@ public partial class OptionsBindingGeneratorTests
                                   public string BasePath { get; set; } = string.Empty;
                                   public string CachePath { get; set; } = string.Empty;
 
-                                  private static void NormalizePaths(StorageOptions options)
+                                  internal static void NormalizePaths(StorageOptions options)
                                   {
                                       // Normalize paths implementation
                                   }
@@ -55,7 +55,7 @@ public partial class OptionsBindingGeneratorTests
                               {
                                   public string ConnectionString { get; set; } = string.Empty;
 
-                                  private static void Normalize(DatabaseOptions options)
+                                  internal static void Normalize(DatabaseOptions options)
                                   {
                                       // Normalize implementation
                                   }
@@ -112,7 +112,7 @@ public partial class OptionsBindingGeneratorTests
                               {
                                   public string SmtpHost { get; set; } = string.Empty;
 
-                                  private static void Configure()
+                                  internal static void Configure()
                                   {
                                       // No parameters - invalid!
                                   }
@@ -126,7 +126,7 @@ public partial class OptionsBindingGeneratorTests
         var diagnostic = Assert.Single(diagnostics);
         Assert.Equal("ATCOPT010", diagnostic.Id);
         Assert.Equal(DiagnosticSeverity.Error, diagnostic.Severity);
-        Assert.Contains("PostConfigure callback method 'Configure' must have signature: static void Configure(EmailOptions options)", diagnostic.GetMessage(CultureInfo.InvariantCulture), StringComparison.Ordinal);
+        Assert.Contains("PostConfigure callback method 'Configure' must be internal or public with signature: static void Configure(EmailOptions options)", diagnostic.GetMessage(CultureInfo.InvariantCulture), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -143,7 +143,7 @@ public partial class OptionsBindingGeneratorTests
                               {
                                   public bool EnableNewUI { get; set; }
 
-                                  private static void Configure(FeaturesOptions options, string? name)
+                                  internal static void Configure(FeaturesOptions options, string? name)
                                   {
                                       // Too many parameters - invalid!
                                   }
@@ -157,7 +157,7 @@ public partial class OptionsBindingGeneratorTests
         var diagnostic = Assert.Single(diagnostics);
         Assert.Equal("ATCOPT010", diagnostic.Id);
         Assert.Equal(DiagnosticSeverity.Error, diagnostic.Severity);
-        Assert.Contains("PostConfigure callback method 'Configure' must have signature: static void Configure(FeaturesOptions options)", diagnostic.GetMessage(CultureInfo.InvariantCulture), StringComparison.Ordinal);
+        Assert.Contains("PostConfigure callback method 'Configure' must be internal or public with signature: static void Configure(FeaturesOptions options)", diagnostic.GetMessage(CultureInfo.InvariantCulture), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -174,7 +174,7 @@ public partial class OptionsBindingGeneratorTests
                               {
                                   public string Level { get; set; } = string.Empty;
 
-                                  private static void Configure(string wrongType)
+                                  internal static void Configure(string wrongType)
                                   {
                                       // Wrong parameter type - invalid!
                                   }
@@ -188,7 +188,7 @@ public partial class OptionsBindingGeneratorTests
         var diagnostic = Assert.Single(diagnostics);
         Assert.Equal("ATCOPT010", diagnostic.Id);
         Assert.Equal(DiagnosticSeverity.Error, diagnostic.Severity);
-        Assert.Contains("PostConfigure callback method 'Configure' must have signature: static void Configure(LoggingOptions options)", diagnostic.GetMessage(CultureInfo.InvariantCulture), StringComparison.Ordinal);
+        Assert.Contains("PostConfigure callback method 'Configure' must be internal or public with signature: static void Configure(LoggingOptions options)", diagnostic.GetMessage(CultureInfo.InvariantCulture), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -219,7 +219,7 @@ public partial class OptionsBindingGeneratorTests
         var diagnostic = Assert.Single(diagnostics);
         Assert.Equal("ATCOPT010", diagnostic.Id);
         Assert.Equal(DiagnosticSeverity.Error, diagnostic.Severity);
-        Assert.Contains("PostConfigure callback method 'Configure' must have signature: static void Configure(CacheOptions options)", diagnostic.GetMessage(CultureInfo.InvariantCulture), StringComparison.Ordinal);
+        Assert.Contains("PostConfigure callback method 'Configure' must be internal or public with signature: static void Configure(CacheOptions options)", diagnostic.GetMessage(CultureInfo.InvariantCulture), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -250,7 +250,7 @@ public partial class OptionsBindingGeneratorTests
         var diagnostic = Assert.Single(diagnostics);
         Assert.Equal("ATCOPT010", diagnostic.Id);
         Assert.Equal(DiagnosticSeverity.Error, diagnostic.Severity);
-        Assert.Contains("PostConfigure callback method 'Configure' must have signature: static void Configure(QueueOptions options)", diagnostic.GetMessage(CultureInfo.InvariantCulture), StringComparison.Ordinal);
+        Assert.Contains("PostConfigure callback method 'Configure' must be internal or public with signature: static void Configure(QueueOptions options)", diagnostic.GetMessage(CultureInfo.InvariantCulture), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -269,7 +269,7 @@ public partial class OptionsBindingGeneratorTests
                                   [Required]
                                   public string BasePath { get; set; } = string.Empty;
 
-                                  private static void NormalizePaths(StorageOptions options)
+                                  internal static void NormalizePaths(StorageOptions options)
                                   {
                                       // Normalize paths
                                   }
@@ -309,7 +309,7 @@ public partial class OptionsBindingGeneratorTests
                               {
                                   public string TempPath { get; set; } = string.Empty;
 
-                                  private static void NormalizePaths(PathsOptions options)
+                                  internal static void NormalizePaths(PathsOptions options)
                                   {
                                       // Normalize paths
                                   }
@@ -349,7 +349,7 @@ public partial class OptionsBindingGeneratorTests
                               {
                                   public string ApiUrl { get; set; } = string.Empty;
 
-                                  private static void NormalizeUrls(UrlsOptions options)
+                                  internal static void NormalizeUrls(UrlsOptions options)
                                   {
                                       // Normalize URLs to lowercase
                                   }
@@ -399,7 +399,7 @@ public partial class OptionsBindingGeneratorTests
                                   [Required]
                                   public string TempPath { get; set; } = string.Empty;
 
-                                  private static void NormalizePaths(ComplexStorageOptions options)
+                                  internal static void NormalizePaths(ComplexStorageOptions options)
                                   {
                                       // Normalize all paths
                                   }
@@ -497,5 +497,32 @@ public partial class OptionsBindingGeneratorTests
         var generatedCode = GetGeneratedExtensionMethod(output);
         Assert.NotNull(generatedCode);
         Assert.Contains(".PostConfigure(options => global::MyApp.Configuration.InternalOptions.Configure(options))", generatedCode, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generator_Should_Report_Error_For_Private_PostConfigure_Callback()
+    {
+        // Arrange - the generated registration code is in another class, so it can't call a private method
+        const string source = """
+                              using Atc.SourceGenerators.Annotations;
+
+                              namespace MyApp.Configuration;
+
+                              [OptionsBinding("Storage", PostConfigure = nameof(NormalizePaths))]
+                              public partial class StorageOptions
+                              {
+                                  public string BasePath { get; set; } = string.Empty;
+
+                                  private static void NormalizePaths(StorageOptions options) { }
+                              }
+                              """;
+
+        // Act
+        var (diagnostics, _) = GetGeneratedOutput(source);
+
+        // Assert
+        var diagnostic = Assert.Single(diagnostics);
+        Assert.Equal("ATCOPT010", diagnostic.Id);
+        Assert.Contains("internal or public", diagnostic.GetMessage(CultureInfo.InvariantCulture), StringComparison.Ordinal);
     }
 }

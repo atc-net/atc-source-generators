@@ -551,7 +551,7 @@ public partial class StorageOptions
     public string BasePath { get; set; } = string.Empty;
     public string CachePath { get; set; } = string.Empty;
 
-    private static void NormalizePaths(StorageOptions options)
+    internal static void NormalizePaths(StorageOptions options)
     {
         options.BasePath = EnsureTrailingSlash(options.BasePath);
         options.CachePath = EnsureTrailingSlash(options.CachePath);
