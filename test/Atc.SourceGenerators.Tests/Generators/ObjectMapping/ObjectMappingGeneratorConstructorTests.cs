@@ -456,4 +456,86 @@ public partial class ObjectMappingGeneratorTests
         Assert.Contains("return new global::TestNamespace.OrderDto(", output, StringComparison.Ordinal);
         Assert.Contains("source.Lines?.Select(x => x.MapToOrderLineDto()).ToList()!", output, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void Generator_Should_Not_Use_Constructor_Parameter_That_No_Mapping_Can_Fill()
+    {
+        // IAddress -> AddressDto can't be mapped (an interface is not a nested mapping), so the constructor that
+        // needs it must not be chosen: the parameterless constructor and the initializer are used instead
+        const string source = """
+                              #nullable enable
+                              using Atc.SourceGenerators.Annotations;
+
+                              namespace TestNamespace;
+
+                              public interface IAddress
+                              {
+                                  string City { get; }
+                              }
+
+                              public class AddressDto
+                              {
+                                  public string City { get; set; } = string.Empty;
+                              }
+
+                              public class CustomerDto
+                              {
+                                  public CustomerDto()
+                                  {
+                                  }
+
+                                  public CustomerDto(string name, AddressDto address)
+                                  {
+                                      Name = name;
+                                      Address = address;
+                                  }
+
+                                  public string Name { get; set; } = string.Empty;
+
+                                  public AddressDto? Address { get; set; }
+                              }
+
+                              [MapTo(typeof(CustomerDto))]
+                              public partial class Customer
+                              {
+                                  public string Name { get; set; } = string.Empty;
+
+                                  public IAddress? Address { get; set; }
+                              }
+                              """;
+
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        Assert.Empty(diagnostics);
+        Assert.DoesNotContain("new global::TestNamespace.CustomerDto(", output, StringComparison.Ordinal);
+        Assert.Contains("Name = source.Name", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generator_Should_Use_Constructor_With_Nullable_Value_Type_Source()
+    {
+        const string source = """
+                              #nullable enable
+                              using System;
+                              using Atc.SourceGenerators.Annotations;
+
+                              namespace TestNamespace;
+
+                              public sealed record TargetDto(Guid Id, string Name);
+
+                              [MapTo(typeof(TargetDto))]
+                              public partial class Source
+                              {
+                                  public Guid? Id { get; set; }
+
+                                  public string Name { get; set; } = string.Empty;
+                              }
+                              """;
+
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        Assert.Empty(diagnostics);
+        Assert.Contains("return new global::TestNamespace.TargetDto(", output, StringComparison.Ordinal);
+        Assert.Contains("source.Id ?? default,", output, StringComparison.Ordinal);
+    }
 }
