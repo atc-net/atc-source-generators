@@ -71,6 +71,30 @@ internal static class MappingCodeEmitter
     }
 
     /// <summary>
+    /// Gets the call of the enum mapping method (<c>MapTo{TargetEnum}()</c>) for an enum property. A nullable source
+    /// is unwrapped with a pattern, and maps null to null for a nullable target or to default otherwise.
+    /// </summary>
+    /// <param name="prop">The enum property mapping.</param>
+    /// <param name="sourceAccess">The source property expression, for example <c>source.Status</c>.</param>
+    public static string GetEnumMappingCall(
+        PropertyMapping prop,
+        string sourceAccess)
+    {
+        // Name the method after the underlying enum, so Status? -> StatusDto? calls MapToStatusDto (not MapToNullable)
+        var unwrappedTarget = MappingTypeAnalyzer.UnwrapNullable(prop.TargetProperty.Type);
+        var enumMappingMethodName = $"MapTo{TypeNameSanitizer.SanitizeForIdentifier(unwrappedTarget.Name)}";
+
+        if (MappingTypeAnalyzer.IsNullableValueType(prop.SourceProperty.Type))
+        {
+            var varName = $"__{char.ToLowerInvariant(prop.SourceProperty.Name[0])}{prop.SourceProperty.Name.Substring(1)}";
+            var whenNull = MappingTypeAnalyzer.IsNullableValueType(prop.TargetProperty.Type) ? "null" : "default";
+            return $"{sourceAccess} is {{ }} {varName} ? {varName}.{enumMappingMethodName}() : {whenNull}";
+        }
+
+        return $"{sourceAccess}.{enumMappingMethodName}()";
+    }
+
+    /// <summary>
     /// Gets the conversion of a collection property to the target collection type: <c>ToArray()</c>,
     /// <c>ToList()</c>, or a <c>Collection&lt;T&gt;</c> / <c>ReadOnlyCollection&lt;T&gt;</c> around a list,
     /// with an optional <c>Select</c> that maps each element.
@@ -180,7 +204,8 @@ internal static class MappingCodeEmitter
 
             if (sourceIsNullableValue)
             {
-                return $"{sourcePropertyAccess}!.Value.DateTime";
+                // T? -> T falls back to default when null, like any other nullable value type
+                return $"{sourcePropertyAccess}?.DateTime ?? default";
             }
 
             return $"{sourcePropertyAccess}.DateTime";
@@ -191,15 +216,12 @@ internal static class MappingCodeEmitter
             var sourceIsNullableValue = MappingTypeAnalyzer.IsNullableValueType(prop.SourceProperty.Type);
             var targetIsNullableValue = MappingTypeAnalyzer.IsNullableValueType(prop.TargetProperty.Type);
 
-            if (sourceIsNullableValue && targetIsNullableValue)
-            {
-                var varName = $"__{char.ToLowerInvariant(prop.SourceProperty.Name[0])}{prop.SourceProperty.Name.Substring(1)}";
-                return $"{sourcePropertyAccess} is {{ }} {varName} ? new global::System.DateTimeOffset({varName}) : null";
-            }
-
             if (sourceIsNullableValue)
             {
-                return $"new global::System.DateTimeOffset({sourcePropertyAccess}!.Value)";
+                // T? -> T falls back to default when null, like any other nullable value type
+                var varName = $"__{char.ToLowerInvariant(prop.SourceProperty.Name[0])}{prop.SourceProperty.Name.Substring(1)}";
+                var whenNull = targetIsNullableValue ? "null" : "default";
+                return $"{sourcePropertyAccess} is {{ }} {varName} ? new global::System.DateTimeOffset({varName}) : {whenNull}";
             }
 
             return $"new global::System.DateTimeOffset({sourcePropertyAccess})";

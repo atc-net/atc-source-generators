@@ -1705,20 +1705,8 @@ public class ObjectMappingGenerator : IIncrementalGenerator
             // Enum conversion
             if (prop.HasEnumMapping)
             {
-                // Use EnumMapping extension method (safe mapping with special case handling).
-                // Name it after the underlying enum, so Status? -> StatusDto? calls MapToStatusDto (not MapToNullable).
-                var unwrappedTarget = MappingTypeAnalyzer.UnwrapNullable(prop.TargetProperty.Type);
-                var enumMappingMethodName = $"MapTo{TypeNameSanitizer.SanitizeForIdentifier(unwrappedTarget.Name)}";
-                var enumSourceAccess = GenerateSourcePropertyAccess(prop, sourceVariable, sourceType);
-
-                if (MappingTypeAnalyzer.IsNullableValueType(prop.SourceProperty.Type))
-                {
-                    var varName = $"__{char.ToLowerInvariant(prop.SourceProperty.Name[0])}{prop.SourceProperty.Name.Substring(1)}";
-                    var whenNull = MappingTypeAnalyzer.IsNullableValueType(prop.TargetProperty.Type) ? "null" : "default";
-                    return $"{enumSourceAccess} is {{ }} {varName} ? {varName}.{enumMappingMethodName}() : {whenNull}";
-                }
-
-                return $"{enumSourceAccess}.{enumMappingMethodName}()";
+                // Use EnumMapping extension method (safe mapping with special case handling)
+                return MappingCodeEmitter.GetEnumMappingCall(prop, GenerateSourcePropertyAccess(prop, sourceVariable, sourceType));
             }
 
             // Fall back to simple cast (less safe but works when no mapping is defined)

@@ -228,9 +228,9 @@ public partial class ObjectMappingGeneratorTests
 
     [Theory]
     [InlineData("DateTimeOffset?", "DateTime?", "Value = source.Value?.DateTime")]
-    [InlineData("DateTimeOffset?", "DateTime", "Value = source.Value!.Value.DateTime")]
+    [InlineData("DateTimeOffset?", "DateTime", "Value = source.Value?.DateTime ?? default")]
     [InlineData("DateTime?", "DateTimeOffset?", "Value = source.Value is { } __value ? new global::System.DateTimeOffset(__value) : null")]
-    [InlineData("DateTime?", "DateTimeOffset", "Value = new global::System.DateTimeOffset(source.Value!.Value)")]
+    [InlineData("DateTime?", "DateTimeOffset", "Value = source.Value is { } __value ? new global::System.DateTimeOffset(__value) : default")]
     public void Generator_Should_Convert_Nullable_DateTime_And_DateTimeOffset(
         string sourceType,
         string targetType,
