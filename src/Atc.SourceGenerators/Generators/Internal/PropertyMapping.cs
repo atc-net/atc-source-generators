@@ -16,4 +16,5 @@ internal sealed record PropertyMapping(
     bool SourceRequiresUnsafeAccessor,
     bool TargetRequiresUnsafeAccessor,
     bool IsDictionary = false,
-    string? ConversionMethod = null);
+    string? ConversionMethod = null,
+    string? SourcePath = null);
