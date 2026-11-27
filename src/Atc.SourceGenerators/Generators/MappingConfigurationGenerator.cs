@@ -1548,31 +1548,10 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
     /// </summary>
     private static Dictionary<string, string>? GetUserConversions(
         INamedTypeSymbol? containingClass)
-    {
-        if (containingClass is null)
-        {
-            return null;
-        }
-
-        var conversions = new Dictionary<string, string>(StringComparer.Ordinal);
-        foreach (var method in containingClass.GetMembers().OfType<IMethodSymbol>())
-        {
-            if (method is not { IsStatic: true, MethodKind: MethodKind.Ordinary, IsGenericMethod: false, ReturnsVoid: false, Parameters.Length: 1 } ||
-                method.IsPartialDefinition ||
-                method.PartialDefinitionPart is not null)
-            {
-                continue;
-            }
-
-            var key = GetConversionKey(method.Parameters[0].Type, method.ReturnType);
-            if (!conversions.ContainsKey(key))
-            {
-                conversions[key] = method.Name;
-            }
-        }
-
-        return conversions.Count > 0 ? conversions : null;
-    }
+        => MappingTypeAnalyzer.GetConversionMethods(
+            containingClass,
+            static _ => true, // nested in the same class: any accessibility
+            static method => method.Name);
 
     private static bool TryGetUserConversion(
         Dictionary<string, string>? conversions,
@@ -1580,16 +1559,9 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         ITypeSymbol targetType,
         out string? methodName)
     {
-        methodName = null;
-        return conversions is not null &&
-               !SymbolEqualityComparer.Default.Equals(sourceType, targetType) &&
-               conversions.TryGetValue(GetConversionKey(sourceType, targetType), out methodName);
+        methodName = MappingTypeAnalyzer.FindConversionMethod(conversions, sourceType, targetType);
+        return methodName is not null;
     }
-
-    private static string GetConversionKey(
-        ITypeSymbol sourceType,
-        ITypeSymbol targetType)
-        => $"{sourceType.WithNullableAnnotation(NullableAnnotation.NotAnnotated).ToDisplayString()}->{targetType.WithNullableAnnotation(NullableAnnotation.NotAnnotated).ToDisplayString()}";
 
     private static bool IsMappableDictionary(
         ITypeSymbol sourceType,

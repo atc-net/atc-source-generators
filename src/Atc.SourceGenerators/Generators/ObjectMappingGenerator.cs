@@ -352,16 +352,19 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                 }
             }
 
+            // Conversion methods of the [MapTo] class (static, one parameter, callable from the generated class)
+            var conversions = GetConversionMethods(classSymbol);
+
             // The generated mapping is an extension method in another class: hooks must be static and accessible
             beforeMap = GetCallableHook(classSymbol, beforeMap, "BeforeMap", context);
             afterMap = GetCallableHook(classSymbol, afterMap, "AfterMap", context);
             factory = GetCallableHook(classSymbol, factory, "Factory", context);
 
             // Get property mappings
-            var propertyMappings = GetPropertyMappings(classSymbol, targetType, enableFlattening, includePrivateMembers, propertyNameStrategy, context, deepClone);
+            var propertyMappings = GetPropertyMappings(classSymbol, targetType, enableFlattening, includePrivateMembers, propertyNameStrategy, context, deepClone, conversions);
 
             // Find best matching constructor
-            var (constructor, constructorParameterNames, constructorDefaultParameters) = FindBestConstructor(classSymbol, targetType);
+            var (constructor, constructorParameterNames, constructorDefaultParameters) = FindBestConstructor(classSymbol, targetType, conversions);
 
             // Extract derived type mappings from MapDerivedType attributes
             var derivedTypeMappings = GetDerivedTypeMappings(classSymbol);
@@ -388,12 +391,12 @@ public class ObjectMappingGenerator : IIncrementalGenerator
 
             // Get property mappings (using constructed target type for generics)
             var mappingsForGeneric = isGenericMapping
-                ? GetPropertyMappings(classSymbol, targetTypeForMapping, enableFlattening, includePrivateMembers, propertyNameStrategy, context, deepClone)
+                ? GetPropertyMappings(classSymbol, targetTypeForMapping, enableFlattening, includePrivateMembers, propertyNameStrategy, context, deepClone, conversions)
                 : propertyMappings;
 
             // Find best matching constructor (using constructed target type for generics)
             var (constructorForGeneric, constructorParamsForGeneric, constructorDefaultsForGeneric) = isGenericMapping
-                ? FindBestConstructor(classSymbol, targetTypeForMapping)
+                ? FindBestConstructor(classSymbol, targetTypeForMapping, conversions)
                 : (constructor, constructorParameterNames, constructorDefaultParameters);
 
             mappings.Add(new MappingInfo(
@@ -427,14 +430,16 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         bool includePrivateMembers,
         PropertyNameStrategy propertyNameStrategy,
         SourceProductionContext? context = null,
-        bool deepClone = false)
+        bool deepClone = false,
+        Dictionary<string, string>? conversions = null)
     {
         var mappings = new List<PropertyMapping>();
 
         // [MapTo] requires a [MapTo] mapping for collection elements and dictionary values (ATCMAP011 otherwise),
-        // uses enum mappings from [MapTo] on enums, and has no conversion methods or numeric casts
+        // uses enum mappings from [MapTo] on enums and the conversion methods of the [MapTo] class, and has no numeric casts
         var rules = new PropertyMappingRules
         {
+            FindConversionMethod = (source, target) => MappingTypeAnalyzer.FindConversionMethod(conversions, source, target),
             CanMapDictionaryValue = HasObjectMappingToType,
             CanMapCollectionElement = HasObjectMappingToType,
         };
@@ -606,6 +611,17 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         => sourceType is not null &&
            SymbolEqualityComparer.Default.Equals(sourceType, targetType) &&
            HasObjectMappingToType(sourceType, sourceType);
+
+    /// <summary>
+    /// Gets the conversion methods of a [MapTo] class: static one-parameter methods that the generated extension
+    /// class can call (internal or public), as global::Namespace.Class.Method.
+    /// </summary>
+    private static Dictionary<string, string>? GetConversionMethods(
+        INamedTypeSymbol classSymbol)
+        => MappingTypeAnalyzer.GetConversionMethods(
+            classSymbol,
+            static method => method.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal or Accessibility.ProtectedOrInternal,
+            method => $"{classSymbol.ToGlobalDisplayString()}.{method.Name}");
 
     private static PropertyMapping WithAccessorFlags(
         PropertyMapping mapping,
@@ -839,7 +855,8 @@ public class ObjectMappingGenerator : IIncrementalGenerator
 
     private static (IMethodSymbol? Constructor, List<string> ParameterNames, List<ConstructorDefaultParameter> DefaultParameters) FindBestConstructor(
         INamedTypeSymbol sourceType,
-        INamedTypeSymbol targetType)
+        INamedTypeSymbol targetType,
+        Dictionary<string, string>? conversions)
     {
         // Source properties that we can map from, including inherited ones
         var sourceProperties = MappingTypeAnalyzer.GetAllProperties(sourceType, includePrivateMembers: true);
@@ -850,6 +867,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                 string.Equals(p.Name, parameterName, StringComparison.OrdinalIgnoreCase)),
             (sourcePropertyType, parameterType) =>
                 MappingTypeAnalyzer.IsConstructorParameterCompatible(sourcePropertyType, parameterType) ||
+                MappingTypeAnalyzer.FindConversionMethod(conversions, sourcePropertyType, parameterType) is not null ||
                 IsMappableDictionary(sourcePropertyType, parameterType));
     }
 
@@ -1502,6 +1520,12 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         string sourceVariable,
         INamedTypeSymbol sourceType)
     {
+        if (prop.ConversionMethod is not null)
+        {
+            // Conversion method of the [MapTo] class
+            return $"{prop.ConversionMethod}({GenerateSourcePropertyAccess(prop, sourceVariable, sourceType)})";
+        }
+
         if (prop.IsFlattened && prop.FlattenedNestedProperty is not null)
         {
             // Flattened property mapping: source.Address.City → target.AddressCity
@@ -1670,11 +1694,12 @@ public class ObjectMappingGenerator : IIncrementalGenerator
             enableFlattening: mapping.EnableFlattening,
             includePrivateMembers: mapping.IncludePrivateMembers,
             propertyNameStrategy: mapping.PropertyNameStrategy,
-            deepClone: mapping.DeepClone);
+            deepClone: mapping.DeepClone,
+            conversions: GetConversionMethods(mapping.SourceType));
         reverseMappings.RemoveAll(p => p.IsNested && !nestedMappers.HasMapper(p));
 
         // Find best matching constructor for reverse mapping
-        var (reverseConstructor, reverseConstructorParams, reverseConstructorDefaults) = FindBestConstructor(reverseSourceType, mapping.SourceType);
+        var (reverseConstructor, reverseConstructorParams, reverseConstructorDefaults) = FindBestConstructor(reverseSourceType, mapping.SourceType, GetConversionMethods(mapping.SourceType));
 
         var reverseMapping = new MappingInfo(
             SourceType: reverseSourceType,
