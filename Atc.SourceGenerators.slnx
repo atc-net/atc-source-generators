@@ -1,23 +1,5 @@
 <Solution>
-  <Folder Name="/docs/">
-    <File Path="docs/AnnotationConstantsGenerator-FeatureRoadmap.md" />
-    <File Path="docs/AnnotationConstantsGenerator-Samples.md" />
-    <File Path="docs/AnnotationConstantsGenerator.md" />
-    <File Path="docs/DependencyRegistrationGenerators-FeatureRoadmap.md" />
-    <File Path="docs/DependencyRegistrationGenerators-Samples.md" />
-    <File Path="docs/DependencyRegistrationGenerators.md" />
-    <File Path="docs/EnumMappingGenerators-Samples.md" />
-    <File Path="docs/EnumMappingGenerators.md" />
-    <File Path="docs/ObjectMappingGenerators-ConfigurationBasedMapping.md" />
-    <File Path="docs/ObjectMappingGenerators-ConfigurationBasedMapping-Samples.md" />
-    <File Path="docs/ObjectMappingGenerators-FeatureRoadmap.md" />
-    <File Path="docs/ObjectMappingGenerators-MigrationGuide.md" />
-    <File Path="docs/ObjectMappingGenerators-Samples.md" />
-    <File Path="docs/ObjectMappingGenerators.md" />
-    <File Path="docs/OptionsBindingGenerators-FeatureRoadmap.md" />
-    <File Path="docs/OptionsBindingGenerators-Samples.md" />
-    <File Path="docs/OptionsBindingGenerators.md" />
-    <File Path="docs/PetStoreApi-Samples.md" />
+  <Folder Name="/Solution Items/">
     <File Path="README.md" />
   </Folder>
   <Folder Name="/sample/">
