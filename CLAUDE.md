@@ -943,7 +943,7 @@ UserDto (API)
 
 **Key Features:**
 - Intelligent name-based enum value matching (case-insensitive)
-- Automatic special case detection (None → Unknown, Active → Enabled, etc.)
+- Automatic special case detection for the zero/empty states (None ↔ Unknown ↔ Default)
 - Bidirectional mapping support with `Bidirectional = true`
 - Zero runtime cost - pure switch expressions
 - Type-safe with compile-time diagnostics
@@ -1001,17 +1001,14 @@ public static PetStatusEntity MapToPetStatusEntity(this PetStatusDto source)
 **Mapping Rules:**
 1. **Exact Match**: Enum values with same name (case-sensitive) map directly
 2. **Case-Insensitive Match**: Falls back to case-insensitive comparison
-3. **Special Cases**: Automatically detects common patterns:
-   - `None` ↔ `Unknown`, `Default`, `NotSet`
-   - `Active` ↔ `Enabled`, `On`, `Running`
-   - `Inactive` ↔ `Disabled`, `Off`, `Stopped`
-   - `Deleted` ↔ `Removed`, `Archived`
-   - `Pending` ↔ `InProgress`, `Processing`
-   - `Completed` ↔ `Done`, `Finished`
+3. **Special Cases**: Only the "zero/empty" state equivalents, to avoid surprising mappings:
+   - `None` ↔ `Unknown`, `Default`
+   - `Unknown` ↔ `None`, `Default`
+   - `Default` ↔ `None`, `Unknown`
 4. **Unmapped Values**: Generate warnings at compile time, throw at runtime
 
 **Special Case Detection:**
-The generator uses `EnumMappingUtility` which contains a dictionary of common enum naming patterns. This eliminates the need for manual configuration when dealing with standard patterns like database "None" values mapping to API "Unknown" values.
+The generator uses `EnumMappingHelper` (`src/Atc.SourceGenerators/Helpers/EnumMappingHelper.cs`), whose dictionary holds these equivalents. This eliminates the need for manual configuration when dealing with standard patterns like database "None" values mapping to API "Unknown" values.
 
 **3-Layer Architecture Support:**
 ```
@@ -1093,7 +1090,7 @@ MappingBuilder.Configure(map =>
 - Results feed into the same `GenerateAssemblyLevelCode()` pipeline as `[MapTypes]`
 
 **Enum Auto-Detection:**
-When mapping properties with different enum types (e.g., `ContactType` → `CustomerCategory`), the generator automatically generates switch expressions using EnumMappingHelper's special case detection (None↔Unknown, Active↔Enabled, etc.).
+When mapping properties with different enum types (e.g., `ContactType` → `CustomerCategory`), the generator automatically generates switch expressions using EnumMappingHelper's special case detection (None ↔ Unknown ↔ Default).
 
 **Attributes (in Atc.SourceGenerators.Annotations):**
 - `MappingConfigurationAttribute` - Marks static partial class as mapping configuration container
