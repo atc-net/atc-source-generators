@@ -685,6 +685,24 @@ public class OptionsBindingGenerator : IIncrementalGenerator
     }
 
     /// <summary>
+    /// Gets the type part of the early-access method names (Get{Name}From..., GetOrAdd{Name}From...):
+    /// the class name, or, when another options class of the assembly has the same name (in another
+    /// namespace), the namespace and class name, so the generated methods don't collide (CS0111).
+    /// </summary>
+    private static string GetEarlyAccessName(
+        OptionsInfo option,
+        IEnumerable<OptionsInfo> assemblyOptions)
+    {
+        var hasNameClash = assemblyOptions.Any(o =>
+            string.Equals(o.ClassName, option.ClassName, StringComparison.Ordinal) &&
+            !string.Equals(o.Namespace, option.Namespace, StringComparison.Ordinal));
+
+        return hasNameClash
+            ? TypeNameSanitizer.SanitizeForIdentifier(option.Namespace.Replace(".", string.Empty)) + option.ClassName
+            : option.ClassName;
+    }
+
+    /// <summary>
     /// Checks whether a callback can be called from the generated code, which is another class in the same
     /// assembly: the method must be internal or public (not private or protected).
     /// </summary>
@@ -1192,8 +1210,9 @@ public static class OptionsBindingExtensions{{methodSuffix}}
 
             foreach (var option in unnamedOptions)
             {
-                GenerateGetMethod(sb, option, methodSuffix);
-                GenerateGetOrAddMethod(sb, option, methodSuffix);
+                var earlyAccessName = GetEarlyAccessName(option, unnamedOptions);
+                GenerateGetMethod(sb, option, methodSuffix, earlyAccessName);
+                GenerateGetOrAddMethod(sb, option, methodSuffix, earlyAccessName);
             }
 
             // Generate smart dispatcher generic GetOptions<T>() method
@@ -1220,7 +1239,7 @@ public static class OptionsBindingExtensions{{methodSuffix}}
                 foreach (var option in unnamedOptions)
                 {
                     sb.Append("    //   - GetOrAdd");
-                    sb.Append(option.ClassName);
+                    sb.Append(GetEarlyAccessName(option, unnamedOptions));
                     sb.Append("From");
                     sb.Append(methodSuffix);
                     sb.AppendLineLf("()");
@@ -1466,7 +1485,8 @@ public static class OptionsBindingExtensions{{methodSuffix}}
     private static void GenerateGetMethod(
         StringBuilder sb,
         OptionsInfo option,
-        string methodSuffix)
+        string methodSuffix,
+        string earlyAccessName)
     {
         var optionsType = GetGlobalTypeName(option);
         var sectionName = option.SectionName;
@@ -1489,7 +1509,7 @@ public static class OptionsBindingExtensions{{methodSuffix}}
         sb.Append("    public static ");
         sb.Append(optionsType);
         sb.Append(" Get");
-        sb.Append(option.ClassName);
+        sb.Append(earlyAccessName);
         sb.Append("From");
         sb.AppendLineLf(methodSuffix);
         sb.AppendLineLf("        (this global::Microsoft.Extensions.DependencyInjection.IServiceCollection services,");
@@ -1569,7 +1589,8 @@ public static class OptionsBindingExtensions{{methodSuffix}}
     private static void GenerateGetOrAddMethod(
         StringBuilder sb,
         OptionsInfo option,
-        string methodSuffix)
+        string methodSuffix,
+        string earlyAccessName)
     {
         var optionsType = GetGlobalTypeName(option);
         var sectionName = option.SectionName;
@@ -1592,7 +1613,7 @@ public static class OptionsBindingExtensions{{methodSuffix}}
         sb.Append("    public static ");
         sb.Append(optionsType);
         sb.Append(" GetOrAdd");
-        sb.Append(option.ClassName);
+        sb.Append(earlyAccessName);
         sb.Append("From");
         sb.AppendLineLf(methodSuffix);
         sb.AppendLineLf("        (this global::Microsoft.Extensions.DependencyInjection.IServiceCollection services,");
@@ -1739,7 +1760,7 @@ public static class OptionsBindingExtensions{{methodSuffix}}
                 sb.Append(optionsType);
                 sb.AppendLineLf("))");
                 sb.Append("            return (T)(object)services.Get");
-                sb.Append(option.ClassName);
+                sb.Append(GetEarlyAccessName(option, currentAssemblyOptions));
                 sb.Append("From");
                 sb.Append(currentAssemblySuffix);
                 sb.AppendLineLf("(configuration);");
@@ -1758,6 +1779,7 @@ public static class OptionsBindingExtensions{{methodSuffix}}
                     // Get smart suffix for this referenced assembly
                     var refMethodSuffix = GetSmartMethodSuffixFromContext(refAssembly.AssemblyName, allAssemblies);
 
+                    var refUnnamedOptions = refOptions.Where(o => string.IsNullOrWhiteSpace(o.Name)).ToList();
                     foreach (var option in refOptions)
                     {
                         var optionsType = GetGlobalTypeName(option);
@@ -1765,7 +1787,7 @@ public static class OptionsBindingExtensions{{methodSuffix}}
                         sb.Append(optionsType);
                         sb.AppendLineLf("))");
                         sb.Append("            return (T)(object)services.Get");
-                        sb.Append(option.ClassName);
+                        sb.Append(GetEarlyAccessName(option, refUnnamedOptions));
                         sb.Append("From");
                         sb.Append(refMethodSuffix);
                         sb.AppendLineLf("(configuration);");
