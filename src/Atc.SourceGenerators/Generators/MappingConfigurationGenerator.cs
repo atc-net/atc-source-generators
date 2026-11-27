@@ -1153,7 +1153,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         sb.AppendLineLf("[global::System.Runtime.CompilerServices.CompilerGenerated]");
         sb.AppendLineLf("[global::System.Diagnostics.DebuggerNonUserCode]");
         sb.AppendLineLf("[global::System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]");
-        sb.AppendLineLf("public static class AtcMappingServiceCollectionExtensions");
+        sb.AppendLineLf("internal static class AtcMappingServiceCollectionExtensions");
         sb.AppendLineLf("{");
         sb.AppendLineLf("    /// <summary>");
         sb.AppendLineLf("    /// Registers compile-time mapping configurations. The lambda body is analyzed by the source generator");
