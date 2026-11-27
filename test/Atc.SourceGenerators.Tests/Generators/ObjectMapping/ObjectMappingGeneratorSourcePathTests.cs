@@ -211,4 +211,35 @@ public partial class ObjectMappingGeneratorTests
         Assert.Empty(diagnostics);
         Assert.Single(System.Text.RegularExpressions.Regex.Matches(output, "AddressCity = "));
     }
+
+    [Fact]
+    public void Generator_Should_Read_A_Private_Source_Path_Through_UnsafeAccessor()
+    {
+        const string source = $$"""
+                                #nullable enable
+                                using Atc.SourceGenerators.Annotations;
+
+                                namespace TestNamespace;
+
+                                {{SourcePathModel}}
+
+                                public class OrderDto
+                                {
+                                    public string? CustomerName { get; private set; }
+                                }
+
+                                [MapTo(typeof(OrderDto), IncludePrivateMembers = true)]
+                                [MapProperty("Customer.Name", "CustomerName")]
+                                public partial class Order
+                                {
+                                    private Customer? Customer { get; set; }
+                                }
+                                """;
+
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        Assert.Empty(diagnostics);
+        Assert.Contains("UnsafeAccessor", output, StringComparison.Ordinal);
+        Assert.Contains("?.Name", output, StringComparison.Ordinal);
+    }
 }
