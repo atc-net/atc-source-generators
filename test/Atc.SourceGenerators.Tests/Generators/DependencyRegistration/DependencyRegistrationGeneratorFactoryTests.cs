@@ -237,7 +237,7 @@ public partial class DependencyRegistrationGeneratorTests
 
         Assert.Empty(diagnostics);
         Assert.Contains("services.AddTransient<TestNamespace.IService1>(sp => TestNamespace.MultiService.CreateService(sp));", output, StringComparison.Ordinal);
-        Assert.Contains("services.AddTransient<TestNamespace.IService2>(sp => TestNamespace.MultiService.CreateService(sp));", output, StringComparison.Ordinal);
+        Assert.Contains("services.AddTransient<TestNamespace.IService2>(sp => (TestNamespace.IService2)TestNamespace.MultiService.CreateService(sp));", output, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -270,7 +270,7 @@ public partial class DependencyRegistrationGeneratorTests
 
         Assert.Empty(diagnostics);
         Assert.Contains("services.AddScoped<TestNamespace.IEmailSender>(sp => TestNamespace.EmailSender.CreateEmailSender(sp));", output, StringComparison.Ordinal);
-        Assert.Contains("services.AddScoped<TestNamespace.EmailSender>(sp => TestNamespace.EmailSender.CreateEmailSender(sp));", output, StringComparison.Ordinal);
+        Assert.Contains("services.AddScoped<TestNamespace.EmailSender>(sp => (TestNamespace.EmailSender)TestNamespace.EmailSender.CreateEmailSender(sp));", output, StringComparison.Ordinal);
     }
 
     [Fact(Skip = "Abstract class factory methods require additional investigation in test harness. Manually verified in samples.")]

@@ -1030,7 +1030,7 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
         sb.AppendLineLf("        where TService : class");
         sb.AppendLineLf("    {");
         sb.AppendLineLf("        // Find existing service descriptor");
-        sb.AppendLineLf("        var descriptor = services.LastOrDefault(d => d.ServiceType == typeof(TService));");
+        sb.AppendLineLf("        var descriptor = global::System.Linq.Enumerable.LastOrDefault(services, d => d.ServiceType == typeof(TService));");
         sb.AppendLineLf("        if (descriptor == null)");
         sb.AppendLineLf("        {");
         sb.AppendLineLf("            throw new global::System.InvalidOperationException(");
@@ -1082,7 +1082,7 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
         sb.AppendLineLf("        global::System.Func<global::System.IServiceProvider, object, object> decorator)");
         sb.AppendLineLf("    {");
         sb.AppendLineLf("        // Find existing service descriptor");
-        sb.AppendLineLf("        var descriptor = services.LastOrDefault(d => d.ServiceType == serviceType);");
+        sb.AppendLineLf("        var descriptor = global::System.Linq.Enumerable.LastOrDefault(services, d => d.ServiceType == serviceType);");
         sb.AppendLineLf("        if (descriptor == null)");
         sb.AppendLineLf("        {");
         sb.AppendLineLf("            throw new global::System.InvalidOperationException(");
@@ -1523,19 +1523,19 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
                     foreach (var asType in service.AsTypes)
                     {
                         var serviceType = asType.ToDisplayString();
-                        sb.AppendLineLf($"{registrationIndent}services.{lifetimeMethod}<{serviceType}>(sp => {implementationType}.{service.FactoryMethodName}(sp));");
+                        sb.AppendLineLf($"{registrationIndent}services.{lifetimeMethod}<{serviceType}>(sp => {GetFactoryCall(service, asType, implementationType)});");
                     }
 
                     // Also register as self if requested
                     if (service.AsSelf)
                     {
-                        sb.AppendLineLf($"{registrationIndent}services.{lifetimeMethod}<{implementationType}>(sp => {implementationType}.{service.FactoryMethodName}(sp));");
+                        sb.AppendLineLf($"{registrationIndent}services.{lifetimeMethod}<{implementationType}>(sp => {GetFactoryCall(service, service.ClassSymbol, implementationType)});");
                     }
                 }
                 else
                 {
                     // No interfaces - register as concrete type with factory
-                    sb.AppendLineLf($"{registrationIndent}services.{lifetimeMethod}<{implementationType}>(sp => {implementationType}.{service.FactoryMethodName}(sp));");
+                    sb.AppendLineLf($"{registrationIndent}services.{lifetimeMethod}<{implementationType}>(sp => {GetFactoryCall(service, service.ClassSymbol, implementationType)});");
                 }
             }
             else
@@ -1828,6 +1828,31 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// Gets the factory call for a registration. The factory returns the first registered type (validated by
+    /// ATCDIR006), so registering it as another interface or as itself needs a cast (e.g. a factory returning
+    /// IEmailSender registered as EmailSender with AsSelf).
+    /// </summary>
+    private static string GetFactoryCall(
+        ServiceRegistrationInfo service,
+        ITypeSymbol registeredType,
+        string implementationType)
+    {
+        var call = $"{implementationType}.{service.FactoryMethodName}(sp)";
+        var factoryReturnType = service.ClassSymbol
+            .GetMembers(service.FactoryMethodName!)
+            .OfType<IMethodSymbol>()
+            .FirstOrDefault()?
+            .ReturnType;
+
+        var needsCast = factoryReturnType is not null &&
+                        !SymbolEqualityComparer.Default.Equals(factoryReturnType, registeredType);
+
+        return needsCast
+            ? $"({registeredType.ToDisplayString()}){call}"
+            : call;
     }
 
     /// <summary>
