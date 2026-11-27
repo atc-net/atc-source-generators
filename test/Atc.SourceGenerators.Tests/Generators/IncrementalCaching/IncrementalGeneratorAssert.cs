@@ -14,10 +14,12 @@ internal static class IncrementalGeneratorAssert
     /// <param name="generators">The generators to run (as they run together in a project).</param>
     /// <param name="source">The source code of the project.</param>
     /// <param name="trackingName">The tracking name of the step (set with <c>WithTrackingName</c>).</param>
+    /// <param name="outputStepsMustBeCached">Also require every source output step to be cached.</param>
     public static void StepIsCachedAfterUnrelatedEdit(
         IIncrementalGenerator[] generators,
         string source,
-        string trackingName)
+        string trackingName,
+        bool outputStepsMustBeCached = false)
     {
         var references = AppDomain
             .CurrentDomain
@@ -25,7 +27,11 @@ internal static class IncrementalGeneratorAssert
             .Where(assembly => !assembly.IsDynamic &&
                                !string.IsNullOrWhiteSpace(assembly.Location))
             .Select(assembly => MetadataReference.CreateFromFile(assembly.Location))
-            .Cast<MetadataReference>();
+            .Cast<MetadataReference>()
+            .ToList();
+
+        // DataAnnotations isn't necessarily loaded in the test AppDomain yet
+        references.Add(MetadataReference.CreateFromFile(typeof(System.ComponentModel.DataAnnotations.RequiredAttribute).Assembly.Location));
 
         var compilation = CSharpCompilation.Create(
             "TestAssembly",
@@ -56,5 +62,23 @@ internal static class IncrementalGeneratorAssert
             output => Assert.True(
                 output.Reason is IncrementalStepRunReason.Cached or IncrementalStepRunReason.Unchanged,
                 $"Step '{trackingName}' was re-run ({output.Reason}) after an unrelated edit."));
+
+        if (outputStepsMustBeCached)
+        {
+            // The source output itself must not re-run either
+            var outputSteps = driver
+                .GetRunResult()
+                .Results
+                .SelectMany(r => r.TrackedOutputSteps.SelectMany(kv => kv.Value))
+                .SelectMany(step => step.Outputs)
+                .ToList();
+
+            Assert.NotEmpty(outputSteps);
+            Assert.All(
+                outputSteps,
+                output => Assert.True(
+                    output.Reason is IncrementalStepRunReason.Cached or IncrementalStepRunReason.Unchanged,
+                    $"The source output was re-run ({output.Reason}) after an unrelated edit."));
+        }
     }
 }

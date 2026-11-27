@@ -78,19 +78,20 @@ public class AnnotationConstantsGenerator : IIncrementalGenerator
             .CreateSyntaxProvider(
                 predicate: static (node, _) => IsTypeWithPotentialAnnotations(node),
                 transform: static (ctx, ct) => GetTypeWithAnnotatedProperties(ctx, ct))
+            .WithTrackingName("AnnotationConstants.Types")
             .Where(static info => info is not null)
             .Collect();
 
-        // Step 3: Combine with compilation and configuration
-        var combined = context.CompilationProvider
-            .Combine(typesWithAnnotations)
+        // Step 3: Combine with configuration. The models are plain equatable values, so this pipeline
+        // doesn't need (and must not depend on) the Compilation, which changes on every edit.
+        var combined = typesWithAnnotations
             .Combine(configPipeline);
 
         // Step 4: Generate source output
         context.RegisterSourceOutput(combined, static (spc, source) =>
         {
-            var ((compilation, types), config) = source;
-            Execute(compilation, types, config, spc);
+            var (types, config) = source;
+            Execute(types, config, spc);
         });
     }
 
@@ -165,9 +166,9 @@ public class AnnotationConstantsGenerator : IIncrementalGenerator
             typeSymbol.Name,
             NamespaceHelper.GetNamespaceName(typeSymbol.ContainingNamespace) ?? string.Empty,
             typeSymbol.ContainingAssembly.Name,
-            [.. annotatedProperties],
+            new EquatableArray<PropertyAnnotationInfo>(annotatedProperties),
             typeSymbol.ToDisplayString(),
-            [.. containingTypeNames]);
+            new EquatableArray<string>(containingTypeNames));
     }
 
     private static PropertyAnnotationInfo? ExtractAllPropertyAnnotations(
@@ -718,7 +719,6 @@ public class AnnotationConstantsGenerator : IIncrementalGenerator
     }
 
     private static void Execute(
-        Compilation compilation,
         ImmutableArray<TypeAnnotationInfo?> types,
         AnnotationGeneratorConfig config,
         SourceProductionContext context)
@@ -768,7 +768,7 @@ public class AnnotationConstantsGenerator : IIncrementalGenerator
         sb.AppendLineLf("public static partial class AnnotationConstants");
         sb.AppendLineLf("{");
 
-        if (typeInfo.ContainingTypeNames.IsDefaultOrEmpty)
+        if (typeInfo.ContainingTypeNames.Count == 0)
         {
             GenerateTypeConstants(sb, typeInfo);
         }
@@ -794,7 +794,7 @@ public class AnnotationConstantsGenerator : IIncrementalGenerator
         var typeSb = new StringBuilder();
         GenerateTypeConstants(typeSb, typeInfo);
 
-        var depth = typeInfo.ContainingTypeNames.Length;
+        var depth = typeInfo.ContainingTypeNames.Count;
         for (var i = 0; i < depth; i++)
         {
             var indent = new string(' ', 4 * (i + 1));
@@ -852,12 +852,12 @@ public class AnnotationConstantsGenerator : IIncrementalGenerator
         sb.AppendLineLf($"    public static partial class {typeInfo.TypeName}");
         sb.AppendLineLf("    {");
 
-        for (var i = 0; i < typeInfo.Properties.Length; i++)
+        for (var i = 0; i < typeInfo.Properties.Count; i++)
         {
             var property = typeInfo.Properties[i];
             GeneratePropertyConstants(sb, property);
 
-            if (i < typeInfo.Properties.Length - 1)
+            if (i < typeInfo.Properties.Count - 1)
             {
                 sb.AppendLineLf();
             }
@@ -1138,7 +1138,7 @@ public class AnnotationConstantsGenerator : IIncrementalGenerator
                 sb.AppendLineLf($"            public const bool IsoCurrencySymbolRequired = {atc.IsoCurrencySymbolRequired.Value.ToString().ToLowerInvariant()};");
             }
 
-            if (atc.IsoCurrencySymbols is { Length: > 0 })
+            if (atc.IsoCurrencySymbols.Count > 0)
             {
                 var symbols = string.Join("\", \"", atc.IsoCurrencySymbols.Select(EscapeString));
                 sb.AppendLineLf($"            public static readonly string[] AllowedIsoCurrencySymbols = new[] {{ \"{symbols}\" }};");
@@ -1175,13 +1175,13 @@ public class AnnotationConstantsGenerator : IIncrementalGenerator
                 sb.AppendLineLf($"            public const string AtcStringRegularExpression = @\"{EscapeVerbatimString(atc.StringRegularExpression)}\";");
             }
 
-            if (atc.StringInvalidCharacters is { Length: > 0 })
+            if (atc.StringInvalidCharacters.Count > 0)
             {
                 var chars = string.Join("', '", atc.StringInvalidCharacters.Select(c => EscapeChar(c)));
                 sb.AppendLineLf($"            public static readonly char[] AtcStringInvalidCharacters = new[] {{ '{chars}' }};");
             }
 
-            if (atc.StringInvalidPrefixStrings is { Length: > 0 })
+            if (atc.StringInvalidPrefixStrings.Count > 0)
             {
                 var prefixes = string.Join("\", \"", atc.StringInvalidPrefixStrings.Select(EscapeString));
                 sb.AppendLineLf($"            public static readonly string[] AtcStringInvalidPrefixStrings = new[] {{ \"{prefixes}\" }};");
