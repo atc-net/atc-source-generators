@@ -18,6 +18,7 @@ A collection of Roslyn C# source generators for .NET that eliminate boilerplate 
 | **⚡ DependencyRegistration** | `[Registration]` | Automatic DI service registration with auto-detection, keyed services, factories, decorators |
 | **⚙️ OptionsBinding** | `[OptionsBinding]` | Configuration binding with validation, change callbacks, named options |
 | **🗺️ ObjectMapping** | `[MapTo(typeof(T))]` | Object-to-object mapping with bidirectional, nested, and collection support |
+| **🧭 MappingConfiguration** | `[MappingConfiguration]`, `[MapTypes]`, `AddMappings()` | Mapping for types you can't put attributes on, such as third-party SDK and NuGet types |
 | **🔄 EnumMapping** | `[MapTo(typeof(T))]` | Enum-to-enum mapping with special case detection (None ↔ Unknown) |
 | **📋 AnnotationConstants** | *(automatic)* | Compile-time access to DataAnnotation metadata without reflection |
 
@@ -66,6 +67,24 @@ app.MapGet("/pets/{id}", async (Guid id, IPetService service) =>
 ```
 
 **Result:** Zero boilerplate, full type safety, Native AOT ready! 🚀
+
+### Mapping types you don't own
+
+When the source or target type comes from another library, declare the mapping in a configuration class instead of on the type:
+
+```csharp
+[MappingConfiguration]
+public static partial class CrmMappings
+{
+    [MapConfigProperty("FullName", "DisplayName")]
+    [MapConfigProperty("Address.City", "City")]
+    [MapConfigIgnore("InternalId")]
+    public static partial CustomerDto MapToCustomerDto(this ThirdParty.Contact source);
+}
+
+// Or as a one-liner per type pair
+[assembly: MapTypes(typeof(ThirdParty.Address), typeof(AddressDto), Bidirectional = true)]
+```
 
 ## 📦 Installation
 
@@ -138,8 +157,11 @@ Full documentation is available in the **[Wiki](https://github.com/atc-net/atc-s
 | [Dependency Registration](https://github.com/atc-net/atc-source-generators/wiki/Working-with-Dependency-Registration) | Automatic DI with `[Registration]` — auto-detection, keyed services, factories, decorators, transitive registration |
 | [Options Binding](https://github.com/atc-net/atc-source-generators/wiki/Working-with-Options-Binding) | Configuration binding with `[OptionsBinding]` — validation, change callbacks, named options, child sections |
 | [Object Mapping](https://github.com/atc-net/atc-source-generators/wiki/Working-with-Object-Mapping) | Object mapping with `[MapTo]` — bidirectional, nested objects, collections, projections, property strategies |
+| [Configuration-Based Mapping](https://github.com/atc-net/atc-source-generators/wiki/Configuration-Based-Mapping) | Mapping third-party types with `[MappingConfiguration]`, `[MapTypes]` and inline `AddMappings()` |
 | [Enum Mapping](https://github.com/atc-net/atc-source-generators/wiki/Working-with-Enum-Mapping) | Enum mapping with `[MapTo]` — special case detection, bidirectional, case-insensitive |
 | [Annotation Constants](https://github.com/atc-net/atc-source-generators/wiki/Working-with-Annotation-Constants) | Compile-time DataAnnotation metadata — zero reflection, Blazor-ready, Native AOT |
+| [Diagnostics Reference](https://github.com/atc-net/atc-source-generators/wiki/Diagnostics-Reference) | Every `ATCDIR`, `ATCOPT`, `ATCMAP`, `ATCENUM` and `ATCMCF` diagnostic, with how to fix it |
+| [Troubleshooting](https://github.com/atc-net/atc-source-generators/wiki/Troubleshooting) | Common build problems and their fixes |
 | [Sample Projects](https://github.com/atc-net/atc-source-generators/wiki/Sample-Projects) | Working code examples for each generator |
 | [PetStore API Example](https://github.com/atc-net/atc-source-generators/wiki/PetStore-API-Example) | Full application using all generators with OpenAPI/Scalar |
 
