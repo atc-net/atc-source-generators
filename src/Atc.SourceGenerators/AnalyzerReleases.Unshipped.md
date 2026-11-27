@@ -28,3 +28,4 @@ ATCMCF012 | MappingConfiguration | Error | Map() argument must be a typeof() exp
 ATCMAP014 | ObjectMapping | Info | Target property is not mapped
 ATCMAP015 | ObjectMapping | Error | Nested property type has no mapping to the target property type
 ATCMCF016 | MappingConfiguration | Info | Target property is not mapped
+ATCDIR011 | DependencyInjection | Error | Replace cannot be combined with TryAdd, Key, Decorator or a hosted service

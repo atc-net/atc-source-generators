@@ -19,6 +19,7 @@ internal sealed record ServiceRegistrationInfo(
     string? FactoryMethodName,
     bool FactoryNeedsCastForSelf,
     bool TryAdd,
+    bool Replace,
     bool Decorator,
     string? InstanceMemberName,
     bool IsInstanceMethod,

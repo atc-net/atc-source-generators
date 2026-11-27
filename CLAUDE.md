@@ -188,6 +188,7 @@ Both generators follow the **Incremental Generator** pattern (IIncrementalGenera
 - **Factory method registration** - Custom initialization logic via static factory methods
 - **Instance registration** - Register pre-created singleton instances via static fields, properties, or methods
 - **TryAdd registration** - Conditional registration for default implementations (library pattern)
+- **Replace registration** - `Replace = true` overrides an existing registration of the service type with `services.Replace(ServiceDescriptor...)` (not with TryAdd, Key, Decorator or hosted services: ATCDIR011)
 - **Decorator pattern support** - Wrap services with cross-cutting concerns (logging, caching, validation) using `Decorator = true`
 - **Conditional registration** - Register services based on configuration values (feature flags, environment-specific services)
 - **Assembly scanning filters** - Exclude types by namespace, pattern (wildcards), or interface implementation
@@ -224,6 +225,9 @@ Both generators follow the **Incremental Generator** pattern (IIncrementalGenera
 
 // TryAdd Input: [Registration(As = typeof(ILogger), TryAdd = true)]
 // TryAdd Output: services.TryAddSingleton<ILogger, DefaultLogger>();
+
+// Replace Input: [Registration(Lifetime.Scoped, As = typeof(ICache), Replace = true)]
+// Replace Output: services.Replace(ServiceDescriptor.Scoped<ICache, RedisCache>());
 
 // Hosted Service Input: [Registration] public class MaintenanceService : BackgroundService { }
 // Hosted Service Output: services.AddHostedService<MaintenanceService>();
@@ -372,6 +376,7 @@ services.AddDependencyRegistrationsFromDomain(
 - `ATCDIR008` - Instance member must be static (Error)
 - `ATCDIR009` - Instance and Factory are mutually exclusive (Error)
 - `ATCDIR010` - Instance registration requires Singleton lifetime (Error)
+- `ATCDIR011` - Replace cannot be combined with this option (Error)
 
 ### OptionsBindingGenerator
 

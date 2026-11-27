@@ -60,6 +60,11 @@ internal static class RuleIdentifierConstants
         /// ATCDIR010: Instance registration requires Singleton lifetime.
         /// </summary>
         internal const string InstanceRequiresSingletonLifetime = "ATCDIR010";
+
+        /// <summary>
+        /// ATCDIR011: Replace cannot be combined with TryAdd, Key, Decorator or a hosted service.
+        /// </summary>
+        internal const string ReplaceNotSupportedWithOption = "ATCDIR011";
     }
 
     /// <summary>
