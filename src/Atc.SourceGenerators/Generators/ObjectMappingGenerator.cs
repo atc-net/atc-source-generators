@@ -469,8 +469,8 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                 else if (targetProp is not null)
                 {
                     // Check for collection mapping
-                    var isSourceCollection = IsCollectionType(sourceProp.Type, out var sourceElementType);
-                    var isTargetCollection = IsCollectionType(targetProp.Type, out var targetElementType);
+                    var isSourceCollection = MappingTypeAnalyzer.IsCollectionType(sourceProp.Type, out var sourceElementType);
+                    var isTargetCollection = MappingTypeAnalyzer.IsCollectionType(targetProp.Type, out var targetElementType);
 
                     if (isSourceCollection && isTargetCollection && sourceElementType is not null && targetElementType is not null)
                     {
@@ -487,7 +487,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                                 IsCollection: true,
                                 CollectionElementType: targetElementType,
                                 SourceCollectionElementType: sourceElementType,
-                                CollectionTargetType: GetCollectionTargetType(targetProp.Type),
+                                CollectionTargetType: MappingTypeAnalyzer.GetCollectionTargetType(targetProp.Type),
                                 IsFlattened: false,
                                 FlattenedNestedProperty: null,
                                 IsBuiltInTypeConversion: false,
@@ -555,7 +555,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
             foreach (var sourceProp in sourceProperties)
             {
                 // Skip properties that are already mapped or ignored
-                if (HasMapIgnoreAttribute(sourceProp))
+                if (MappingTypeAnalyzer.HasMapIgnoreAttribute(sourceProp))
                 {
                     continue;
                 }
@@ -577,7 +577,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                 var nestedProperties = namedType
                     .GetMembers()
                     .OfType<IPropertySymbol>()
-                    .Where(p => p.GetMethod is not null && !HasMapIgnoreAttribute(p))
+                    .Where(p => p.GetMethod is not null && !MappingTypeAnalyzer.HasMapIgnoreAttribute(p))
                     .ToList();
 
                 // Try to match flattened properties: {PropertyName}{NestedPropertyName}
@@ -789,13 +789,13 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         }
 
         // Numeric types → string
-        if (IsNumericType(sourceTypeName) && targetTypeName == "string")
+        if (MappingTypeAnalyzer.IsNumericType(sourceTypeName) && targetTypeName == "string")
         {
             return true;
         }
 
         // string → Numeric types
-        if (sourceTypeName == "string" && IsNumericType(targetTypeName))
+        if (sourceTypeName == "string" && MappingTypeAnalyzer.IsNumericType(targetTypeName))
         {
             return true;
         }
@@ -823,11 +823,6 @@ public class ObjectMappingGenerator : IIncrementalGenerator
 
         return false;
     }
-
-    private static bool IsNumericType(string typeName)
-        => typeName is "int" or "long" or "short" or "byte" or "sbyte" or
-           "uint" or "ulong" or "ushort" or
-           "decimal" or "double" or "float";
 
     private static List<DerivedTypeMapping> GetDerivedTypeMappings(
         INamedTypeSymbol sourceType)
@@ -877,7 +872,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
             .GetMembers()
             .OfType<IPropertySymbol>()
             .Where(p => (p.SetMethod is not null && p.SetMethod.DeclaredAccessibility == Accessibility.Public) &&
-                        !HasMapIgnoreAttribute(p))
+                        !MappingTypeAnalyzer.HasMapIgnoreAttribute(p))
             .ToList();
 
         // Get all mapped target property names
@@ -921,86 +916,6 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         }
     }
 
-    private static bool IsCollectionType(
-        ITypeSymbol type,
-        out ITypeSymbol? elementType)
-    {
-        elementType = null;
-
-        // Handle arrays first
-        if (type is IArrayTypeSymbol arrayType)
-        {
-            elementType = arrayType.ElementType;
-            return true;
-        }
-
-        if (type is not INamedTypeSymbol namedType)
-        {
-            return false;
-        }
-
-        // Handle generic collections: List<T>, IEnumerable<T>, ICollection<T>, IReadOnlyList<T>, etc.
-        if (namedType is { IsGenericType: true, TypeArguments.Length: 1 } &&
-            IsKnownCollectionType(namedType.ConstructedFrom))
-        {
-            elementType = namedType.TypeArguments[0];
-            return true;
-        }
-
-        return false;
-    }
-
-    private static bool IsKnownCollectionType(
-        INamedTypeSymbol originalDefinition)
-    {
-        var name = originalDefinition.MetadataName;
-        var ns = originalDefinition.ContainingNamespace?.ToDisplayString() ?? string.Empty;
-
-        return (ns == "System.Collections.Generic" &&
-                name is
-                    "List`1" or
-                    "IEnumerable`1" or
-                    "ICollection`1" or
-                    "IList`1" or
-                    "IReadOnlyList`1" or
-                    "IReadOnlyCollection`1")
-               || (ns == "System.Collections.ObjectModel" &&
-                   name is
-                       "Collection`1" or
-                       "ReadOnlyCollection`1");
-    }
-
-    private static string GetCollectionTargetType(
-        ITypeSymbol targetPropertyType)
-    {
-        if (targetPropertyType is IArrayTypeSymbol)
-        {
-            return "Array";
-        }
-
-        if (targetPropertyType is not INamedTypeSymbol namedType)
-        {
-            return "List";
-        }
-
-        var originalDef = namedType.ConstructedFrom;
-        var name = originalDef.MetadataName;
-        var ns = originalDef.ContainingNamespace?.ToDisplayString() ?? string.Empty;
-
-        if (ns == "System.Collections.ObjectModel")
-        {
-            switch (name)
-            {
-                case "Collection`1":
-                    return "Collection";
-                case "ReadOnlyCollection`1":
-                    return "ReadOnlyCollection";
-            }
-        }
-
-        return "List";
-    }
-
     /// <summary>
     /// Gets all properties from a type including inherited properties from base classes.
     /// </summary>
@@ -1040,7 +955,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                     }
 
                     // Respect MapIgnore attribute
-                    if (HasMapIgnoreAttribute(p))
+                    if (MappingTypeAnalyzer.HasMapIgnoreAttribute(p))
                     {
                         return false;
                     }
@@ -1070,15 +985,6 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         }
 
         return properties;
-    }
-
-    private static bool HasMapIgnoreAttribute(IPropertySymbol property)
-    {
-        const string mapIgnoreAttributeName = "Atc.SourceGenerators.Annotations.MapIgnoreAttribute";
-
-        var attributes = property.GetAttributes();
-        return attributes.Any(attr =>
-            attr.AttributeClass?.ToDisplayString() == mapIgnoreAttributeName);
     }
 
     private static string? GetMapPropertyTargetName(IPropertySymbol property)
@@ -1159,7 +1065,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         var sourceProperties = sourceType
             .GetMembers()
             .OfType<IPropertySymbol>()
-            .Where(p => p.GetMethod is not null && !HasMapIgnoreAttribute(p))
+            .Where(p => p.GetMethod is not null && !MappingTypeAnalyzer.HasMapIgnoreAttribute(p))
             .ToList();
 
         // Find constructor where all parameters match source properties (case-insensitive)
@@ -1186,7 +1092,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                 var sourcePropertyType = matchingSourceProperty.Type;
                 var parameterType = parameter.Type;
                 if (!SymbolEqualityComparer.Default.Equals(sourcePropertyType, parameterType) &&
-                    !IsImplicitlyConvertible(sourcePropertyType, parameterType) &&
+                    !MappingTypeAnalyzer.IsImplicitlyConvertible(sourcePropertyType, parameterType) &&
                     !AreBothCustomOrEnumTypes(sourcePropertyType, parameterType) &&
                     !IsMappableDictionary(sourcePropertyType, parameterType))
                 {
@@ -1261,38 +1167,6 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         var ns = type.ContainingNamespace?.ToDisplayString() ?? string.Empty;
         return !ns.StartsWith("System", StringComparison.Ordinal) &&
                !ns.StartsWith("Microsoft", StringComparison.Ordinal);
-    }
-
-    private static bool IsImplicitlyConvertible(
-        ITypeSymbol sourceType,
-        ITypeSymbol targetType)
-    {
-        // Check inheritance/interface relationship
-        if (targetType.TypeKind == TypeKind.Interface)
-        {
-            return sourceType.AllInterfaces.Any(i =>
-                SymbolEqualityComparer.Default.Equals(i, targetType));
-        }
-
-        // Check base type chain
-        var current = sourceType.BaseType;
-        while (current is not null)
-        {
-            if (SymbolEqualityComparer.Default.Equals(current, targetType))
-            {
-                return true;
-            }
-
-            current = current.BaseType;
-        }
-
-        // Check nullable unwrapping (T → T?)
-        if (targetType is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T } namedTarget)
-        {
-            return SymbolEqualityComparer.Default.Equals(sourceType, namedTarget.TypeArguments[0]);
-        }
-
-        return false;
     }
 
     /// <summary>
@@ -2126,13 +2000,13 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         }
 
         // Numeric types → string
-        if (IsNumericType(sourceTypeName) && targetTypeName == "string")
+        if (MappingTypeAnalyzer.IsNumericType(sourceTypeName) && targetTypeName == "string")
         {
             return $"{sourcePropertyAccess}.ToString(global::System.Globalization.CultureInfo.InvariantCulture)";
         }
 
         // string → Numeric types
-        if (sourceTypeName == "string" && IsNumericType(targetTypeName))
+        if (sourceTypeName == "string" && MappingTypeAnalyzer.IsNumericType(targetTypeName))
         {
             // Get just the type name without namespace
             var parts = targetTypeName.Split('.');
