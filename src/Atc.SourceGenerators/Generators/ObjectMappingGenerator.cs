@@ -55,6 +55,14 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         DiagnosticSeverity.Warning,
         isEnabledByDefault: true);
 
+    private static readonly DiagnosticDescriptor HookMethodNotCallableDescriptor = new(
+        id: RuleIdentifierConstants.ObjectMapping.HookMethodNotCallable,
+        title: "Mapping hook method cannot be called",
+        messageFormat: "{0} method '{1}' must be a static, internal or public method on '{2}'. The hook is skipped.",
+        category: RuleCategoryConstants.ObjectMapping,
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
     private static readonly DiagnosticDescriptor DuplicateMappingMethodDescriptor = new(
         id: RuleIdentifierConstants.ObjectMapping.DuplicateMappingMethod,
         title: "Duplicate mapping method",
@@ -265,6 +273,11 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                     }
                 }
             }
+
+            // The generated mapping is an extension method in another class: hooks must be static and accessible
+            beforeMap = GetCallableHook(classSymbol, beforeMap, "BeforeMap", context);
+            afterMap = GetCallableHook(classSymbol, afterMap, "AfterMap", context);
+            factory = GetCallableHook(classSymbol, factory, "Factory", context);
 
             // Get property mappings
             var propertyMappings = GetPropertyMappings(classSymbol, targetType, enableFlattening, includePrivateMembers, propertyNameStrategy, context);
@@ -1304,6 +1317,43 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         }
 
         return skippedReverseMappings;
+    }
+
+    /// <summary>
+    /// Returns the hook method name when the class has a static, internal or public method with that name;
+    /// otherwise reports ATCMAP013 and returns null, so no uncompilable call is generated.
+    /// </summary>
+    private static string? GetCallableHook(
+        INamedTypeSymbol classSymbol,
+        string? methodName,
+        string hookKind,
+        SourceProductionContext? context)
+    {
+        if (string.IsNullOrWhiteSpace(methodName))
+        {
+            return methodName;
+        }
+
+        var isCallable = classSymbol
+            .GetMembers(methodName!)
+            .OfType<IMethodSymbol>()
+            .Any(m => m.IsStatic &&
+                      m.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal or Accessibility.ProtectedOrInternal);
+
+        if (isCallable)
+        {
+            return methodName;
+        }
+
+        context?.ReportDiagnostic(
+            Diagnostic.Create(
+                HookMethodNotCallableDescriptor,
+                classSymbol.Locations.FirstOrDefault() ?? Location.None,
+                hookKind,
+                methodName,
+                classSymbol.Name));
+
+        return null;
     }
 
     private static (string Source, string Method) GetMappingMethodKey(

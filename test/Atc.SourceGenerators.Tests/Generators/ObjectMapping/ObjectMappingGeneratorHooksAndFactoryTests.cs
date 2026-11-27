@@ -20,7 +20,7 @@ public partial class ObjectMappingGeneratorTests
                 public Guid Id { get; set; }
                 public string Name { get; set; } = string.Empty;
 
-                private static void ValidateUser(User source)
+                internal static void ValidateUser(User source)
                 {
                     // Validation logic
                 }
@@ -57,7 +57,7 @@ public partial class ObjectMappingGeneratorTests
                 public Guid Id { get; set; }
                 public string Name { get; set; } = string.Empty;
 
-                private static void EnrichDto(User source, UserDto target)
+                internal static void EnrichDto(User source, UserDto target)
                 {
                     // Post-processing logic
                 }
@@ -94,12 +94,12 @@ public partial class ObjectMappingGeneratorTests
                 public Guid Id { get; set; }
                 public string Name { get; set; } = string.Empty;
 
-                private static void ValidateUser(User source)
+                internal static void ValidateUser(User source)
                 {
                     // Validation logic
                 }
 
-                private static void EnrichDto(User source, UserDto target)
+                internal static void EnrichDto(User source, UserDto target)
                 {
                     // Post-processing logic
                 }
@@ -273,5 +273,36 @@ public partial class ObjectMappingGeneratorTests
 
         Assert.True(beforeMapIndex < factoryIndex, "BeforeMap should be before factory");
         Assert.True(factoryIndex < afterMapIndex, "Factory should be before AfterMap");
+    }
+
+    [Fact]
+    public void Generator_Should_Report_Error_For_Private_Or_Missing_Hook_Methods()
+    {
+        // The generated mapping is an extension method in another class, so it can't call a private hook
+        const string source = """
+            using Atc.SourceGenerators.Annotations;
+
+            namespace TestNamespace;
+
+            public class UserDto
+            {
+                public int Id { get; set; }
+            }
+
+            [MapTo(typeof(UserDto), BeforeMap = nameof(ValidateUser), AfterMap = "DoesNotExist")]
+            public partial class User
+            {
+                public int Id { get; set; }
+
+                private static void ValidateUser(User source) { }
+            }
+            """;
+
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        Assert.Equal(2, diagnostics.Count(d => d.Id == "ATCMAP013"));
+        Assert.Contains(diagnostics, d => d.GetMessage(CultureInfo.InvariantCulture).Contains("ValidateUser", StringComparison.Ordinal));
+        Assert.Contains(diagnostics, d => d.GetMessage(CultureInfo.InvariantCulture).Contains("DoesNotExist", StringComparison.Ordinal));
+        Assert.DoesNotContain("ValidateUser(source)", output, StringComparison.Ordinal);
     }
 }
