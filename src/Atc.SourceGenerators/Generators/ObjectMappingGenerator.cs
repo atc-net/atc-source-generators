@@ -551,7 +551,8 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                 {
                     SourceRequiresUnsafeAccessor = includePrivateMembers && RequiresUnsafeAccessorForReading(sourceProp),
                     TargetRequiresUnsafeAccessor = includePrivateMembers && RequiresUnsafeAccessorForWriting(targetProp),
-                }));
+                },
+                mappings));
         }
 
         // Validate required properties

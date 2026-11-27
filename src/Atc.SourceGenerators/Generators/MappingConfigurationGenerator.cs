@@ -1333,7 +1333,8 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
                 sourceProperties,
                 targetProperties,
                 sourceProp => ignoredProperties.Any(ip => string.Equals(ip, sourceProp.Name, StringComparison.OrdinalIgnoreCase)),
-                MappingTypeAnalyzer.CreateFlattenedMapping));
+                MappingTypeAnalyzer.CreateFlattenedMapping,
+                mappings));
         }
 
         // Report settable target properties that nothing maps to (Info by default; raise it with
