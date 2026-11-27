@@ -4,7 +4,7 @@ namespace Atc.SourceGenerators.Tests.Generators.ObjectMapping;
 
 public partial class ObjectMappingGeneratorTests
 {
-    [Fact(Skip = "CamelCase and KebabCase tests have issues with fallback attribute generation in test harness. Feature verified working in sample projects.")]
+    [Fact]
     public void Generator_Should_Map_Properties_With_CamelCase_Strategy()
     {
         const string source = """
@@ -31,7 +31,8 @@ public partial class ObjectMappingGeneratorTests
         var (diagnostics, output) = GetGeneratedOutput(source);
 
         Assert.Empty(diagnostics);
-        Assert.Contains("public static UserDto MapToUserDto(this User source)", output, StringComparison.Ordinal);
+        Assert.Contains("public static global::TestNamespace.UserDto MapToUserDto(", output, StringComparison.Ordinal);
+        Assert.Contains("this global::TestNamespace.User source)", output, StringComparison.Ordinal);
         Assert.Contains("firstName = source.FirstName", output, StringComparison.Ordinal);
         Assert.Contains("lastName = source.LastName", output, StringComparison.Ordinal);
         Assert.Contains("age = source.Age", output, StringComparison.Ordinal);
@@ -69,7 +70,7 @@ public partial class ObjectMappingGeneratorTests
         Assert.Contains("date_of_birth = source.DateOfBirth", output, StringComparison.Ordinal);
     }
 
-    [Fact(Skip = "CamelCase and KebabCase tests have issues with fallback attribute generation in test harness. Feature verified working in sample projects.")]
+    [Fact]
     public void Generator_Should_Map_Properties_With_KebabCase_Strategy()
     {
         // Note: KebabCase strategy converts FirstName → first-name, but C# identifiers cannot contain hyphens.
@@ -99,7 +100,8 @@ public partial class ObjectMappingGeneratorTests
         var (diagnostics, output) = GetGeneratedOutput(source);
 
         Assert.Empty(diagnostics);
-        Assert.Contains("public static ApiResponse MapToApiResponse(this Response source)", output, StringComparison.Ordinal);
+        Assert.Contains("public static global::TestNamespace.ApiResponse MapToApiResponse(", output, StringComparison.Ordinal);
+        Assert.Contains("this global::TestNamespace.Response source)", output, StringComparison.Ordinal);
         Assert.Contains("first_name = source.FirstName", output, StringComparison.Ordinal);
         Assert.Contains("last_name = source.LastName", output, StringComparison.Ordinal);
     }

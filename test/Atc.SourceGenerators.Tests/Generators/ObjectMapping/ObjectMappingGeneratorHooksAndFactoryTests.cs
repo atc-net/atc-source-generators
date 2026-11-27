@@ -129,12 +129,15 @@ public partial class ObjectMappingGeneratorTests
         Assert.True(newTargetIndex < afterMapIndex, "AfterMap hook should be called after object creation");
     }
 
-    [Fact(Skip = "Factory feature requires additional investigation in test harness. Manually verified in samples.")]
+    [Fact]
     public void Generator_Should_Use_Factory_Method_For_Object_Creation()
     {
         // Arrange
         const string source = """
             using System;
+
+            using Atc.SourceGenerators.Annotations;
+
 
             namespace Test;
 
@@ -163,18 +166,21 @@ public partial class ObjectMappingGeneratorTests
 
         // Assert
         Assert.DoesNotContain(diagnostics, d => d.Severity == DiagnosticSeverity.Error);
-        Assert.Contains("User.CreateUserDto()", output, StringComparison.Ordinal);
-        Assert.Contains("var target = User.CreateUserDto();", output, StringComparison.Ordinal);
+        Assert.Contains("global::Test.User.CreateUserDto()", output, StringComparison.Ordinal);
+        Assert.Contains("var target = global::Test.User.CreateUserDto();", output, StringComparison.Ordinal);
         Assert.Contains("target.Id = source.Id;", output, StringComparison.Ordinal);
         Assert.Contains("target.Name = source.Name;", output, StringComparison.Ordinal);
     }
 
-    [Fact(Skip = "Factory feature requires additional investigation in test harness. Manually verified in samples.")]
+    [Fact]
     public void Generator_Should_Apply_Property_Mappings_After_Factory()
     {
         // Arrange
         const string source = """
             using System;
+
+            using Atc.SourceGenerators.Annotations;
+
 
             namespace Test;
 
@@ -206,7 +212,7 @@ public partial class ObjectMappingGeneratorTests
         Assert.DoesNotContain(diagnostics, d => d.Severity == DiagnosticSeverity.Error);
 
         // Verify factory is called first
-        var factoryCallIndex = output.IndexOf("var target = Product.CreateDto();", StringComparison.Ordinal);
+        var factoryCallIndex = output.IndexOf(".Product.CreateDto();", StringComparison.Ordinal);
         Assert.True(factoryCallIndex > 0, "Factory method should be called");
 
         // Verify property assignments happen after factory call
@@ -219,12 +225,15 @@ public partial class ObjectMappingGeneratorTests
         Assert.True(factoryCallIndex < priceAssignmentIndex, "Price assignment should be after factory call");
     }
 
-    [Fact(Skip = "Factory feature requires additional investigation in test harness. Manually verified in samples.")]
+    [Fact]
     public void Generator_Should_Support_Factory_With_Hooks()
     {
         // Arrange
         const string source = """
             using System;
+
+            using Atc.SourceGenerators.Annotations;
+
 
             namespace Test;
 
@@ -264,7 +273,7 @@ public partial class ObjectMappingGeneratorTests
 
         // Verify all three are present in correct order
         var beforeMapIndex = output.IndexOf(".ValidateOrder(source);", StringComparison.Ordinal);
-        var factoryIndex = output.IndexOf("var target = Order.CreateOrderDto();", StringComparison.Ordinal);
+        var factoryIndex = output.IndexOf(".Order.CreateOrderDto();", StringComparison.Ordinal);
         var afterMapIndex = output.IndexOf(".EnrichOrder(source, target);", StringComparison.Ordinal);
 
         Assert.True(beforeMapIndex > 0, "BeforeMap hook should be present");

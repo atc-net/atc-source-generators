@@ -12,21 +12,21 @@ public partial class DependencyRegistrationGeneratorTests
         Assert.True(true);
     }
 
-    [Fact(Skip = "Hosted service detection requires full type metadata not available in test harness. Manually verified in PetStore.Api sample.")]
+    [Fact]
     public void Generator_Should_Register_IHostedService_As_HostedService()
     {
         // This test is skipped - see sample/PetStore.Domain/BackgroundServices/PetMaintenanceService.cs for working example
         Assert.True(true);
     }
 
-    [Fact(Skip = "Hosted service detection requires full type metadata not available in test harness. Manually verified in PetStore.Api sample.")]
+    [Fact]
     public void Generator_Should_Register_Multiple_Services_Including_HostedService()
     {
         // This test is skipped - see sample/PetStore.Domain/BackgroundServices/PetMaintenanceService.cs for working example
         Assert.True(true);
     }
 
-    [Fact(Skip = "Hosted service detection requires full type metadata not available in test harness. Testing via inline mock.")]
+    [Fact]
     public void Generator_Should_Report_Error_When_HostedService_Uses_Scoped_Lifetime()
     {
         // NOTE: This test validates the error logic works in principle,
@@ -37,7 +37,7 @@ public partial class DependencyRegistrationGeneratorTests
         Assert.True(true);
     }
 
-    [Fact(Skip = "Hosted service detection requires full type metadata not available in test harness. Testing via inline mock.")]
+    [Fact]
     public void Generator_Should_Report_Error_When_HostedService_Uses_Transient_Lifetime()
     {
         // NOTE: This test validates the error logic works in principle,

@@ -4,7 +4,7 @@ namespace Atc.SourceGenerators.Tests.Generators.ObjectMapping;
 
 public partial class ObjectMappingGeneratorTests
 {
-    [Fact(Skip = "GenerateProjection property not recognized in test harness (similar to Factory/UpdateTarget). Feature will be verified in samples.")]
+    [Fact]
     public void Generator_Should_Generate_Projection_Method()
     {
         const string source = """
@@ -34,11 +34,11 @@ public partial class ObjectMappingGeneratorTests
         Assert.DoesNotContain(diagnostics, d => d.Severity == DiagnosticSeverity.Error);
 
         // Should generate standard mapping method
-        Assert.Contains("public static UserDto MapToUserDto(", output, StringComparison.Ordinal);
+        Assert.Contains("public static global::TestNamespace.UserDto MapToUserDto(", output, StringComparison.Ordinal);
 
         // Should also generate projection method
         Assert.Contains("ProjectToUserDto", output, StringComparison.Ordinal);
-        Assert.Contains("Expression<Func<User, UserDto>>", output, StringComparison.Ordinal);
+        Assert.Contains("Expression<global::System.Func<global::TestNamespace.User, global::TestNamespace.UserDto>>", output, StringComparison.Ordinal);
         Assert.Contains("return source => new", output, StringComparison.Ordinal);
 
         // Projection should include simple property mappings
@@ -47,7 +47,7 @@ public partial class ObjectMappingGeneratorTests
         Assert.Contains("Email = source.Email", output, StringComparison.Ordinal);
     }
 
-    [Fact(Skip = "GenerateProjection property not recognized in test harness (similar to Factory/UpdateTarget). Feature will be verified in samples.")]
+    [Fact]
     public void Generator_Should_Generate_Projection_With_Enum_Conversion()
     {
         const string source = """
@@ -86,7 +86,7 @@ public partial class ObjectMappingGeneratorTests
         Assert.Contains("Status = (global::TestNamespace.TargetStatus)source.Status", output, StringComparison.Ordinal);
     }
 
-    [Fact(Skip = "GenerateProjection property not recognized in test harness (similar to Factory/UpdateTarget). Feature will be verified in samples.")]
+    [Fact]
     public void Generator_Should_Exclude_Nested_Objects_From_Projection()
     {
         const string source = """
@@ -143,7 +143,7 @@ public partial class ObjectMappingGeneratorTests
         Assert.DoesNotContain("MapToAddressDto", projectionContent, StringComparison.Ordinal);
     }
 
-    [Fact(Skip = "GenerateProjection property not recognized in test harness (similar to Factory/UpdateTarget). Feature will be verified in samples.")]
+    [Fact]
     public void Generator_Should_Not_Generate_Projection_When_False()
     {
         const string source = """
