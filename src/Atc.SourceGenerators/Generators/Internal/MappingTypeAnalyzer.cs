@@ -468,4 +468,121 @@ internal static class MappingTypeAnalyzer
 
         return false;
     }
+
+    internal static List<IPropertySymbol> GetAllProperties(
+        INamedTypeSymbol type,
+        bool includePrivateMembers,
+        bool requireSetter = false)
+    {
+        var properties = new List<IPropertySymbol>();
+        var propertyNames = new HashSet<string>(StringComparer.Ordinal);
+        var currentType = type;
+
+        while (currentType is not null &&
+               currentType.SpecialType != SpecialType.System_Object &&
+               currentType.ToDisplayString() != "object")
+        {
+            var typeProperties = currentType
+                .GetMembers()
+                .OfType<IPropertySymbol>()
+                .Where(p =>
+                {
+                    if (p.GetMethod is null)
+                    {
+                        return false;
+                    }
+
+                    if (requireSetter && p.SetMethod is null && currentType.TypeKind != TypeKind.Struct)
+                    {
+                        return false;
+                    }
+
+                    if (MappingTypeAnalyzer.HasMapIgnoreAttribute(p))
+                    {
+                        return false;
+                    }
+
+                    if (!includePrivateMembers && p.DeclaredAccessibility != Accessibility.Public)
+                    {
+                        return false;
+                    }
+
+                    return true;
+                })
+                .ToList();
+
+            foreach (var prop in typeProperties)
+            {
+                if (!propertyNames.Contains(prop.Name))
+                {
+                    properties.Add(prop);
+                    propertyNames.Add(prop.Name);
+                }
+            }
+
+            currentType = currentType.BaseType;
+        }
+
+        return properties;
+    }
+
+    internal static bool HasEnumMappingAttribute(
+        ITypeSymbol sourceType,
+        ITypeSymbol targetType)
+    {
+        if (sourceType is not INamedTypeSymbol sourceEnum || targetType is not INamedTypeSymbol targetEnum)
+        {
+            return false;
+        }
+
+        // Check if source enum has [MapTo(typeof(TargetEnum))]
+        foreach (var attr in sourceEnum.GetAttributes())
+        {
+            if (!MappingTypeAnalyzer.IsAttributeMatch(attr.AttributeClass, "MapToAttribute"))
+            {
+                continue;
+            }
+
+            if (attr.ConstructorArguments.Length == 0)
+            {
+                continue;
+            }
+
+            if (attr.ConstructorArguments[0].Value is INamedTypeSymbol attrTargetType &&
+                SymbolEqualityComparer.Default.Equals(attrTargetType, targetEnum))
+            {
+                return true;
+            }
+        }
+
+        // Check if target enum has [MapTo(typeof(SourceEnum), Bidirectional = true)]
+        foreach (var attr in targetEnum.GetAttributes())
+        {
+            if (!MappingTypeAnalyzer.IsAttributeMatch(attr.AttributeClass, "MapToAttribute"))
+            {
+                continue;
+            }
+
+            if (attr.ConstructorArguments.Length == 0)
+            {
+                continue;
+            }
+
+            if (attr.ConstructorArguments[0].Value is not INamedTypeSymbol attrSourceType ||
+                !SymbolEqualityComparer.Default.Equals(attrSourceType, sourceEnum))
+            {
+                continue;
+            }
+
+            foreach (var namedArg in attr.NamedArguments)
+            {
+                if (namedArg is { Key: "Bidirectional", Value.Value: true })
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
 }

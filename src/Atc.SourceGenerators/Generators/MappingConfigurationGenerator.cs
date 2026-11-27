@@ -640,7 +640,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         }
 
         // Validate ignored properties exist on source type
-        var sourceProperties = GetAllProperties(sourceType, includePrivateMembers: false);
+        var sourceProperties = MappingTypeAnalyzer.GetAllProperties(sourceType, includePrivateMembers: false);
         foreach (var ignoredProp in ignoredProperties)
         {
             if (!sourceProperties.Any(p => string.Equals(p.Name, ignoredProp, StringComparison.OrdinalIgnoreCase)))
@@ -655,7 +655,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         }
 
         // Validate renamed properties exist
-        var targetProperties = GetAllProperties(targetType, includePrivateMembers: false);
+        var targetProperties = MappingTypeAnalyzer.GetAllProperties(targetType, includePrivateMembers: false);
         foreach (var rename in propertyRenames)
         {
             if (ResolveSourcePath(sourceProperties, rename.Source) is null)
@@ -1205,8 +1205,8 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
     {
         var mappings = new List<PropertyMapping>();
 
-        var sourceProperties = GetAllProperties(sourceType, includePrivateMembers: false);
-        var targetProperties = GetAllProperties(targetType, includePrivateMembers: false);
+        var sourceProperties = MappingTypeAnalyzer.GetAllProperties(sourceType, includePrivateMembers: false);
+        var targetProperties = MappingTypeAnalyzer.GetAllProperties(targetType, includePrivateMembers: false);
 
         foreach (var sourceProp in sourceProperties)
         {
@@ -1284,7 +1284,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
                     var hasDictionaryEnumMapping = false;
                     if (MappingTypeAnalyzer.IsDictionaryValueEnumConversion(sourceValueType!, targetValueType!))
                     {
-                        hasDictionaryEnumMapping = HasEnumMappingAttribute(sourceValueType!, targetValueType!);
+                        hasDictionaryEnumMapping = MappingTypeAnalyzer.HasEnumMappingAttribute(sourceValueType!, targetValueType!);
 
                         if (!hasDictionaryEnumMapping &&
                             sourceValueType is INamedTypeSymbol sourceValueEnum &&
@@ -1324,7 +1324,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
                         var hasCollectionEnumMapping = false;
                         if (MappingTypeAnalyzer.IsEnumConversion(sourceElementType, targetElementType))
                         {
-                            hasCollectionEnumMapping = HasEnumMappingAttribute(sourceElementType, targetElementType);
+                            hasCollectionEnumMapping = MappingTypeAnalyzer.HasEnumMappingAttribute(sourceElementType, targetElementType);
 
                             if (!hasCollectionEnumMapping &&
                                 sourceElementType is INamedTypeSymbol sourceElementEnumType &&
@@ -1371,7 +1371,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
                         {
                             var unwrappedSourceType = MappingTypeAnalyzer.UnwrapNullable(sourceProp.Type);
                             var unwrappedTargetType = MappingTypeAnalyzer.UnwrapNullable(targetProp.Type);
-                            hasEnumMapping = HasEnumMappingAttribute(unwrappedSourceType, unwrappedTargetType);
+                            hasEnumMapping = MappingTypeAnalyzer.HasEnumMappingAttribute(unwrappedSourceType, unwrappedTargetType);
 
                             // If no explicit mapping, try auto-detection
                             if (!hasEnumMapping &&
@@ -1607,123 +1607,6 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         return true;
     }
 
-    private static List<IPropertySymbol> GetAllProperties(
-        INamedTypeSymbol type,
-        bool includePrivateMembers,
-        bool requireSetter = false)
-    {
-        var properties = new List<IPropertySymbol>();
-        var propertyNames = new HashSet<string>(StringComparer.Ordinal);
-        var currentType = type;
-
-        while (currentType is not null &&
-               currentType.SpecialType != SpecialType.System_Object &&
-               currentType.ToDisplayString() != "object")
-        {
-            var typeProperties = currentType
-                .GetMembers()
-                .OfType<IPropertySymbol>()
-                .Where(p =>
-                {
-                    if (p.GetMethod is null)
-                    {
-                        return false;
-                    }
-
-                    if (requireSetter && p.SetMethod is null && currentType.TypeKind != TypeKind.Struct)
-                    {
-                        return false;
-                    }
-
-                    if (MappingTypeAnalyzer.HasMapIgnoreAttribute(p))
-                    {
-                        return false;
-                    }
-
-                    if (!includePrivateMembers && p.DeclaredAccessibility != Accessibility.Public)
-                    {
-                        return false;
-                    }
-
-                    return true;
-                })
-                .ToList();
-
-            foreach (var prop in typeProperties)
-            {
-                if (!propertyNames.Contains(prop.Name))
-                {
-                    properties.Add(prop);
-                    propertyNames.Add(prop.Name);
-                }
-            }
-
-            currentType = currentType.BaseType;
-        }
-
-        return properties;
-    }
-
-    private static bool HasEnumMappingAttribute(
-        ITypeSymbol sourceType,
-        ITypeSymbol targetType)
-    {
-        if (sourceType is not INamedTypeSymbol sourceEnum || targetType is not INamedTypeSymbol targetEnum)
-        {
-            return false;
-        }
-
-        // Check if source enum has [MapTo(typeof(TargetEnum))]
-        foreach (var attr in sourceEnum.GetAttributes())
-        {
-            if (!MappingTypeAnalyzer.IsAttributeMatch(attr.AttributeClass, "MapToAttribute"))
-            {
-                continue;
-            }
-
-            if (attr.ConstructorArguments.Length == 0)
-            {
-                continue;
-            }
-
-            if (attr.ConstructorArguments[0].Value is INamedTypeSymbol attrTargetType &&
-                SymbolEqualityComparer.Default.Equals(attrTargetType, targetEnum))
-            {
-                return true;
-            }
-        }
-
-        // Check if target enum has [MapTo(typeof(SourceEnum), Bidirectional = true)]
-        foreach (var attr in targetEnum.GetAttributes())
-        {
-            if (!MappingTypeAnalyzer.IsAttributeMatch(attr.AttributeClass, "MapToAttribute"))
-            {
-                continue;
-            }
-
-            if (attr.ConstructorArguments.Length == 0)
-            {
-                continue;
-            }
-
-            if (attr.ConstructorArguments[0].Value is not INamedTypeSymbol attrSourceType ||
-                !SymbolEqualityComparer.Default.Equals(attrSourceType, sourceEnum))
-            {
-                continue;
-            }
-
-            foreach (var namedArg in attr.NamedArguments)
-            {
-                if (namedArg is { Key: "Bidirectional", Value.Value: true })
-                {
-                    return true;
-                }
-            }
-        }
-
-        return false;
-    }
-
     private static (IMethodSymbol? Constructor, List<string> ParameterNames, List<ConstructorDefaultParameter> DefaultParameters) FindBestConstructor(
         INamedTypeSymbol sourceType,
         INamedTypeSymbol targetType,
@@ -1740,7 +1623,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
             return (null, [], []);
         }
 
-        var sourceProperties = GetAllProperties(sourceType, includePrivateMembers: false);
+        var sourceProperties = MappingTypeAnalyzer.GetAllProperties(sourceType, includePrivateMembers: false);
 
         // First pass: try exact match (all parameters have matching source properties)
         foreach (var constructor in constructors.OrderByDescending(c => c.Parameters.Length))
@@ -1885,7 +1768,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
 
             chain.Add(property);
             properties = MappingTypeAnalyzer.UnwrapNullable(property.Type) is INamedTypeSymbol nextType
-                ? GetAllProperties(nextType, includePrivateMembers: false)
+                ? MappingTypeAnalyzer.GetAllProperties(nextType, includePrivateMembers: false)
                 : [];
         }
 
@@ -2404,7 +2287,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
             {
                 sb.AppendLineLf("        )");
                 sb.AppendLineLf("        {");
-                GeneratePropertyInitializers(sb, initializerProps);
+                MappingCodeEmitter.AppendPropertyInitializers(sb, initializerProps, p => GeneratePropertyMappingValue(p, "source"));
                 sb.AppendLineLf("        };");
             }
             else
@@ -2416,7 +2299,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         {
             sb.AppendLineLf($"        return new {targetTypeName}");
             sb.AppendLineLf("        {");
-            GeneratePropertyInitializers(sb, mapping.PropertyMappings);
+            MappingCodeEmitter.AppendPropertyInitializers(sb, mapping.PropertyMappings, p => GeneratePropertyMappingValue(p, "source"));
             sb.AppendLineLf("        };");
         }
     }
@@ -2713,52 +2596,6 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         }
     }
 
-    private static void GeneratePropertyInitializers(
-        StringBuilder sb,
-        List<PropertyMapping> properties)
-    {
-        for (var i = 0; i < properties.Count; i++)
-        {
-            var prop = properties[i];
-            var isLast = i == properties.Count - 1;
-            var comma = isLast ? string.Empty : ",";
-
-            var value = GeneratePropertyMappingValue(prop, "source");
-            sb.AppendLineLf($"            {prop.TargetProperty.Name} = {value}{comma}");
-        }
-    }
-
-    private static string GenerateDictionaryValueConversion(
-        PropertyMapping prop)
-    {
-        var sourceValueType = prop.SourceCollectionElementType;
-        var targetValueType = prop.CollectionElementType;
-
-        if (sourceValueType is null ||
-            targetValueType is null ||
-            SymbolEqualityComparer.Default.Equals(sourceValueType, targetValueType))
-        {
-            return "x.Value";
-        }
-
-        var methodName = $"MapTo{TypeNameSanitizer.SanitizeForIdentifier(targetValueType.Name)}";
-
-        if (MappingTypeAnalyzer.IsDictionaryValueEnumConversion(sourceValueType, targetValueType))
-        {
-            // Enum mappers can come from the enum mapping generator ([MapTo] on the enum), so they keep
-            // extension syntax; without any enum mapping, fall back to a cast.
-            return prop.HasEnumMapping
-                ? $"x.Value.{methodName}()"
-                : $"({targetValueType.ToGlobalDisplayString()})x.Value";
-        }
-
-        // Nested value mappers are generated into the same class and called with a simple name.
-        // They return default for a null source, so a nullable reference value only needs '!'.
-        return sourceValueType.NullableAnnotation == NullableAnnotation.Annotated && !sourceValueType.IsValueType
-            ? $"{methodName}(x.Value!)"
-            : $"{methodName}(x.Value)";
-    }
-
     private static string GeneratePropertyMappingValue(
         PropertyMapping prop,
         string sourceVariable)
@@ -2794,7 +2631,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
 
         if (prop.IsDictionary)
         {
-            return $"{sourceVariable}.{prop.SourceProperty.Name}?.ToDictionary(x => x.Key, x => {GenerateDictionaryValueConversion(prop)})!";
+            return $"{sourceVariable}.{prop.SourceProperty.Name}?.ToDictionary(x => x.Key, x => {MappingCodeEmitter.GetDictionaryValueConversion(prop, static (method, value) => $"{method}({value})")})!";
         }
 
         if (prop.IsCollection)
