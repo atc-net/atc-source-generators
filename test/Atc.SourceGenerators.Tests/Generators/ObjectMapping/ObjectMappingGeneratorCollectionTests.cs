@@ -193,6 +193,6 @@ public partial class ObjectMappingGeneratorTests
 
         Assert.Empty(diagnostics);
         Assert.Contains("MapToCollectionDto", output, StringComparison.Ordinal);
-        Assert.Contains("new global::System.Collections.ObjectModel.Collection<global::TestNamespace.ValueDto>(source.Values?.Select(x => x.MapToValueDto()).ToList()!)", output, StringComparison.Ordinal);
+        Assert.Contains("source.Values is null ? null! : new global::System.Collections.ObjectModel.Collection<global::TestNamespace.ValueDto>(source.Values.Select(x => x.MapToValueDto()).ToList())", output, StringComparison.Ordinal);
     }
 }
