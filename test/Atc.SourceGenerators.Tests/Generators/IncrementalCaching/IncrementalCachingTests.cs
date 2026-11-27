@@ -26,4 +26,26 @@ public class IncrementalCachingTests
             }
             """,
             "MappingConfiguration.AttributeMappedPairs");
+
+    [Fact]
+    public void AnnotationConstants_Should_Be_Fully_Cached_After_Unrelated_Edit()
+        => IncrementalGeneratorAssert.StepIsCachedAfterUnrelatedEdit(
+            [new AnnotationConstantsGenerator()],
+            """
+            using System.ComponentModel.DataAnnotations;
+
+            namespace TestNamespace;
+
+            public class Product
+            {
+                [Required]
+                [StringLength(100)]
+                public string Name { get; set; } = string.Empty;
+
+                [Range(0.5, 9.5)]
+                public double Weight { get; set; }
+            }
+            """,
+            "AnnotationConstants.Types",
+            outputStepsMustBeCached: true);
 }

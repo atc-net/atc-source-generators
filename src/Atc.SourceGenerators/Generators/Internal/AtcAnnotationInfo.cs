@@ -13,14 +13,14 @@ internal sealed record AtcAnnotationInfo(
     bool? IPAddressRequired,
     bool IsIsoCurrencySymbol, // IsoCurrencySymbolAttribute
     bool? IsoCurrencySymbolRequired,
-    string[]? IsoCurrencySymbols,
+    EquatableArray<string> IsoCurrencySymbols,
     bool IsAtcString, // StringAttribute (and KeyStringAttribute)
     bool IsKeyString,
     bool? StringRequired,
     uint? StringMinLength,
     uint? StringMaxLength,
-    char[]? StringInvalidCharacters,
-    string[]? StringInvalidPrefixStrings,
+    EquatableArray<char> StringInvalidCharacters,
+    EquatableArray<string> StringInvalidPrefixStrings,
     string? StringRegularExpression,
     bool IsAtcUri, // UriAttribute
     bool? UriRequired,

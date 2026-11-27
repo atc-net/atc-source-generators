@@ -13,6 +13,6 @@ internal sealed record TypeAnnotationInfo(
     string TypeName,
     string Namespace,
     string AssemblyName,
-    ImmutableArray<PropertyAnnotationInfo> Properties,
+    EquatableArray<PropertyAnnotationInfo> Properties,
     string FullName,
-    ImmutableArray<string> ContainingTypeNames);
+    EquatableArray<string> ContainingTypeNames);
