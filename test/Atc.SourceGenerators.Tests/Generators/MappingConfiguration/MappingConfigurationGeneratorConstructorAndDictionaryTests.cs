@@ -232,4 +232,70 @@ public partial class MappingConfigurationGeneratorTests
         Assert.Equal(DiagnosticSeverity.Info, diagnostic.Severity);
         Assert.Contains("Description", diagnostic.GetMessage(CultureInfo.InvariantCulture), StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void Config_Should_Pass_Default_For_An_Ignored_Constructor_Parameter()
+    {
+        const string source = """
+                              #nullable enable
+                              using Atc.SourceGenerators.Annotations;
+
+                              namespace MyApp
+                              {
+                                  public class Contact
+                                  {
+                                      public int Id { get; set; }
+
+                                      public string Name { get; set; } = string.Empty;
+
+                                      public string Email { get; set; } = string.Empty;
+                                  }
+
+                                  public sealed record ContactDto(int Id, string Name, string Email);
+
+                                  [MappingConfiguration]
+                                  public static partial class Mappings
+                                  {
+                                      [MapConfigIgnore("Name")]
+                                      public static partial ContactDto MapToContactDto(this Contact source);
+                                  }
+                              }
+                              """;
+
+        var (_, output) = GetGeneratedOutput(source);
+
+        Assert.Contains("source.Id,\n            default!,\n            source.Email", output.Replace("\r\n", "\n", StringComparison.Ordinal), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Config_Should_Not_Pass_A_Renamed_Property_To_Its_Old_Constructor_Parameter()
+    {
+        const string source = """
+                              #nullable enable
+                              using Atc.SourceGenerators.Annotations;
+
+                              namespace MyApp
+                              {
+                                  public class Contact
+                                  {
+                                      public int Id { get; set; }
+
+                                      public string Name { get; set; } = string.Empty;
+                                  }
+
+                                  public sealed record ContactDto(int Id, string Name, string DisplayName);
+
+                                  [MappingConfiguration]
+                                  public static partial class Mappings
+                                  {
+                                      [MapConfigProperty("Name", "DisplayName")]
+                                      public static partial ContactDto MapToContactDto(this Contact source);
+                                  }
+                              }
+                              """;
+
+        var (_, output) = GetGeneratedOutput(source);
+
+        Assert.Contains("source.Id,\n            default!,\n            source.Name", output.Replace("\r\n", "\n", StringComparison.Ordinal), StringComparison.Ordinal);
+    }
 }

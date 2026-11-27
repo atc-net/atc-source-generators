@@ -694,7 +694,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
             GetUserConversions(containingClass));
 
         // Find best matching constructor
-        var (constructor, constructorParameterNames, constructorDefaultParameters) = FindBestConstructor(sourceType, targetType, propertyRenames, GetUserConversions(containingClass));
+        var (constructor, constructorParameterNames, constructorDefaultParameters) = FindBestConstructor(sourceType, targetType, propertyRenames, GetUserConversions(containingClass), ignoredProperties);
 
         return new ConfiguredMappingInfo(
             SourceType: sourceType,
@@ -928,7 +928,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
             mapCall.GetLocation());
 
         // Find best matching constructor
-        var (constructor, constructorParameterNames, constructorDefaultParameters) = FindBestConstructor(sourceType, targetType, propertyRenames);
+        var (constructor, constructorParameterNames, constructorDefaultParameters) = FindBestConstructor(sourceType, targetType, propertyRenames, ignoredProperties: ignoredProperties);
 
         return new ConfiguredMappingInfo(
             SourceType: sourceType,
@@ -1112,7 +1112,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
             attr.ApplicationSyntaxReference?.GetSyntax(context.CancellationToken).GetLocation());
 
         // Find best matching constructor
-        var (constructor, constructorParameterNames, constructorDefaultParameters) = FindBestConstructor(sourceType, targetType, propertyRenames);
+        var (constructor, constructorParameterNames, constructorDefaultParameters) = FindBestConstructor(sourceType, targetType, propertyRenames, ignoredProperties: ignoredProperties);
 
         return new ConfiguredMappingInfo(
             SourceType: sourceType,
@@ -1419,7 +1419,8 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         INamedTypeSymbol sourceType,
         INamedTypeSymbol targetType,
         List<(string Source, string Target)>? propertyRenames = null,
-        Dictionary<string, string>? conversions = null)
+        Dictionary<string, string>? conversions = null,
+        List<string>? ignoredProperties = null)
     {
         var sourceProperties = MappingTypeAnalyzer.GetAllProperties(sourceType, includePrivateMembers: false);
 
@@ -1427,7 +1428,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         // nested mappers of dictionary values
         return MappingTypeAnalyzer.FindBestConstructor(
             targetType,
-            parameterName => FindSourcePropertyForParameter(sourceProperties, parameterName, propertyRenames),
+            parameterName => FindSourcePropertyForParameter(sourceProperties, parameterName, propertyRenames, ignoredProperties),
             (sourcePropertyType, parameterType) =>
                 MappingTypeAnalyzer.IsConstructorParameterCompatible(sourcePropertyType, parameterType) ||
                 TryGetUserConversion(conversions, sourcePropertyType, parameterType, out _) ||
@@ -1438,11 +1439,15 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
     private static IPropertySymbol? FindSourcePropertyForParameter(
         List<IPropertySymbol> sourceProperties,
         string parameterName,
-        List<(string Source, string Target)>? propertyRenames)
+        List<(string Source, string Target)>? propertyRenames,
+        List<string>? ignoredProperties = null)
     {
-        // Direct name match
+        // Direct name match, unless the source property is ignored or renamed to another target
         var match = sourceProperties.FirstOrDefault(p =>
-            string.Equals(p.Name, parameterName, StringComparison.OrdinalIgnoreCase));
+            string.Equals(p.Name, parameterName, StringComparison.OrdinalIgnoreCase) &&
+            ignoredProperties?.Any(i => string.Equals(i, p.Name, StringComparison.OrdinalIgnoreCase)) != true &&
+            propertyRenames?.Any(r => string.Equals(r.Source, p.Name, StringComparison.OrdinalIgnoreCase) &&
+                                      !string.Equals(r.Target, parameterName, StringComparison.OrdinalIgnoreCase)) != true);
 
         if (match is not null)
         {
@@ -1806,10 +1811,9 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
                     var defaultParam = mapping.ConstructorDefaultParameters.FirstOrDefault(d =>
                         string.Equals(d.Name, param.Name, StringComparison.OrdinalIgnoreCase));
 
-                    if (defaultParam is not null)
-                    {
-                        constructorArguments.Add((defaultParam.DefaultExpression, true));
-                    }
+                    // A parameter without a property mapping (skipped, e.g. ATCMCF015) still gets an argument,
+                    // so the arguments don't shift
+                    constructorArguments.Add((defaultParam?.DefaultExpression ?? MappingTypeAnalyzer.GetDefaultExpression(param.Type), true));
                 }
             }
 
