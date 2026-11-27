@@ -140,6 +140,22 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 
+    private static readonly DiagnosticDescriptor MethodTooManyParametersDescriptor = new(
+        id: RuleIdentifierConstants.MappingConfiguration.MethodTooManyParameters,
+        title: "Mapping method must have exactly one parameter",
+        messageFormat: "Mapping method '{0}' must have exactly one parameter (this TSource source)",
+        category: RuleCategoryConstants.MappingConfiguration,
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    private static readonly DiagnosticDescriptor MapCallInvalidArgumentDescriptor = new(
+        id: RuleIdentifierConstants.MappingConfiguration.MapCallInvalidArgument,
+        title: "Map() argument must be a typeof() expression",
+        messageFormat: "Map() arguments must be typeof() expressions such as Map(typeof(Source), typeof(Target)), or use Map<Source, Target>()",
+        category: RuleCategoryConstants.MappingConfiguration,
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
     private static readonly DiagnosticDescriptor AddMappingsLambdaRequiredDescriptor = new(
         id: RuleIdentifierConstants.MappingConfiguration.AddMappingsLambdaRequired,
         title: "Lambda required",
@@ -492,6 +508,17 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
             return null;
         }
 
+        // Validate the single source parameter
+        if (method.Parameters.Length != 1)
+        {
+            context.ReportDiagnostic(
+                Diagnostic.Create(
+                    MethodTooManyParametersDescriptor,
+                    method.Locations.FirstOrDefault() ?? Location.None,
+                    method.Name));
+            return null;
+        }
+
         // Check for unresolved return type (possibly from sibling source generator)
         if (!method.ReturnsVoid && method.ReturnType.TypeKind == TypeKind.Error)
         {
@@ -767,6 +794,16 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
             {
                 sourceType = ExtractTypeFromTypeOfExpression(positionalArgs[0].Expression, semanticModel, context.CancellationToken);
                 targetType = ExtractTypeFromTypeOfExpression(positionalArgs[1].Expression, semanticModel, context.CancellationToken);
+
+                // The types must be known at compile time: report arguments that aren't typeof() expressions
+                if (sourceType is null || targetType is null)
+                {
+                    context.ReportDiagnostic(
+                        Diagnostic.Create(
+                            MapCallInvalidArgumentDescriptor,
+                            mapCall.GetLocation()));
+                    return null;
+                }
             }
         }
 
