@@ -834,4 +834,41 @@ public partial class ObjectMappingGeneratorTests
         Assert.Contains("out var __statusParsed) ? __statusParsed", output, StringComparison.Ordinal);
         Assert.Contains("out var __kindParsed) ? __kindParsed", output, StringComparison.Ordinal);
     }
+
+    [Theory]
+    [InlineData("int?", "long", "Value = (long)(source.Value ?? default)")]
+    [InlineData("int?", "long?", "Value = (long?)source.Value")]
+    [InlineData("Color?", "Shade", "Value = (global::TestNamespace.Shade)(source.Value ?? default)")]
+    public void Generator_Should_Cast_Nullable_Source_To_Non_Nullable_Target_Without_Throwing(
+        string sourceType,
+        string targetType,
+        string expected)
+    {
+        var source = $$"""
+                       #nullable enable
+                       using Atc.SourceGenerators.Annotations;
+
+                       namespace TestNamespace;
+
+                       public enum Color { Red, Green }
+
+                       public enum Shade { Light, Dark }
+
+                       public class TargetDto
+                       {
+                           public {{targetType}} Value { get; set; }
+                       }
+
+                       [MapTo(typeof(TargetDto))]
+                       public partial class Source
+                       {
+                           public {{sourceType}} Value { get; set; }
+                       }
+                       """;
+
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        Assert.Empty(diagnostics);
+        Assert.Contains(expected, output, StringComparison.Ordinal);
+    }
 }
