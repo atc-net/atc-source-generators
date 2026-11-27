@@ -746,6 +746,7 @@ services.AddOptionsFromDomain(configuration, "DataAccess", "Infrastructure");
 - Null safety (null checks for nullable properties)
 - Multi-layer support (Entity → Domain → DTO chains)
 - **Bidirectional mapping support** - Generate both forward and reverse mappings with `Bidirectional = true`
+- **Deep cloning** - `DeepClone = true` copies same-type properties instead of sharing them: new collections and dictionaries, and nested types/elements/values cloned with their self-mapping (`[MapTo(typeof(T))]` on `T`); a class without a self-mapping stays shared (ATCMAP016). `[MapTo(typeof(Order), DeepClone = true)]` on `Order` gives a deep copy (trees only, no reference cycles)
 - **Record support** - Works with classes, records, and structs
 - Requires types to be declared `partial`
 
@@ -942,6 +943,7 @@ UserDto (API)
 - `ATCMAP012` - Duplicate mapping method (Error)
 - `ATCMAP013` - Mapping hook method cannot be called (Error)
 - `ATCMAP014` - Target property is not mapped (Info; raise via `.editorconfig` for strict mapping)
+- `ATCMAP016` - DeepClone copies a property by reference because its type has no self-mapping (Warning)
 - `ATCMAP015` - Nested property type has no mapping (Error; the property is skipped. Not reported when the compilation has configuration mappings, whose generated mappers the `[MapTo]` generator can't see)
 
 ### EnumMappingGenerator

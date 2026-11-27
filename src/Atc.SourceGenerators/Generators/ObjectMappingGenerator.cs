@@ -69,6 +69,15 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         isEnabledByDefault: true,
         helpLinkUri: DiagnosticHelpLink.For(RuleIdentifierConstants.ObjectMapping.TargetPropertyNotMapped));
 
+    private static readonly DiagnosticDescriptor DeepCloneSharesReferenceDescriptor = new(
+        id: RuleIdentifierConstants.ObjectMapping.DeepCloneSharesReference,
+        title: "DeepClone copies a property by reference",
+        messageFormat: "DeepClone copies property '{0}' by reference: '{1}' has no [MapTo(typeof({1}))] to clone it with",
+        category: RuleCategoryConstants.ObjectMapping,
+        DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        helpLinkUri: DiagnosticHelpLink.For(RuleIdentifierConstants.ObjectMapping.DeepCloneSharesReference));
+
     private static readonly DiagnosticDescriptor NestedMappingNotFoundDescriptor = new(
         id: RuleIdentifierConstants.ObjectMapping.NestedMappingNotFound,
         title: "Nested property type has no mapping",
@@ -273,6 +282,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
             var updateTarget = false;
             var generateProjection = false;
             var includePrivateMembers = false;
+            var deepClone = false;
             var propertyNameStrategy = PropertyNameStrategy.PascalCase;
             foreach (var namedArg in attribute.NamedArguments)
             {
@@ -307,6 +317,10 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                 else if (namedArg.Key == "IncludePrivateMembers")
                 {
                     includePrivateMembers = namedArg.Value.Value as bool? ?? false;
+                }
+                else if (namedArg.Key == "DeepClone")
+                {
+                    deepClone = namedArg.Value.Value as bool? ?? false;
                 }
                 else if (namedArg.Key == "PropertyNameStrategy")
                 {
@@ -344,7 +358,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
             factory = GetCallableHook(classSymbol, factory, "Factory", context);
 
             // Get property mappings
-            var propertyMappings = GetPropertyMappings(classSymbol, targetType, enableFlattening, includePrivateMembers, propertyNameStrategy, context);
+            var propertyMappings = GetPropertyMappings(classSymbol, targetType, enableFlattening, includePrivateMembers, propertyNameStrategy, context, deepClone);
 
             // Find best matching constructor
             var (constructor, constructorParameterNames, constructorDefaultParameters) = FindBestConstructor(classSymbol, targetType);
@@ -374,7 +388,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
 
             // Get property mappings (using constructed target type for generics)
             var mappingsForGeneric = isGenericMapping
-                ? GetPropertyMappings(classSymbol, targetTypeForMapping, enableFlattening, includePrivateMembers, propertyNameStrategy, context)
+                ? GetPropertyMappings(classSymbol, targetTypeForMapping, enableFlattening, includePrivateMembers, propertyNameStrategy, context, deepClone)
                 : propertyMappings;
 
             // Find best matching constructor (using constructed target type for generics)
@@ -399,6 +413,7 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                 GenerateProjection: generateProjection,
                 IsGeneric: isGenericMapping,
                 IncludePrivateMembers: includePrivateMembers,
+                DeepClone: deepClone,
                 PropertyNameStrategy: propertyNameStrategy));
         }
 
@@ -411,7 +426,8 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         bool enableFlattening,
         bool includePrivateMembers,
         PropertyNameStrategy propertyNameStrategy,
-        SourceProductionContext? context = null)
+        SourceProductionContext? context = null,
+        bool deepClone = false)
     {
         var mappings = new List<PropertyMapping>();
 
@@ -492,8 +508,11 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                 continue;
             }
 
-            // Direct type match
-            mappings.Add(WithAccessorFlags(PropertyPairClassifier.Create(sourceProp, targetProp), includePrivateMembers));
+            // Direct type match: an assignment, or a copy for DeepClone
+            var directMapping = deepClone
+                ? CreateDeepCloneMapping(sourceProp, targetProp, context)
+                : PropertyPairClassifier.Create(sourceProp, targetProp);
+            mappings.Add(WithAccessorFlags(directMapping, includePrivateMembers));
         }
 
         // Handle flattening if enabled
@@ -518,6 +537,75 @@ public class ObjectMappingGenerator : IIncrementalGenerator
 
         return mappings;
     }
+
+    /// <summary>
+    /// DeepClone: a same-type property is copied instead of shared. Collections and dictionaries get new
+    /// instances, and nested types, elements and values are cloned with their self-mapping
+    /// ([MapTo(typeof(T))] on T). A class without a self-mapping can only be shared (ATCMAP016).
+    /// </summary>
+    private static PropertyMapping CreateDeepCloneMapping(
+        IPropertySymbol sourceProp,
+        IPropertySymbol targetProp,
+        SourceProductionContext? context)
+    {
+        var type = sourceProp.Type;
+        var mapping = PropertyPairClassifier.Create(sourceProp, targetProp);
+
+        if (MappingTypeAnalyzer.TryGetDictionaryMapping(type, type, out _, out var valueType))
+        {
+            ReportIfSharedByReference(sourceProp, valueType!, context);
+            return mapping with { IsDictionary = true, CollectionElementType = valueType, SourceCollectionElementType = valueType };
+        }
+
+        if (MappingTypeAnalyzer.IsCollectionType(type, out var elementType) && elementType is not null)
+        {
+            ReportIfSharedByReference(sourceProp, elementType, context);
+            return mapping with
+            {
+                IsCollection = true,
+                CollectionElementType = elementType,
+                SourceCollectionElementType = elementType,
+                CollectionTargetType = MappingTypeAnalyzer.GetCollectionTargetType(type),
+            };
+        }
+
+        if (MappingTypeAnalyzer.IsNestedMapping(type, type) && HasObjectMappingToType(type, type))
+        {
+            return mapping with { IsNested = true };
+        }
+
+        ReportIfSharedByReference(sourceProp, type, context);
+        return mapping;
+    }
+
+    private static void ReportIfSharedByReference(
+        IPropertySymbol sourceProp,
+        ITypeSymbol type,
+        SourceProductionContext? context)
+    {
+        var unwrapped = MappingTypeAnalyzer.UnwrapNullable(type);
+        if (context is null ||
+            unwrapped.TypeKind != TypeKind.Class ||
+            MappingTypeAnalyzer.IsSystemType(unwrapped) ||
+            HasObjectMappingToType(unwrapped, unwrapped))
+        {
+            return;
+        }
+
+        context.Value.ReportDiagnostic(
+            Diagnostic.Create(
+                DeepCloneSharesReferenceDescriptor,
+                sourceProp.Locations.FirstOrDefault() ?? Location.None,
+                sourceProp.Name,
+                unwrapped.Name));
+    }
+
+    private static bool IsSelfMapped(
+        ITypeSymbol? sourceType,
+        ITypeSymbol? targetType)
+        => sourceType is not null &&
+           SymbolEqualityComparer.Default.Equals(sourceType, targetType) &&
+           HasObjectMappingToType(sourceType, sourceType);
 
     private static PropertyMapping WithAccessorFlags(
         PropertyMapping mapping,
@@ -1446,7 +1534,10 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         {
             // Dictionary mapping: copy with ToDictionary, converting each value
             var propertyAccess = GenerateSourcePropertyAccess(prop, sourceVariable, sourceType);
-            return $"{propertyAccess}?.ToDictionary(x => x.Key, x => {MappingCodeEmitter.GetDictionaryValueConversion(prop, static (method, value) => $"{value}.{method}()")})!";
+            var valueConversion = IsSelfMapped(prop.SourceCollectionElementType, prop.CollectionElementType)
+                ? $"x.Value.MapTo{TypeNameSanitizer.SanitizeForIdentifier(prop.CollectionElementType!.Name)}()"
+                : MappingCodeEmitter.GetDictionaryValueConversion(prop, static (method, value) => $"{value}.{method}()");
+            return $"{propertyAccess}?.ToDictionary(x => x.Key, x => {valueConversion})!";
         }
 
         if (prop.IsCollection)
@@ -1456,11 +1547,13 @@ public class ObjectMappingGenerator : IIncrementalGenerator
             var mappingMethodName = $"MapTo{elementTypeName}";
             var collectionType = prop.CollectionTargetType!;
 
+            var copyElements = SymbolEqualityComparer.Default.Equals(prop.SourceCollectionElementType, prop.CollectionElementType) &&
+                               !IsSelfMapped(prop.SourceCollectionElementType, prop.CollectionElementType);
             return MappingCodeEmitter.GetCollectionConversion(
                 $"{sourceVariable}.{prop.SourceProperty.Name}",
                 collectionType,
                 prop.CollectionElementType,
-                $"x => x.{mappingMethodName}()");
+                copyElements ? null : $"x => x.{mappingMethodName}()");
         }
 
         if (prop.RequiresConversion)
@@ -1576,7 +1669,8 @@ public class ObjectMappingGenerator : IIncrementalGenerator
             targetType: mapping.SourceType,
             enableFlattening: mapping.EnableFlattening,
             includePrivateMembers: mapping.IncludePrivateMembers,
-            propertyNameStrategy: mapping.PropertyNameStrategy);
+            propertyNameStrategy: mapping.PropertyNameStrategy,
+            deepClone: mapping.DeepClone);
         reverseMappings.RemoveAll(p => p.IsNested && !nestedMappers.HasMapper(p));
 
         // Find best matching constructor for reverse mapping
@@ -1599,7 +1693,8 @@ public class ObjectMappingGenerator : IIncrementalGenerator
             GenerateProjection: false, // No projection for reverse mapping
             IsGeneric: mapping.IsGeneric, // Preserve generic flag for reverse mapping
             IncludePrivateMembers: mapping.IncludePrivateMembers, // Preserve private member access for reverse mapping
-            PropertyNameStrategy: mapping.PropertyNameStrategy); // Preserve property name strategy for reverse mapping
+            PropertyNameStrategy: mapping.PropertyNameStrategy, // Preserve property name strategy for reverse mapping
+            DeepClone: mapping.DeepClone);
 
         return reverseMapping;
     }
@@ -1738,6 +1833,15 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                    /// Default is false (only public members).
                    /// </summary>
                    public bool IncludePrivateMembers { get; set; }
+
+                   /// <summary>
+                   /// Gets or sets a value indicating whether properties of the same type are copied instead of shared:
+                   /// collections and dictionaries get new instances, and nested types, elements and values with a
+                   /// self-mapping ([MapTo(typeof(T))] on T) are cloned. Use it on a self-mapping
+                   /// ([MapTo(typeof(Order), DeepClone = true)] on Order) for a deep copy. Reference cycles are not supported.
+                   /// Default is false.
+                   /// </summary>
+                   public bool DeepClone { get; set; }
 
                    /// <summary>
                    /// Gets or sets the naming strategy for property name conversion during mapping.
