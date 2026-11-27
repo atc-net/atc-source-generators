@@ -415,6 +415,14 @@ public class ObjectMappingGenerator : IIncrementalGenerator
     {
         var mappings = new List<PropertyMapping>();
 
+        // [MapTo] requires a [MapTo] mapping for collection elements and dictionary values (ATCMAP011 otherwise),
+        // uses enum mappings from [MapTo] on enums, and has no conversion methods or numeric casts
+        var rules = new PropertyMappingRules
+        {
+            CanMapDictionaryValue = HasObjectMappingToType,
+            CanMapCollectionElement = HasObjectMappingToType,
+        };
+
         // Collect properties from the source type including inherited properties from base classes
         var sourceProperties = MappingTypeAnalyzer.GetAllProperties(sourceType, includePrivateMembers);
 
@@ -453,149 +461,39 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                 string.Equals(t.Name, targetPropertyName, StringComparison.OrdinalIgnoreCase) &&
                 SymbolEqualityComparer.Default.Equals(t.Type, sourceProp.Type));
 
-            if (targetProp is not null)
+            if (targetProp is null)
             {
-                // Direct type match
-                mappings.Add(new PropertyMapping(
-                    SourceProperty: sourceProp,
-                    TargetProperty: targetProp,
-                    RequiresConversion: false,
-                    IsNested: false,
-                    HasEnumMapping: false,
-                    IsCollection: false,
-                    CollectionElementType: null,
-                    SourceCollectionElementType: null,
-                    CollectionTargetType: null,
-                    IsFlattened: false,
-                    FlattenedNestedProperty: null,
-                    IsBuiltInTypeConversion: false,
-                    SourceRequiresUnsafeAccessor: includePrivateMembers && RequiresUnsafeAccessorForReading(sourceProp),
-                    TargetRequiresUnsafeAccessor: includePrivateMembers && RequiresUnsafeAccessorForWriting(targetProp)));
-            }
-            else
-            {
-                // Check if types are different but might be mappable (nested objects, enums, or collections)
+                // Types differ: find the target by name and classify the pair (nested, enum, collection, ...)
                 targetProp = targetProperties.FirstOrDefault(t => string.Equals(t.Name, targetPropertyName, StringComparison.OrdinalIgnoreCase));
-                if (targetProp is not null &&
-                    MappingTypeAnalyzer.TryGetDictionaryMapping(sourceProp.Type, targetProp.Type, out var sourceValueType, out var targetValueType))
+                if (targetProp is null)
                 {
-                    // Dictionary with the same key type: copied with ToDictionary, converting each value
-                    if (MappingTypeAnalyzer.AreDictionaryValuesDirectlyConvertible(sourceValueType!, targetValueType!) ||
-                        HasObjectMappingToType(sourceValueType!, targetValueType!))
-                    {
-                        var hasDictionaryEnumMapping = MappingTypeAnalyzer.IsDictionaryValueEnumConversion(sourceValueType!, targetValueType!) &&
-                                                       MappingTypeAnalyzer.HasEnumMappingAttribute(sourceValueType!, targetValueType!);
+                    continue;
+                }
 
-                        mappings.Add(new PropertyMapping(
-                            SourceProperty: sourceProp,
-                            TargetProperty: targetProp,
-                            RequiresConversion: false,
-                            IsNested: false,
-                            HasEnumMapping: hasDictionaryEnumMapping,
-                            IsCollection: false,
-                            CollectionElementType: targetValueType,
-                            SourceCollectionElementType: sourceValueType,
-                            CollectionTargetType: null,
-                            IsFlattened: false,
-                            FlattenedNestedProperty: null,
-                            IsBuiltInTypeConversion: false,
-                            SourceRequiresUnsafeAccessor: includePrivateMembers && RequiresUnsafeAccessorForReading(sourceProp),
-                            TargetRequiresUnsafeAccessor: includePrivateMembers && RequiresUnsafeAccessorForWriting(targetProp),
-                            IsDictionary: true));
-                    }
-                    else if (context is not null)
+                var result = PropertyPairClassifier.Classify(sourceProp, targetProp, rules);
+                if (result.Mapping is null)
+                {
+                    if (result.Failure == PropertyPairFailure.ElementHasNoMapping && context is not null)
                     {
-                        // No mapping method found for the dictionary value type - report diagnostic and skip
+                        // No mapping method found for the collection element or dictionary value type - report and skip
                         context.Value.ReportDiagnostic(
                             Diagnostic.Create(
                                 CollectionElementMappingNotFoundDescriptor,
                                 sourceProp.Locations.FirstOrDefault() ?? Location.None,
                                 sourceProp.Name,
-                                sourceValueType!.ToDisplayString(),
-                                targetValueType!.ToDisplayString()));
+                                result.SourceElementType!.ToDisplayString(),
+                                result.TargetElementType!.ToDisplayString()));
                     }
+
+                    continue;
                 }
-                else if (targetProp is not null)
-                {
-                    // Check for collection mapping
-                    var isSourceCollection = MappingTypeAnalyzer.IsCollectionType(sourceProp.Type, out var sourceElementType);
-                    var isTargetCollection = MappingTypeAnalyzer.IsCollectionType(targetProp.Type, out var targetElementType);
 
-                    if (isSourceCollection && isTargetCollection && sourceElementType is not null && targetElementType is not null)
-                    {
-                        // Validate that the source element type has a [MapTo] mapping to the target element type
-                        if (HasObjectMappingToType(sourceElementType, targetElementType))
-                        {
-                            // Collection mapping with validated element mapping
-                            mappings.Add(new PropertyMapping(
-                                SourceProperty: sourceProp,
-                                TargetProperty: targetProp,
-                                RequiresConversion: false,
-                                IsNested: false,
-                                HasEnumMapping: false,
-                                IsCollection: true,
-                                CollectionElementType: targetElementType,
-                                SourceCollectionElementType: sourceElementType,
-                                CollectionTargetType: MappingTypeAnalyzer.GetCollectionTargetType(targetProp.Type),
-                                IsFlattened: false,
-                                FlattenedNestedProperty: null,
-                                IsBuiltInTypeConversion: false,
-                                SourceRequiresUnsafeAccessor: includePrivateMembers && RequiresUnsafeAccessorForReading(sourceProp),
-                                TargetRequiresUnsafeAccessor: includePrivateMembers && RequiresUnsafeAccessorForWriting(targetProp)));
-                        }
-                        else if (context is not null)
-                        {
-                            // No mapping method found for collection element type - report diagnostic and skip
-                            context.Value.ReportDiagnostic(
-                                Diagnostic.Create(
-                                    CollectionElementMappingNotFoundDescriptor,
-                                    sourceProp.Locations.FirstOrDefault() ?? Location.None,
-                                    sourceProp.Name,
-                                    sourceElementType.ToDisplayString(),
-                                    targetElementType.ToDisplayString()));
-                        }
-                    }
-                    else
-                    {
-                        // Check for enum conversion, nested mapping, or built-in type conversion
-                        // The shared analyzer unwraps Nullable<T>, so Status? -> StatusDto? is an enum conversion
-                        // (not a nested mapping of Nullable<T>)
-                        var requiresConversion = MappingTypeAnalyzer.IsEnumConversion(sourceProp.Type, targetProp.Type);
-                        var isNested = MappingTypeAnalyzer.IsNestedMapping(sourceProp.Type, targetProp.Type);
-                        var hasEnumMapping = requiresConversion &&
-                                             MappingTypeAnalyzer.HasEnumMappingAttribute(
-                                                 MappingTypeAnalyzer.UnwrapNullable(sourceProp.Type),
-                                                 MappingTypeAnalyzer.UnwrapNullable(targetProp.Type));
-                        var isBuiltInTypeConversion = MappingTypeAnalyzer.IsBuiltInTypeConversion(sourceProp.Type, targetProp.Type);
-                        var isNullableValueTypeWrapping = MappingTypeAnalyzer.IsNullableValueTypeWrapping(sourceProp.Type, targetProp.Type);
-
-                        // Same value type with only nullability differing (e.g. Guid? → Guid) is a direct assignment
-                        if (isNullableValueTypeWrapping)
-                        {
-                            isNested = false;
-                        }
-
-                        if (requiresConversion || isNested || isBuiltInTypeConversion || isNullableValueTypeWrapping)
-                        {
-                            mappings.Add(new PropertyMapping(
-                                SourceProperty: sourceProp,
-                                TargetProperty: targetProp,
-                                RequiresConversion: requiresConversion,
-                                IsNested: isNested,
-                                HasEnumMapping: hasEnumMapping,
-                                IsCollection: false,
-                                CollectionElementType: null,
-                                SourceCollectionElementType: null,
-                                CollectionTargetType: null,
-                                IsFlattened: false,
-                                FlattenedNestedProperty: null,
-                                IsBuiltInTypeConversion: isBuiltInTypeConversion,
-                                SourceRequiresUnsafeAccessor: includePrivateMembers && RequiresUnsafeAccessorForReading(sourceProp),
-                                TargetRequiresUnsafeAccessor: includePrivateMembers && RequiresUnsafeAccessorForWriting(targetProp)));
-                        }
-                    }
-                }
+                mappings.Add(WithAccessorFlags(result.Mapping, includePrivateMembers));
+                continue;
             }
+
+            // Direct type match
+            mappings.Add(WithAccessorFlags(PropertyPairClassifier.Create(sourceProp, targetProp), includePrivateMembers));
         }
 
         // Handle flattening if enabled
@@ -620,6 +518,15 @@ public class ObjectMappingGenerator : IIncrementalGenerator
 
         return mappings;
     }
+
+    private static PropertyMapping WithAccessorFlags(
+        PropertyMapping mapping,
+        bool includePrivateMembers)
+        => mapping with
+        {
+            SourceRequiresUnsafeAccessor = includePrivateMembers && RequiresUnsafeAccessorForReading(mapping.SourceProperty),
+            TargetRequiresUnsafeAccessor = includePrivateMembers && RequiresUnsafeAccessorForWriting(mapping.TargetProperty),
+        };
 
     /// <summary>
     /// Checks if a source dictionary can be copied into a target dictionary: same key type, and value types
