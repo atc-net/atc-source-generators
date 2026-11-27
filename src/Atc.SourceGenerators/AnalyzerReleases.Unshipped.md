@@ -25,3 +25,5 @@ ATCMAP012 | ObjectMapping | Error | Duplicate mapping method for the same source
 ATCMAP013 | ObjectMapping | Error | BeforeMap, AfterMap or Factory method cannot be called from generated code
 ATCMCF009 | MappingConfiguration | Error | Mapping method must have exactly one parameter
 ATCMCF012 | MappingConfiguration | Error | Map() argument must be a typeof() expression
+ATCMAP014 | ObjectMapping | Info | Target property is not mapped
+ATCMCF016 | MappingConfiguration | Info | Target property is not mapped

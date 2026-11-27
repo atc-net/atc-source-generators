@@ -8,7 +8,8 @@ public partial class ObjectMappingGeneratorTests
     private static (ImmutableArray<Diagnostic> Diagnostics, string Output) GetGeneratedOutput(
         string source,
         string? diagnosticPrefix = null,
-        bool allowGeneratedCodeErrors = false)
+        bool allowGeneratedCodeErrors = false,
+        bool allowInfoDiagnostics = false)
     {
         var syntaxTree = CSharpSyntaxTree.ParseText(source);
         var references = GeneratorTestHarness.References;
@@ -37,7 +38,7 @@ public partial class ObjectMappingGeneratorTests
         var allDiagnostics = outputCompilation
             .GetDiagnostics()
             .Concat(generatorDiagnostics)
-            .Where(d => d.Severity >= DiagnosticSeverity.Warning &&
+            .Where(d => (d.Severity >= DiagnosticSeverity.Warning || (allowInfoDiagnostics && d.Severity == DiagnosticSeverity.Info)) &&
                         d.Id.StartsWith(prefix, StringComparison.Ordinal))
             .ToImmutableArray();
 

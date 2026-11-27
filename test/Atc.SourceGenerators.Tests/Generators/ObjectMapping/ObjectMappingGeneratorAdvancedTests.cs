@@ -585,4 +585,71 @@ public partial class ObjectMappingGeneratorTests
         var duplicate = Assert.Single(diagnostics, d => d.Id == "ATCMAP012");
         Assert.Contains("MapToTargetDto", duplicate.GetMessage(CultureInfo.InvariantCulture), StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void Generator_Should_Report_Unmapped_Target_Properties_As_Info()
+    {
+        // Arrange
+        const string source = """
+            using Atc.SourceGenerators.Annotations;
+
+            namespace TestNamespace;
+
+            public class UserDto
+            {
+                public int Id { get; set; }
+
+                public string DisplayName { get; set; } = string.Empty;
+
+                [MapIgnore]
+                public string Ignored { get; set; } = string.Empty;
+            }
+
+            [MapTo(typeof(UserDto))]
+            public partial class User
+            {
+                public int Id { get; set; }
+            }
+            """;
+
+        // Act
+        var (diagnostics, _) = GetGeneratedOutput(source, "ATCMAP014", allowInfoDiagnostics: true);
+
+        // Assert
+        var diagnostic = Assert.Single(diagnostics);
+        Assert.Equal(DiagnosticSeverity.Info, diagnostic.Severity);
+        Assert.Contains("DisplayName", diagnostic.GetMessage(CultureInfo.InvariantCulture), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generator_Should_Not_Report_Unmapped_Target_Properties_When_All_Are_Mapped()
+    {
+        // Arrange
+        const string source = """
+            using Atc.SourceGenerators.Annotations;
+
+            namespace TestNamespace;
+
+            public class UserDto
+            {
+                public int Id { get; set; }
+
+                public string Name { get; set; } = string.Empty;
+            }
+
+            [MapTo(typeof(UserDto))]
+            public partial class User
+            {
+                public int Id { get; set; }
+
+                public string Name { get; set; } = string.Empty;
+            }
+            """;
+
+        // Act
+        var (diagnostics, _) = GetGeneratedOutput(source, "ATCMAP014", allowInfoDiagnostics: true);
+
+        // Assert
+        Assert.Empty(diagnostics);
+    }
 }

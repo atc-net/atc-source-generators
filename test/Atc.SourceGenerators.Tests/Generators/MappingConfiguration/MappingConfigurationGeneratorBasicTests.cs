@@ -240,7 +240,8 @@ public partial class MappingConfigurationGeneratorTests
 
         var (diagnostics, output) = GetGeneratedOutput(source);
 
-        Assert.Empty(diagnostics);
+        // Target properties without a source are reported as Info (ATCMCF016), nothing else
+        Assert.All(diagnostics, d => Assert.Equal("ATCMCF016", d.Id));
         Assert.Contains("Id = source.Id", output, StringComparison.Ordinal);
         Assert.DoesNotContain("ExtraProperty", output, StringComparison.Ordinal);
         Assert.DoesNotContain("DifferentProperty", output, StringComparison.Ordinal);

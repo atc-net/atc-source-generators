@@ -199,4 +199,37 @@ public partial class MappingConfigurationGeneratorTests
         Assert.Equal(DiagnosticSeverity.Warning, diagnostic.Severity);
         Assert.Contains("Details", diagnostic.GetMessage(CultureInfo.InvariantCulture), StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void Config_Should_Report_Unmapped_Target_Properties_As_Info()
+    {
+        const string source = """
+                              using Atc.SourceGenerators.Annotations;
+
+                              namespace MyApp
+                              {
+                                  public class Source { public int Id { get; set; } }
+
+                                  public class Target
+                                  {
+                                      public int Id { get; set; }
+
+                                      public string Description { get; set; } = string.Empty;
+                                  }
+
+                                  [MappingConfiguration]
+                                  public static partial class Mappings
+                                  {
+                                      public static partial Target MapToTarget(this Source source);
+                                  }
+                              }
+                              """;
+
+        var (diagnostics, _) = GetGeneratedOutput(source);
+
+        var diagnostic = Assert.Single(diagnostics);
+        Assert.Equal("ATCMCF016", diagnostic.Id);
+        Assert.Equal(DiagnosticSeverity.Info, diagnostic.Severity);
+        Assert.Contains("Description", diagnostic.GetMessage(CultureInfo.InvariantCulture), StringComparison.Ordinal);
+    }
 }

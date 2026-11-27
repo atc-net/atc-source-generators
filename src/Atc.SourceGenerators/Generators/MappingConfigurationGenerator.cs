@@ -164,6 +164,14 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 
+    private static readonly DiagnosticDescriptor TargetPropertyNotMappedDescriptor = new(
+        id: RuleIdentifierConstants.MappingConfiguration.TargetPropertyNotMapped,
+        title: "Target property is not mapped",
+        messageFormat: "Target property '{0}' of '{1}' is not mapped from '{2}' and keeps its default value",
+        category: RuleCategoryConstants.MappingConfiguration,
+        DiagnosticSeverity.Info,
+        isEnabledByDefault: true);
+
     private static readonly DiagnosticDescriptor PropertyTypesNotCompatibleDescriptor = new(
         id: RuleIdentifierConstants.MappingConfiguration.PropertyTypesNotCompatible,
         title: "Property types are not compatible",
@@ -1430,6 +1438,23 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
                             TargetRequiresUnsafeAccessor: false));
                     }
                 }
+            }
+        }
+
+        // Report settable target properties that nothing maps to (Info by default; raise it with
+        // "dotnet_diagnostic.ATCMCF016.severity = error" for strict mapping). Only for user-declared mappings.
+        if (diagnosticLocation is not null)
+        {
+            var mappedTargetNames = new HashSet<string>(mappings.Select(m => m.TargetProperty.Name), StringComparer.OrdinalIgnoreCase);
+            foreach (var targetProp in targetProperties.Where(t => t.SetMethod is not null && !mappedTargetNames.Contains(t.Name)))
+            {
+                context.ReportDiagnostic(
+                    Diagnostic.Create(
+                        TargetPropertyNotMappedDescriptor,
+                        diagnosticLocation,
+                        targetProp.Name,
+                        targetType.Name,
+                        sourceType.Name));
             }
         }
 
