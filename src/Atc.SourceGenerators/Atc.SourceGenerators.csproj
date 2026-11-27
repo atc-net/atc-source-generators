@@ -20,8 +20,6 @@
     <IncludeBuildOutput>false</IncludeBuildOutput>
     <!-- Don't create separate symbols package (PDBs are embedded) -->
     <IncludeSymbols>false</IncludeSymbols>
-    <!-- Disable NuGet package analysis - analyzer packages don't follow standard lib/ref structure -->
-    <NoPackageAnalysis>true</NoPackageAnalysis>
     <!-- Don't treat NuGet warnings as errors for analyzer packages -->
     <WarningsNotAsErrors>$(WarningsNotAsErrors);NU5017;NU5128</WarningsNotAsErrors>
   </PropertyGroup>
@@ -42,10 +40,8 @@
 
   <!-- Package the analyzer DLL in the analyzers\dotnet\cs path -->
   <ItemGroup>
+    <!-- PDB is embedded in the DLL, no separate file needed. No lib/ asset: the generator only runs at build time and must not be copied to the consumer's output -->
     <None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
-    <!-- PDB is embedded in the DLL, no separate file needed -->
-    <!-- Add placeholder to satisfy NuGet validation -->
-    <None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="lib/netstandard2.0" Visible="false" />
   </ItemGroup>
 
   <!-- Install as a NuGet analyzer -->
