@@ -1725,7 +1725,9 @@ public class ObjectMappingGenerator : IIncrementalGenerator
             // UnsafeAccessor returns the value directly via ref, so use a local variable for null check
             if (prop.SourceRequiresUnsafeAccessor)
             {
-                return $"{propertyAccess} is {{ }} __nested ? __nested.{nestedMethodName}() : default!";
+                // Named per property: expression variables are scoped to the whole initializer or constructor call
+                var varName = $"__{char.ToLowerInvariant(prop.SourceProperty.Name[0])}{prop.SourceProperty.Name.Substring(1)}";
+                return $"{propertyAccess} is {{ }} {varName} ? {varName}.{nestedMethodName}() : default!";
             }
 
             if (prop.SourceProperty.Type.IsValueType)
