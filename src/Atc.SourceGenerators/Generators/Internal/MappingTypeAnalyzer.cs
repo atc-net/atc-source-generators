@@ -815,4 +815,61 @@ internal static class MappingTypeAnalyzer
             IsBuiltInTypeConversion: false,
             SourceRequiresUnsafeAccessor: false,
             TargetRequiresUnsafeAccessor: false);
+
+    /// <summary>
+    /// Gets the key of a conversion from one type to another (nullable annotations ignored).
+    /// </summary>
+    internal static string GetConversionKey(
+        ITypeSymbol sourceType,
+        ITypeSymbol targetType)
+        => $"{sourceType.WithNullableAnnotation(NullableAnnotation.NotAnnotated).ToDisplayString()}->{targetType.WithNullableAnnotation(NullableAnnotation.NotAnnotated).ToDisplayString()}";
+
+    /// <summary>
+    /// Gets the user conversion methods of a type: static, non-generic, one-parameter methods that return a value,
+    /// keyed by <see cref="GetConversionKey"/>, with the expression to call them (<paramref name="formatCall"/>).
+    /// </summary>
+    internal static Dictionary<string, string>? GetConversionMethods(
+        INamedTypeSymbol? host,
+        Func<IMethodSymbol, bool> isUsable,
+        Func<IMethodSymbol, string> formatCall)
+    {
+        if (host is null)
+        {
+            return null;
+        }
+
+        var conversions = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var method in host.GetMembers().OfType<IMethodSymbol>())
+        {
+            if (method is not { IsStatic: true, MethodKind: MethodKind.Ordinary, IsGenericMethod: false, ReturnsVoid: false, Parameters.Length: 1 } ||
+                method.IsExtensionMethod ||
+                method.IsPartialDefinition ||
+                method.PartialDefinitionPart is not null ||
+                !isUsable(method))
+            {
+                continue;
+            }
+
+            var key = GetConversionKey(method.Parameters[0].Type, method.ReturnType);
+            if (!conversions.ContainsKey(key))
+            {
+                conversions[key] = formatCall(method);
+            }
+        }
+
+        return conversions.Count > 0 ? conversions : null;
+    }
+
+    /// <summary>
+    /// Gets the conversion method call for two different types, or <c>null</c>.
+    /// </summary>
+    internal static string? FindConversionMethod(
+        Dictionary<string, string>? conversions,
+        ITypeSymbol sourceType,
+        ITypeSymbol targetType)
+        => conversions is not null &&
+           !SymbolEqualityComparer.Default.Equals(sourceType, targetType) &&
+           conversions.TryGetValue(GetConversionKey(sourceType, targetType), out var method)
+            ? method
+            : null;
 }

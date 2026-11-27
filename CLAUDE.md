@@ -734,6 +734,7 @@ services.AddOptionsFromDomain(configuration, "DataAccess", "Infrastructure");
 - Null safety (null checks for nullable properties)
 - Multi-layer support (Entity → Domain → DTO chains)
 - **Bidirectional mapping support** - Generate both forward and reverse mappings with `Bidirectional = true`
+- **Conversion methods** - a static, internal or public, one-parameter method on the `[MapTo]` class (e.g. `internal static Money ToMoney(decimal amount)`) is used for every property pair with exactly those types, also for constructor parameters and the bidirectional reverse, before the built-in conversions
 - **Deep cloning** - `DeepClone = true` copies same-type properties instead of sharing them: new collections and dictionaries, and nested types/elements/values cloned with their self-mapping (`[MapTo(typeof(T))]` on `T`); a class without a self-mapping stays shared (ATCMAP016). `[MapTo(typeof(Order), DeepClone = true)]` on `Order` gives a deep copy (trees only, no reference cycles)
 - **Record support** - Works with classes, records, and structs
 - Requires types to be declared `partial`
