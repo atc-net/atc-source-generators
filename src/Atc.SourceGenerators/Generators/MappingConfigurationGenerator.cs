@@ -205,6 +205,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         // Generate fallback attribute definitions
         context.RegisterPostInitializationOutput(ctx =>
         {
+            ctx.AddEmbeddedAttributeDefinition();
             ctx.AddSource("MappingConfigurationAttribute.g.cs", SourceText.From(GenerateMappingConfigurationAttributeSource(), Encoding.UTF8));
             ctx.AddSource("MapConfigIgnoreAttribute.g.cs", SourceText.From(GenerateMapConfigIgnoreAttributeSource(), Encoding.UTF8));
             ctx.AddSource("MapConfigPropertyAttribute.g.cs", SourceText.From(GenerateMapConfigPropertyAttributeSource(), Encoding.UTF8));
@@ -2705,7 +2706,8 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
                [global::System.Diagnostics.DebuggerNonUserCode]
                [global::System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
                [global::System.AttributeUsage(global::System.AttributeTargets.Class, Inherited = false, AllowMultiple = false)]
-               public sealed class MappingConfigurationAttribute : global::System.Attribute
+               [global::Microsoft.CodeAnalysis.EmbeddedAttribute]
+               internal sealed class MappingConfigurationAttribute : global::System.Attribute
                {
                }
            }
@@ -2726,7 +2728,8 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
                [global::System.Diagnostics.DebuggerNonUserCode]
                [global::System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
                [global::System.AttributeUsage(global::System.AttributeTargets.Method, Inherited = false, AllowMultiple = true)]
-               public sealed class MapConfigIgnoreAttribute : global::System.Attribute
+               [global::Microsoft.CodeAnalysis.EmbeddedAttribute]
+               internal sealed class MapConfigIgnoreAttribute : global::System.Attribute
                {
                    /// <summary>
                    /// Initializes a new instance of the <see cref="MapConfigIgnoreAttribute"/> class.
@@ -2760,7 +2763,8 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
                [global::System.Diagnostics.DebuggerNonUserCode]
                [global::System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
                [global::System.AttributeUsage(global::System.AttributeTargets.Method, Inherited = false, AllowMultiple = true)]
-               public sealed class MapConfigPropertyAttribute : global::System.Attribute
+               [global::Microsoft.CodeAnalysis.EmbeddedAttribute]
+               internal sealed class MapConfigPropertyAttribute : global::System.Attribute
                {
                    /// <summary>
                    /// Initializes a new instance of the <see cref="MapConfigPropertyAttribute"/> class.
@@ -2801,7 +2805,8 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
                [global::System.Diagnostics.DebuggerNonUserCode]
                [global::System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
                [global::System.AttributeUsage(global::System.AttributeTargets.Method, Inherited = false, AllowMultiple = false)]
-               public sealed class MapConfigOptionsAttribute : global::System.Attribute
+               [global::Microsoft.CodeAnalysis.EmbeddedAttribute]
+               internal sealed class MapConfigOptionsAttribute : global::System.Attribute
                {
                    /// <summary>
                    /// Gets or sets a value indicating whether to generate bidirectional mappings.
@@ -2836,7 +2841,8 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
                [global::System.Diagnostics.DebuggerNonUserCode]
                [global::System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
                [global::System.AttributeUsage(global::System.AttributeTargets.Assembly | global::System.AttributeTargets.Class, AllowMultiple = true)]
-               public sealed class MapTypesAttribute : global::System.Attribute
+               [global::Microsoft.CodeAnalysis.EmbeddedAttribute]
+               internal sealed class MapTypesAttribute : global::System.Attribute
                {
                    /// <summary>
                    /// Initializes a new instance of the <see cref="MapTypesAttribute"/> class.
@@ -2901,7 +2907,8 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
                [global::System.ComponentModel.EditorBrowsable(global::System.ComponentModel.EditorBrowsableState.Never)]
                [global::System.Diagnostics.DebuggerNonUserCode]
                [global::System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
-               public sealed class MappingBuilder
+               [global::Microsoft.CodeAnalysis.EmbeddedAttribute]
+               internal sealed class MappingBuilder
                {
                    internal MappingBuilder() { }
 

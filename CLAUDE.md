@@ -1328,7 +1328,7 @@ The project follows the pattern from `atc-analyzer` for managing diagnostic iden
 ### When Modifying Generators
 
 1. **Target Framework**: Generators must target `netstandard2.0` for Roslyn compatibility
-2. **Attribute Generation**: All generators ALWAYS emit fallback attribute definitions in `PostInitialization` to ensure attributes are available early in compilation. This is required even if projects reference `Atc.SourceGenerators.Annotations`. CS0436 warnings are expected and should be suppressed via `<NoWarn>$(NoWarn);CS0436</NoWarn>`
+2. **Attribute Generation**: All generators ALWAYS emit their attribute definitions (and `Lifetime`, `OptionsLifetime`, `PropertyNameStrategy`, `MappingBuilder`) in `PostInitialization`, as `internal` types marked `[global::Microsoft.CodeAnalysis.EmbeddedAttribute]` (`ctx.AddEmbeddedAttributeDefinition()`). Embedded types are invisible to other compilations, so projects that reference each other don't see each other's copies (no CS0436). Only a project that also references the unpublished `Atc.SourceGenerators.Annotations` project (the samples) still gets CS0436 and suppresses it
 3. **Generated Code Attributes**: Always include best-practice attributes on generated types:
    - `[GeneratedCode]` - Marks code as auto-generated
    - `[EditorBrowsable(Never)]` - Hides from IntelliSense
@@ -1410,7 +1410,7 @@ When using these source generators with OpenAPI/Swagger documentation (e.g., `Mi
 
 ### Warning Suppressions Explained
 
-- **CS0436**: "The type 'X' in 'Y' conflicts with the imported type 'X' in 'Z'" - Expected when fallback attributes are generated
+- **CS0436**: "The type 'X' in 'Y' conflicts with the imported type 'X' in 'Z'" - Only needed in projects that reference the `Atc.SourceGenerators.Annotations` project (the samples); the generated attributes themselves are internal and embedded
 - **SA0001**: StyleCop warning - typically disabled for generated code
 - **CS1591**: "Missing XML comment for publicly visible type" - Common to suppress in projects without XML docs
 - **IDE0005**: "Remove unnecessary usings" - May conflict with generated code
@@ -1443,9 +1443,7 @@ These attributes:
 - Restart IDE/OmniSharp if using VS Code
 
 ### Attribute CS0436 Warnings
-This is **expected and by design**. All generators emit fallback attribute definitions in `PostInitialization` to ensure attributes are available early in the compilation pipeline. This happens even if projects reference `Atc.SourceGenerators.Annotations`.
-
-**Always suppress this warning:**
+The generated attributes are `internal` and `[Embedded]`, so projects that use the generators and reference each other don't report CS0436. A project that also references the unpublished `Atc.SourceGenerators.Annotations` project (as the samples do) sees its public copies and needs:
 ```xml
 <NoWarn>$(NoWarn);CS0436</NoWarn>
 ```

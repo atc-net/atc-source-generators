@@ -113,6 +113,7 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
         // Generate attribute fallback for projects that don't reference Atc.SourceGenerators.Annotations
         context.RegisterPostInitializationOutput(ctx =>
         {
+            ctx.AddEmbeddedAttributeDefinition();
             ctx.AddSource("RegistrationAttribute.g.cs", SourceText.From(GenerateAttributeCode(), Encoding.UTF8));
         });
 
@@ -1913,7 +1914,8 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
              [global::System.CodeDom.Compiler.GeneratedCode("Atc.SourceGenerators.DependencyRegistration", "1.0.0")]
              [global::System.ComponentModel.EditorBrowsable(global::System.ComponentModel.EditorBrowsableState.Never)]
              [global::System.Runtime.CompilerServices.CompilerGenerated]
-             public enum Lifetime
+             [global::Microsoft.CodeAnalysis.EmbeddedAttribute]
+             internal enum Lifetime
              {
                  /// <summary>
                  /// Specifies that a single instance of the service will be created.
@@ -1960,7 +1962,8 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
              [global::System.Diagnostics.DebuggerNonUserCode]
              [global::System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
              [global::System.AttributeUsage(global::System.AttributeTargets.Class, Inherited = false, AllowMultiple = false)]
-             public sealed class RegistrationAttribute : global::System.Attribute
+             [global::Microsoft.CodeAnalysis.EmbeddedAttribute]
+             internal sealed class RegistrationAttribute : global::System.Attribute
              {
                  /// <summary>
                  /// Initializes a new instance of the <see cref="RegistrationAttribute"/> class.
@@ -2182,7 +2185,8 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
              [global::System.Diagnostics.DebuggerNonUserCode]
              [global::System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
              [global::System.AttributeUsage(global::System.AttributeTargets.Assembly, Inherited = false, AllowMultiple = true)]
-             public sealed class RegistrationFilterAttribute : global::System.Attribute
+             [global::Microsoft.CodeAnalysis.EmbeddedAttribute]
+             internal sealed class RegistrationFilterAttribute : global::System.Attribute
              {
                  /// <summary>
                  /// Gets or sets the namespaces to exclude from registration.

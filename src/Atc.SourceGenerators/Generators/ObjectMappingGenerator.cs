@@ -99,9 +99,10 @@ public class ObjectMappingGenerator : IIncrementalGenerator
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         // Generate the attribute definitions as fallback
-        // If Atc.SourceGenerators.Annotations are referenced, CS0436 warning will be suppressed via project settings
+        // as internal [Embedded] types, so projects referencing each other don't see each other's copies (no CS0436)
         context.RegisterPostInitializationOutput(ctx =>
         {
+            ctx.AddEmbeddedAttributeDefinition();
             ctx.AddSource("MapToAttribute.g.cs", SourceText.From(GenerateAttributeSource(), Encoding.UTF8));
             ctx.AddSource("MapIgnoreAttribute.g.cs", SourceText.From(GenerateMapIgnoreAttributeSource(), Encoding.UTF8));
             ctx.AddSource("MapPropertyAttribute.g.cs", SourceText.From(GenerateMapPropertyAttributeSource(), Encoding.UTF8));
@@ -1924,7 +1925,8 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                /// </summary>
                [global::System.CodeDom.Compiler.GeneratedCode("Atc.SourceGenerators.ObjectMapping", "1.0.0")]
                [global::System.ComponentModel.EditorBrowsable(global::System.ComponentModel.EditorBrowsableState.Never)]
-               public enum PropertyNameStrategy
+               [global::Microsoft.CodeAnalysis.EmbeddedAttribute]
+               internal enum PropertyNameStrategy
                {
                    /// <summary>
                    /// No transformation. Property names must match exactly (case-insensitive comparison).
@@ -1960,7 +1962,8 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                [global::System.Diagnostics.DebuggerNonUserCode]
                [global::System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
                [global::System.AttributeUsage(global::System.AttributeTargets.Class | global::System.AttributeTargets.Enum, Inherited = false, AllowMultiple = true)]
-               public sealed class MapToAttribute : global::System.Attribute
+               [global::Microsoft.CodeAnalysis.EmbeddedAttribute]
+               internal sealed class MapToAttribute : global::System.Attribute
                {
                    /// <summary>
                    /// Initializes a new instance of the <see cref="MapToAttribute"/> class.
@@ -2053,7 +2056,8 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                [global::System.Diagnostics.DebuggerNonUserCode]
                [global::System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
                [global::System.AttributeUsage(global::System.AttributeTargets.Property, Inherited = false, AllowMultiple = false)]
-               public sealed class MapIgnoreAttribute : global::System.Attribute
+               [global::Microsoft.CodeAnalysis.EmbeddedAttribute]
+               internal sealed class MapIgnoreAttribute : global::System.Attribute
                {
                }
            }
@@ -2074,7 +2078,8 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                [global::System.Diagnostics.DebuggerNonUserCode]
                [global::System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
                [global::System.AttributeUsage(global::System.AttributeTargets.Property, Inherited = false, AllowMultiple = false)]
-               public sealed class MapPropertyAttribute : global::System.Attribute
+               [global::Microsoft.CodeAnalysis.EmbeddedAttribute]
+               internal sealed class MapPropertyAttribute : global::System.Attribute
                {
                    /// <summary>
                    /// Initializes a new instance of the <see cref="MapPropertyAttribute"/> class.
@@ -2109,7 +2114,8 @@ public class ObjectMappingGenerator : IIncrementalGenerator
                [global::System.Diagnostics.DebuggerNonUserCode]
                [global::System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
                [global::System.AttributeUsage(global::System.AttributeTargets.Class, Inherited = false, AllowMultiple = true)]
-               public sealed class MapDerivedTypeAttribute : global::System.Attribute
+               [global::Microsoft.CodeAnalysis.EmbeddedAttribute]
+               internal sealed class MapDerivedTypeAttribute : global::System.Attribute
                {
                    /// <summary>
                    /// Initializes a new instance of the <see cref="MapDerivedTypeAttribute"/> class.
