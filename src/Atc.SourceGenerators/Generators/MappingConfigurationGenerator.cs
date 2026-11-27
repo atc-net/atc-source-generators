@@ -169,13 +169,25 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
             ctx.AddSource("MappingBuilder.g.cs", SourceText.From(GenerateMappingBuilderSource(), Encoding.UTF8));
         });
 
-        // Find classes with [MappingConfiguration] or [MapTypes] attributes
-        var classDeclarations = context.SyntaxProvider
-            .CreateSyntaxProvider(
-                predicate: static (s, _) => IsSyntaxTargetForGeneration(s),
-                transform: static (ctx, ct) => GetSemanticTargetForGeneration(ctx, ct))
-            .Where(static m => m is not null)
+        // Find classes with [MappingConfiguration] or class-level [MapTypes] attributes
+        // (ForAttributeWithMetadataName filters by attribute name without resolving every attribute)
+        var configurationClasses = context.SyntaxProvider
+            .ForAttributeWithMetadataName(
+                $"{AttributeNamespace}.{MappingConfigurationAttributeName}",
+                predicate: static (s, _) => s is ClassDeclarationSyntax,
+                transform: static (ctx, _) => (ClassDeclarationSyntax)ctx.TargetNode)
             .Collect();
+
+        var mapTypesClasses = context.SyntaxProvider
+            .ForAttributeWithMetadataName(
+                $"{AttributeNamespace}.{MapTypesAttributeName}",
+                predicate: static (s, _) => s is ClassDeclarationSyntax,
+                transform: static (ctx, _) => (ClassDeclarationSyntax)ctx.TargetNode)
+            .Collect();
+
+        var classDeclarations = configurationClasses
+            .Combine(mapTypesClasses)
+            .Select(static (pair, _) => pair.Left.AddRange(pair.Right));
 
         // Find AddMappings() / MappingBuilder.Configure() invocations
         var inlineInvocations = context.SyntaxProvider
@@ -205,7 +217,7 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
 
         // Generate source
         context.RegisterSourceOutput(compilationAndClasses, static (spc, source) =>
-            Execute(source.Left.Left.Left, source.Left.Left.Right!, source.Left.Right!, source.Right, spc));
+            Execute(source.Left.Left.Left, source.Left.Left.Right, source.Left.Right!, source.Right, spc));
     }
 
     private static EquatableArray<(string Source, string Target)> GetAttributeMappedPairs(
@@ -224,36 +236,6 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         }
 
         return new EquatableArray<(string Source, string Target)>(builder);
-    }
-
-    private static bool IsSyntaxTargetForGeneration(SyntaxNode node)
-        => node is ClassDeclarationSyntax { AttributeLists.Count: > 0 };
-
-    private static ClassDeclarationSyntax? GetSemanticTargetForGeneration(
-        GeneratorSyntaxContext context,
-        CancellationToken cancellationToken)
-    {
-        var classDeclaration = (ClassDeclarationSyntax)context.Node;
-
-        foreach (var attributeListSyntax in classDeclaration.AttributeLists)
-        {
-            foreach (var attributeSyntax in attributeListSyntax.Attributes)
-            {
-                if (context.SemanticModel.GetSymbolInfo(attributeSyntax, cancellationToken).Symbol is not IMethodSymbol attributeSymbol)
-                {
-                    continue;
-                }
-
-                var attrType = attributeSymbol.ContainingType;
-                if (MappingTypeAnalyzer.IsAttributeMatch(attrType, MappingConfigurationAttributeName) ||
-                    MappingTypeAnalyzer.IsAttributeMatch(attrType, MapTypesAttributeName))
-                {
-                    return classDeclaration;
-                }
-            }
-        }
-
-        return null;
     }
 
     private static bool IsInlineMappingInvocation(SyntaxNode node)
