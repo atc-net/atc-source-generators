@@ -119,21 +119,32 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
 
         // Find all classes with the [Registration] attribute using ForAttributeWithMetadataName
         // for better Roslyn-level caching
-        var classSymbols = context.SyntaxProvider
+        var services = context.SyntaxProvider
             .ForAttributeWithMetadataName(
                 AttributeNamespace + "." + AttributeName,
                 predicate: static (s, _) => s is ClassDeclarationSyntax,
-                transform: static (ctx, _) => GetRegistrationInfoForAttribute(ctx))
+                transform: static (ctx, cancellationToken) => GetRegistrationInfoForAttribute(ctx, cancellationToken))
             .Where(static m => m is not null)
+            .WithTrackingName("DependencyRegistration.Services")
             .Collect();
 
-        // Combine with compilation to generate the registration code
-        var compilationAndClasses = context.CompilationProvider.Combine(classSymbols);
+        // Assembly name and [RegistrationFilter] rules (cheap; equatable, so unchanged rules stay cached)
+        var registrationContext = context.CompilationProvider
+            .Select(static (compilation, _) => new DependencyRegistrationContext(
+                compilation.AssemblyName ?? "GeneratedAssembly",
+                ParseFilterRulesInfo(compilation.Assembly)))
+            .WithTrackingName("DependencyRegistration.Context");
 
-        context.RegisterSourceOutput(compilationAndClasses, (spc, source) =>
-        {
-            GenerateServiceRegistrations(source.Left, source.Right!, spc);
-        });
+        // Referenced assemblies with registrations (transitive registration): only re-read when the references change
+        var referencedAssemblies = context.CompilationProvider
+            .WithComparer(CompilationReferencesComparer.Instance)
+            .Select(static (compilation, cancellationToken) => new EquatableArray<ReferencedAssemblyInfo>(
+                GetReferencedAssembliesWithRegistrations(compilation, cancellationToken)))
+            .WithTrackingName("DependencyRegistration.References");
+
+        context.RegisterSourceOutput(
+            services.Combine(registrationContext).Combine(referencedAssemblies),
+            static (spc, source) => GenerateServiceRegistrations(source.Left.Left!, source.Left.Right, source.Right, spc));
     }
 
     private static bool IsAttributeMatch(
@@ -195,8 +206,11 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
     }
 
     private static ServiceRegistrationInfo? GetRegistrationInfoForAttribute(
-        GeneratorAttributeSyntaxContext context)
+        GeneratorAttributeSyntaxContext context,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         var classSymbol = (INamedTypeSymbol)context.TargetSymbol;
 
         // Find the matching [Registration] attribute from the attributes provided by the context
@@ -302,19 +316,68 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
         // Check if this is a hosted service
         var isHostedService = IsHostedService(classSymbol);
 
+        var location = context.TargetNode.GetLocation();
+        var factoryReturnType = string.IsNullOrEmpty(factoryMethodName)
+            ? null
+            : classSymbol
+                .GetMembers(factoryMethodName!)
+                .OfType<IMethodSymbol>()
+                .FirstOrDefault()?
+                .ReturnType;
+
+        var registeredTypes = new EquatableArray<RegisteredTypeInfo>(asTypes.Select(asType => new RegisteredTypeInfo(
+            DisplayName: asType.ToDisplayString(),
+            Name: asType.Name,
+            IsGeneric: asType is INamedTypeSymbol { IsGenericType: true },
+            OpenGenericName: GetOpenGenericTypeName(asType),
+            FactoryNeedsCast: NeedsFactoryCast(factoryReturnType, asType))));
+        var interfaceDefinitionNames = new EquatableArray<string>(
+            classSymbol.AllInterfaces.Select(i => i.OriginalDefinition.ToDisplayString()));
+        var isInstanceMethod = !string.IsNullOrEmpty(instanceMemberName) &&
+                               classSymbol.GetMembers(instanceMemberName!).OfType<IMethodSymbol>().Any(m => m.Parameters.Length == 0);
+        var validationError = ValidateService(classSymbol, asTypes, lifetime, isHostedService, factoryMethodName, instanceMemberName, location);
+
         return new ServiceRegistrationInfo(
-            classSymbol,
-            lifetime,
-            asTypes,
-            asSelf,
-            isHostedService,
-            key,
-            factoryMethodName,
-            tryAdd,
-            decorator,
-            instanceMemberName,
-            condition,
-            context.TargetNode.GetLocation());
+            ClassName: classSymbol.Name,
+            ClassFullName: classSymbol.ToDisplayString(),
+            ClassNamespace: classSymbol.ContainingNamespace?.ToDisplayString() ?? string.Empty,
+            IsGeneric: classSymbol.IsGenericType,
+            OpenGenericClassName: GetOpenGenericTypeName(classSymbol),
+            InterfaceDefinitionNames: interfaceDefinitionNames,
+            Lifetime: lifetime,
+            AsTypes: registeredTypes,
+            AsSelf: asSelf,
+            IsHostedService: isHostedService,
+            Key: key,
+            FactoryMethodName: factoryMethodName,
+            FactoryNeedsCastForSelf: NeedsFactoryCast(factoryReturnType, classSymbol),
+            TryAdd: tryAdd,
+            Decorator: decorator,
+            InstanceMemberName: instanceMemberName,
+            IsInstanceMethod: isInstanceMethod,
+            Condition: condition,
+            Location: LocationInfo.From(location),
+            ValidationError: validationError);
+    }
+
+    /// <summary>
+    /// The factory returns the first registered type (validated by ATCDIR006), so registering it as another
+    /// interface or as itself needs a cast (e.g. a factory returning IEmailSender registered as EmailSender).
+    /// </summary>
+    private static bool NeedsFactoryCast(
+        ITypeSymbol? factoryReturnType,
+        ITypeSymbol registeredType)
+        => factoryReturnType is not null &&
+           !SymbolEqualityComparer.Default.Equals(factoryReturnType, registeredType);
+
+    private static FilterRulesInfo ParseFilterRulesInfo(
+        IAssemblySymbol assemblySymbol)
+    {
+        var rules = ParseFilterRules(assemblySymbol);
+        return new FilterRulesInfo(
+            new EquatableArray<string>(rules.ExcludedNamespaces),
+            new EquatableArray<string>(rules.ExcludedPatterns),
+            new EquatableArray<string>(rules.ExcludedInterfaces.Select(i => i.OriginalDefinition.ToDisplayString())));
     }
 
     private static string GetAssemblyPrefix(string assemblyName)
@@ -481,8 +544,9 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
     }
 
     private static void GenerateServiceRegistrations(
-        Compilation compilation,
-        ImmutableArray<ServiceRegistrationInfo> services,
+        ImmutableArray<ServiceRegistrationInfo?> services,
+        DependencyRegistrationContext registrationContext,
+        EquatableArray<ReferencedAssemblyInfo> referencedAssemblyInfos,
         SourceProductionContext context)
     {
         if (services.IsEmpty)
@@ -494,30 +558,33 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
         // may emit once per attribute instance
         var seen = new HashSet<string>(StringComparer.Ordinal);
 
-        // Parse filter rules from the current assembly
-        var filterRules = ParseFilterRules(compilation.Assembly);
+        // Filter rules of the current assembly
+        var filterRules = registrationContext.FilterRules;
 
         var validServices = new List<ServiceRegistrationInfo>();
 
         // Validate and emit diagnostics, and apply filters
         foreach (var service in services)
         {
-            if (!seen.Add(service.ClassSymbol.ToDisplayString()))
+            if (service is null || !seen.Add(service.ClassFullName))
             {
                 continue;
             }
 
             // Check if service should be excluded by filter rules
-            if (filterRules.ShouldExclude(service.ClassSymbol))
+            if (filterRules.ShouldExclude(service))
             {
                 continue;
             }
 
-            var isValid = ValidateService(service, context);
-            if (isValid)
+            // Validated in the pipeline; excluded services are not reported
+            if (service.ValidationError is not null)
             {
-                validServices.Add(service);
+                context.ReportDiagnostic(service.ValidationError.ToDiagnostic());
+                continue;
             }
+
+            validServices.Add(service);
         }
 
         if (validServices.Count == 0)
@@ -528,37 +595,39 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
         // Check for duplicate registrations
         CheckForDuplicateRegistrations(validServices, context);
 
-        // Detect referenced assemblies with [Registration] attributes
-        var referencedAssemblies = GetReferencedAssembliesWithRegistrations(compilation, context.CancellationToken);
+        // Referenced assemblies with [Registration] attributes
+        var referencedAssemblies = referencedAssemblyInfos.ToImmutableArray();
 
         // Generate the extension method
         var source = GenerateExtensionMethod(
             validServices,
-            compilation.AssemblyName ?? "GeneratedAssembly",
+            registrationContext.AssemblyName,
             referencedAssemblies);
         context.AddSource("ServiceCollectionExtensions.g.cs", SourceText.From(source, Encoding.UTF8));
     }
 
-    private static bool ValidateService(
-        ServiceRegistrationInfo service,
-        SourceProductionContext context)
+    private static DiagnosticInfo? ValidateService(
+        INamedTypeSymbol classSymbol,
+        ImmutableArray<ITypeSymbol> asTypes,
+        ServiceLifetime lifetime,
+        bool isHostedService,
+        string? factoryMethodName,
+        string? instanceMemberName,
+        Location location)
     {
         // Check if hosted service has non-Singleton lifetime
-        if (service.IsHostedService &&
-            service.Lifetime != ServiceLifetime.Singleton)
+        if (isHostedService &&
+            lifetime != ServiceLifetime.Singleton)
         {
-            context.ReportDiagnostic(
-                Diagnostic.Create(
+            return DiagnosticInfo.FromLocation(
                     HostedServiceMustBeSingletonDescriptor,
-                    service.Location,
-                    service.ClassSymbol.Name,
-                    service.Lifetime));
-
-            return false;
+                    location,
+                    classSymbol.Name,
+                    lifetime);
         }
 
         // Validate each interface or abstract class type
-        foreach (var asType in service.AsTypes)
+        foreach (var asType in asTypes)
         {
             // Check if As is an interface or abstract class
             var isInterface = asType.TypeKind == TypeKind.Interface;
@@ -566,17 +635,14 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
 
             if (!isInterface && !isAbstractClass)
             {
-                context.ReportDiagnostic(
-                    Diagnostic.Create(
+                return DiagnosticInfo.FromLocation(
                         AsTypeMustBeInterfaceDescriptor,
-                        service.Location,
+                        location,
                         asType.Name,
                         asType
                             .TypeKind
                             .ToString()
-                            .ToLowerInvariant()));
-
-                return false;
+                            .ToLowerInvariant());
             }
 
             // Check if the class implements the interface or inherits from abstract class
@@ -586,7 +652,7 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
             {
                 // Original interface check logic
                 // For generic types, we need to compare the original definitions
-                var allInterfaces = service.ClassSymbol.AllInterfaces;
+                var allInterfaces = classSymbol.AllInterfaces;
                 if (asType is INamedTypeSymbol { IsGenericType: true } asNamedType)
                 {
                     var asTypeOriginal = asNamedType.OriginalDefinition;
@@ -610,7 +676,7 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
             {
                 // Abstract class check
                 // Walk up the inheritance hierarchy to check if the class inherits from the abstract class
-                var baseType = service.ClassSymbol.BaseType;
+                var baseType = classSymbol.BaseType;
                 implementsInterfaceOrInheritsAbstractClass = false;
 
                 while (baseType is not null)
@@ -638,41 +704,35 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
 
             if (!implementsInterfaceOrInheritsAbstractClass)
             {
-                context.ReportDiagnostic(
-                    Diagnostic.Create(
+                return DiagnosticInfo.FromLocation(
                         ClassDoesNotImplementInterfaceDescriptor,
-                        service.Location,
-                        service.ClassSymbol.Name,
-                        asType.Name));
-
-                return false;
+                        location,
+                        classSymbol.Name,
+                        asType.Name);
             }
         }
 
         // Validate factory method if specified
-        if (!string.IsNullOrEmpty(service.FactoryMethodName))
+        if (!string.IsNullOrEmpty(factoryMethodName))
         {
-            var factoryMethod = service.ClassSymbol
-                .GetMembers(service.FactoryMethodName!)
+            var factoryMethod = classSymbol
+                .GetMembers(factoryMethodName!)
                 .OfType<IMethodSymbol>()
                 .FirstOrDefault();
 
             if (factoryMethod is null)
             {
-                context.ReportDiagnostic(
-                    Diagnostic.Create(
+                return DiagnosticInfo.FromLocation(
                         FactoryMethodNotFoundDescriptor,
-                        service.Location,
-                        service.FactoryMethodName,
-                        service.ClassSymbol.Name));
-
-                return false;
+                        location,
+                        factoryMethodName,
+                        classSymbol.Name);
             }
 
             // Determine the expected return type (first AsType if specified, otherwise the class itself)
-            var expectedReturnType = service.AsTypes.Length > 0
-                ? service.AsTypes[0]
-                : service.ClassSymbol;
+            var expectedReturnType = asTypes.Length > 0
+                ? asTypes[0]
+                : classSymbol;
 
             // Validate factory method signature
             // Factory method must:
@@ -686,45 +746,36 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
 
             if (!hasValidSignature)
             {
-                context.ReportDiagnostic(
-                    Diagnostic.Create(
+                return DiagnosticInfo.FromLocation(
                         FactoryMethodInvalidSignatureDescriptor,
-                        service.Location,
-                        service.FactoryMethodName,
-                        expectedReturnType.ToDisplayString()));
-
-                return false;
+                        location,
+                        factoryMethodName,
+                        expectedReturnType.ToDisplayString());
             }
         }
 
         // Validate instance registration if specified
-        if (!string.IsNullOrEmpty(service.InstanceMemberName))
+        if (!string.IsNullOrEmpty(instanceMemberName))
         {
             // Check mutually exclusive with Factory
-            if (!string.IsNullOrEmpty(service.FactoryMethodName))
+            if (!string.IsNullOrEmpty(factoryMethodName))
             {
-                context.ReportDiagnostic(
-                    Diagnostic.Create(
+                return DiagnosticInfo.FromLocation(
                         InstanceAndFactoryMutuallyExclusiveDescriptor,
-                        service.Location));
-
-                return false;
+                        location);
             }
 
             // Check lifetime is Singleton
-            if (service.Lifetime != ServiceLifetime.Singleton)
+            if (lifetime != ServiceLifetime.Singleton)
             {
-                context.ReportDiagnostic(
-                    Diagnostic.Create(
+                return DiagnosticInfo.FromLocation(
                         InstanceRequiresSingletonLifetimeDescriptor,
-                        service.Location,
-                        service.Lifetime.ToString()));
-
-                return false;
+                        location,
+                        lifetime.ToString());
             }
 
             // Find the instance member (field, property, or method)
-            var members = service.ClassSymbol.GetMembers(service.InstanceMemberName!);
+            var members = classSymbol.GetMembers(instanceMemberName!);
 
             // Try to find as field or property first
             var fieldSymbols = members.OfType<IFieldSymbol>();
@@ -742,14 +793,11 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
 
             if (instanceMember is null)
             {
-                context.ReportDiagnostic(
-                    Diagnostic.Create(
+                return DiagnosticInfo.FromLocation(
                         InstanceMemberNotFoundDescriptor,
-                        service.Location,
-                        service.InstanceMemberName,
-                        service.ClassSymbol.Name));
-
-                return false;
+                        location,
+                        instanceMemberName,
+                        classSymbol.Name);
             }
 
             // Validate member is static
@@ -763,33 +811,30 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
 
             if (!isStatic)
             {
-                context.ReportDiagnostic(
-                    Diagnostic.Create(
+                return DiagnosticInfo.FromLocation(
                         InstanceMemberMustBeStaticDescriptor,
-                        service.Location,
-                        service.InstanceMemberName));
-
-                return false;
+                        location,
+                        instanceMemberName);
             }
         }
 
-        return true;
+        return null;
     }
 
     private static void CheckForDuplicateRegistrations(
         List<ServiceRegistrationInfo> services,
         SourceProductionContext context)
     {
-        var registrations = new Dictionary<string, (ServiceLifetime Lifetime, Location Location)>(StringComparer.Ordinal);
+        var registrations = new Dictionary<string, (ServiceLifetime Lifetime, LocationInfo Location)>(StringComparer.Ordinal);
 
         foreach (var service in services)
         {
             // Check each registered interface type
-            if (service.AsTypes.Length > 0)
+            if (service.AsTypes.Count > 0)
             {
                 foreach (var asType in service.AsTypes)
                 {
-                    var key = asType.ToDisplayString();
+                    var key = asType.DisplayName;
 
                     if (registrations.TryGetValue(key, out var existing))
                     {
@@ -798,7 +843,7 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
                             context.ReportDiagnostic(
                                 Diagnostic.Create(
                                     DuplicateRegistrationDescriptor,
-                                    service.Location,
+                                    service.Location.ToLocation(),
                                     key,
                                     existing.Lifetime,
                                     service.Lifetime));
@@ -813,7 +858,7 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
             else
             {
                 // No interfaces - register as concrete type
-                var key = service.ClassSymbol.ToDisplayString();
+                var key = service.ClassFullName;
                 if (registrations.TryGetValue(key, out var existing))
                 {
                     if (existing.Lifetime != service.Lifetime)
@@ -821,7 +866,7 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
                         context.ReportDiagnostic(
                             Diagnostic.Create(
                                 DuplicateRegistrationDescriptor,
-                                service.Location,
+                                service.Location.ToLocation(),
                                 key,
                                 existing.Lifetime,
                                 service.Lifetime));
@@ -1415,8 +1460,8 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
         // Register base services first
         foreach (var service in baseServices)
         {
-            var isGeneric = service.ClassSymbol.IsGenericType;
-            var implementationType = service.ClassSymbol.ToDisplayString();
+            var isGeneric = service.IsGeneric;
+            var implementationType = service.ClassFullName;
             var hasKey = service.Key is not null;
             var keyString = service.Key ?? "null";
 
@@ -1427,11 +1472,11 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
             if (includeRuntimeFiltering)
             {
                 var typeForExclusion = isGeneric
-                    ? $"typeof({GetOpenGenericTypeName(service.ClassSymbol)})"
+                    ? $"typeof({service.OpenGenericClassName})"
                     : $"typeof({implementationType})";
 
                 sb.AppendLineLf();
-                sb.AppendLineLf($"        // Check runtime exclusions for {service.ClassSymbol.Name}");
+                sb.AppendLineLf($"        // Check runtime exclusions for {service.ClassName}");
                 sb.AppendLineLf($"        if (!ShouldExcludeService({typeForExclusion}, excludedNamespaces, excludedPatterns, excludedTypes))");
                 sb.AppendLineLf("        {");
             }
@@ -1448,7 +1493,7 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
                     : $"configuration.GetValue<bool>({CSharpLiteral.FromString(configKey)})";
 
                 sb.AppendLineLf();
-                sb.AppendLineLf($"{baseIndent}// Conditional registration for {service.ClassSymbol.Name}");
+                sb.AppendLineLf($"{baseIndent}// Conditional registration for {service.ClassName}");
                 sb.AppendLineLf($"{baseIndent}if ({conditionCheck})");
                 sb.AppendLineLf($"{baseIndent}{{");
             }
@@ -1461,7 +1506,7 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
             {
                 if (isGeneric)
                 {
-                    var openGenericImplementationType = GetOpenGenericTypeName(service.ClassSymbol);
+                    var openGenericImplementationType = service.OpenGenericClassName;
                     sb.AppendLineLf($"{registrationIndent}services.AddHostedService(typeof({openGenericImplementationType}));");
                 }
                 else
@@ -1478,22 +1523,17 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
                 // Determine how to access the instance (field, property, or method call)
                 var instanceAccess = service.InstanceMemberName!;
 
-                // Check if it's a method (simple heuristic - if we stored more info we could be certain)
-                // For now, we'll check if the member is a method when generating
-                var members = service.ClassSymbol.GetMembers(service.InstanceMemberName!);
-                var methodSymbols = members.OfType<IMethodSymbol>();
-                var isMethod = methodSymbols.Any(m => m.Parameters.Length == 0);
-
-                var instanceExpression = isMethod
+                // A parameterless method is called; a field or property is read
+                var instanceExpression = service.IsInstanceMethod
                     ? $"{implementationType}.{instanceAccess}()"
                     : $"{implementationType}.{instanceAccess}";
 
                 // Register against each interface using the instance
-                if (service.AsTypes.Length > 0)
+                if (service.AsTypes.Count > 0)
                 {
                     foreach (var asType in service.AsTypes)
                     {
-                        var serviceType = asType.ToDisplayString();
+                        var serviceType = asType.DisplayName;
                         sb.AppendLineLf($"{registrationIndent}services.{lifetimeMethod}<{serviceType}>({instanceExpression});");
                     }
 
@@ -1529,24 +1569,24 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
                     };
 
                 // Register against each interface using factory
-                if (service.AsTypes.Length > 0)
+                if (service.AsTypes.Count > 0)
                 {
                     foreach (var asType in service.AsTypes)
                     {
-                        var serviceType = asType.ToDisplayString();
-                        sb.AppendLineLf($"{registrationIndent}services.{lifetimeMethod}<{serviceType}>(sp => {GetFactoryCall(service, asType, implementationType)});");
+                        var serviceType = asType.DisplayName;
+                        sb.AppendLineLf($"{registrationIndent}services.{lifetimeMethod}<{serviceType}>(sp => {GetFactoryCall(service, asType.FactoryNeedsCast, asType.DisplayName, implementationType)});");
                     }
 
                     // Also register as self if requested
                     if (service.AsSelf)
                     {
-                        sb.AppendLineLf($"{registrationIndent}services.{lifetimeMethod}<{implementationType}>(sp => {GetFactoryCall(service, service.ClassSymbol, implementationType)});");
+                        sb.AppendLineLf($"{registrationIndent}services.{lifetimeMethod}<{implementationType}>(sp => {GetFactoryCall(service, service.FactoryNeedsCastForSelf, implementationType, implementationType)});");
                     }
                 }
                 else
                 {
                     // No interfaces - register as concrete type with factory
-                    sb.AppendLineLf($"{registrationIndent}services.{lifetimeMethod}<{implementationType}>(sp => {GetFactoryCall(service, service.ClassSymbol, implementationType)});");
+                    sb.AppendLineLf($"{registrationIndent}services.{lifetimeMethod}<{implementationType}>(sp => {GetFactoryCall(service, service.FactoryNeedsCastForSelf, implementationType, implementationType)});");
                 }
             }
             else
@@ -1576,20 +1616,20 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
                         };
 
                 // Register against each interface
-                if (service.AsTypes.Length > 0)
+                if (service.AsTypes.Count > 0)
                 {
                     foreach (var asType in service.AsTypes)
                     {
-                        var serviceType = asType.ToDisplayString();
+                        var serviceType = asType.DisplayName;
 
                         // Check if the interface is generic
-                        var isInterfaceGeneric = asType is INamedTypeSymbol namedType && namedType.IsGenericType;
+                        var isInterfaceGeneric = asType.IsGeneric;
 
                         if (isGeneric && isInterfaceGeneric)
                         {
                             // Both service and interface are generic - use typeof() syntax
-                            var openGenericServiceType = GetOpenGenericTypeName(asType);
-                            var openGenericImplementationType = GetOpenGenericTypeName(service.ClassSymbol);
+                            var openGenericServiceType = asType.OpenGenericName;
+                            var openGenericImplementationType = service.OpenGenericClassName;
 
                             sb.AppendLineLf(hasKey
                                 ? $"{registrationIndent}services.{lifetimeMethod}(typeof({openGenericServiceType}), {keyString}, typeof({openGenericImplementationType}));"
@@ -1609,7 +1649,7 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
                     {
                         if (isGeneric)
                         {
-                            var openGenericImplementationType = GetOpenGenericTypeName(service.ClassSymbol);
+                            var openGenericImplementationType = service.OpenGenericClassName;
 
                             sb.AppendLineLf(hasKey
                                 ? $"{registrationIndent}services.{lifetimeMethod}(typeof({openGenericImplementationType}), {keyString});"
@@ -1628,7 +1668,7 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
                     // No interfaces - register as concrete type
                     if (isGeneric)
                     {
-                        var openGenericImplementationType = GetOpenGenericTypeName(service.ClassSymbol);
+                        var openGenericImplementationType = service.OpenGenericClassName;
 
                         sb.AppendLineLf(hasKey
                             ? $"{registrationIndent}services.{lifetimeMethod}(typeof({openGenericImplementationType}), {keyString});"
@@ -1659,11 +1699,11 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
         // Register decorators after base services
         foreach (var decorator in decorators)
         {
-            var isGeneric = decorator.ClassSymbol.IsGenericType;
-            var decoratorType = decorator.ClassSymbol.ToDisplayString();
+            var isGeneric = decorator.IsGeneric;
+            var decoratorType = decorator.ClassFullName;
 
             // Decorators require an explicit As type
-            if (decorator.AsTypes.Length == 0)
+            if (decorator.AsTypes.Count == 0)
             {
                 continue; // Skip decorators without explicit interface
             }
@@ -1672,11 +1712,11 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
             if (includeRuntimeFiltering)
             {
                 var typeForExclusion = isGeneric
-                    ? $"typeof({GetOpenGenericTypeName(decorator.ClassSymbol)})"
+                    ? $"typeof({decorator.OpenGenericClassName})"
                     : $"typeof({decoratorType})";
 
                 sb.AppendLineLf();
-                sb.AppendLineLf($"        // Check runtime exclusions for decorator {decorator.ClassSymbol.Name}");
+                sb.AppendLineLf($"        // Check runtime exclusions for decorator {decorator.ClassName}");
                 sb.AppendLineLf($"        if (!ShouldExcludeService({typeForExclusion}, excludedNamespaces, excludedPatterns, excludedTypes))");
                 sb.AppendLineLf("        {");
             }
@@ -1693,7 +1733,7 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
                     : $"configuration.GetValue<bool>({CSharpLiteral.FromString(configKey)})";
 
                 sb.AppendLineLf();
-                sb.AppendLineLf($"{baseIndent}// Conditional registration for decorator {decorator.ClassSymbol.Name}");
+                sb.AppendLineLf($"{baseIndent}// Conditional registration for decorator {decorator.ClassName}");
                 sb.AppendLineLf($"{baseIndent}if ({conditionCheck})");
                 sb.AppendLineLf($"{baseIndent}{{");
             }
@@ -1704,8 +1744,8 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
             // Generate decorator registration for each interface
             foreach (var asType in decorator.AsTypes)
             {
-                var serviceType = asType.ToDisplayString();
-                var isInterfaceGeneric = asType is INamedTypeSymbol namedType && namedType.IsGenericType;
+                var serviceType = asType.DisplayName;
+                var isInterfaceGeneric = asType.IsGeneric;
 
 #pragma warning disable S3923 // All conditionals intentionally return same value - reserved for future lifetime-specific behavior
                 var lifetimeMethod = decorator.Lifetime switch
@@ -1718,13 +1758,13 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
 #pragma warning restore S3923
 
                 sb.AppendLineLf();
-                sb.AppendLineLf($"{decoratorRegistrationIndent}// Decorator: {decorator.ClassSymbol.Name}");
+                sb.AppendLineLf($"{decoratorRegistrationIndent}// Decorator: {decorator.ClassName}");
 
                 if (isGeneric && isInterfaceGeneric)
                 {
                     // Open generic decorator
-                    var openGenericServiceType = GetOpenGenericTypeName(asType);
-                    var openGenericDecoratorType = GetOpenGenericTypeName(decorator.ClassSymbol);
+                    var openGenericServiceType = asType.OpenGenericName;
+                    var openGenericDecoratorType = decorator.OpenGenericClassName;
 
                     sb.AppendLineLf($"{decoratorRegistrationIndent}services.{lifetimeMethod}(typeof({openGenericServiceType}), (provider, inner) =>");
                     sb.AppendLineLf($"{decoratorRegistrationIndent}{{");
@@ -1842,27 +1882,18 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
     }
 
     /// <summary>
-    /// Gets the factory call for a registration. The factory returns the first registered type (validated by
-    /// ATCDIR006), so registering it as another interface or as itself needs a cast (e.g. a factory returning
-    /// IEmailSender registered as EmailSender with AsSelf).
+    /// Gets the factory call for a registration, with a cast when the factory's return type differs from the
+    /// registered type (see <see cref="NeedsFactoryCast"/>).
     /// </summary>
     private static string GetFactoryCall(
         ServiceRegistrationInfo service,
-        ITypeSymbol registeredType,
+        bool needsCast,
+        string registeredTypeName,
         string implementationType)
     {
         var call = $"{implementationType}.{service.FactoryMethodName}(sp)";
-        var factoryReturnType = service.ClassSymbol
-            .GetMembers(service.FactoryMethodName!)
-            .OfType<IMethodSymbol>()
-            .FirstOrDefault()?
-            .ReturnType;
-
-        var needsCast = factoryReturnType is not null &&
-                        !SymbolEqualityComparer.Default.Equals(factoryReturnType, registeredType);
-
         return needsCast
-            ? $"({registeredType.ToDisplayString()}){call}"
+            ? $"({registeredTypeName}){call}"
             : call;
     }
 

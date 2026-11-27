@@ -91,4 +91,44 @@ public class IncrementalCachingTests
             """,
             "OptionsBinding.Options",
             outputStepsMustBeCached: true);
+
+    [Fact]
+    public void DependencyRegistration_Should_Be_Fully_Cached_After_Unrelated_Edit()
+        => IncrementalGeneratorAssert.StepIsCachedAfterUnrelatedEdit(
+            [new DependencyRegistrationGenerator()],
+            """
+            using System;
+            using Atc.DependencyInjection;
+
+            namespace TestNamespace;
+
+            public interface IUserService
+            {
+            }
+
+            [Registration(Lifetime.Scoped)]
+            public class UserService : IUserService
+            {
+            }
+
+            public interface IEmailSender
+            {
+            }
+
+            [Registration(As = typeof(IEmailSender), Factory = nameof(Create), AsSelf = true)]
+            public class EmailSender : IEmailSender
+            {
+                public static IEmailSender Create(IServiceProvider serviceProvider) => new EmailSender();
+            }
+
+            [Registration(As = typeof(IUserService), Decorator = true)]
+            public class LoggingUserService : IUserService
+            {
+                public LoggingUserService(IUserService inner)
+                {
+                }
+            }
+            """,
+            "DependencyRegistration.Services",
+            outputStepsMustBeCached: true);
 }
