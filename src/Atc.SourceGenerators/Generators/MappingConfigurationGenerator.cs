@@ -26,7 +26,8 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         messageFormat: "Mapping configuration class '{0}' must be declared as static",
         category: RuleCategoryConstants.MappingConfiguration,
         DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
+        isEnabledByDefault: true,
+        helpLinkUri: DiagnosticHelpLink.For(RuleIdentifierConstants.MappingConfiguration.ConfigClassMustBeStatic));
 
     private static readonly DiagnosticDescriptor ConfigClassMustBePartialDescriptor = new(
         id: RuleIdentifierConstants.MappingConfiguration.ConfigClassMustBePartial,
@@ -34,7 +35,8 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         messageFormat: "Mapping configuration class '{0}' must be declared as partial",
         category: RuleCategoryConstants.MappingConfiguration,
         DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
+        isEnabledByDefault: true,
+        helpLinkUri: DiagnosticHelpLink.For(RuleIdentifierConstants.MappingConfiguration.ConfigClassMustBePartial));
 
     private static readonly DiagnosticDescriptor MethodMustBeExtensionMethodDescriptor = new(
         id: RuleIdentifierConstants.MappingConfiguration.MethodMustBeExtensionMethod,
@@ -42,7 +44,8 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         messageFormat: "Mapping method '{0}' must be an extension method (first parameter must use 'this')",
         category: RuleCategoryConstants.MappingConfiguration,
         DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
+        isEnabledByDefault: true,
+        helpLinkUri: DiagnosticHelpLink.For(RuleIdentifierConstants.MappingConfiguration.MethodMustBeExtensionMethod));
 
     private static readonly DiagnosticDescriptor IgnoredPropertyNotFoundDescriptor = new(
         id: RuleIdentifierConstants.MappingConfiguration.IgnoredPropertyNotFound,
@@ -50,7 +53,8 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         messageFormat: "Ignored property '{0}' not found on source type '{1}'",
         category: RuleCategoryConstants.MappingConfiguration,
         DiagnosticSeverity.Warning,
-        isEnabledByDefault: true);
+        isEnabledByDefault: true,
+        helpLinkUri: DiagnosticHelpLink.For(RuleIdentifierConstants.MappingConfiguration.IgnoredPropertyNotFound));
 
     private static readonly DiagnosticDescriptor RenamedSourcePropertyNotFoundDescriptor = new(
         id: RuleIdentifierConstants.MappingConfiguration.RenamedSourcePropertyNotFound,
@@ -58,7 +62,8 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         messageFormat: "Source property '{0}' specified in MapConfigProperty not found on type '{1}'",
         category: RuleCategoryConstants.MappingConfiguration,
         DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
+        isEnabledByDefault: true,
+        helpLinkUri: DiagnosticHelpLink.For(RuleIdentifierConstants.MappingConfiguration.RenamedSourcePropertyNotFound));
 
     private static readonly DiagnosticDescriptor RenamedTargetPropertyNotFoundDescriptor = new(
         id: RuleIdentifierConstants.MappingConfiguration.RenamedTargetPropertyNotFound,
@@ -66,7 +71,8 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         messageFormat: "Target property '{0}' specified in MapConfigProperty not found on type '{1}'",
         category: RuleCategoryConstants.MappingConfiguration,
         DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
+        isEnabledByDefault: true,
+        helpLinkUri: DiagnosticHelpLink.For(RuleIdentifierConstants.MappingConfiguration.RenamedTargetPropertyNotFound));
 
     private static readonly DiagnosticDescriptor EmptyConfigurationClassDescriptor = new(
         id: RuleIdentifierConstants.MappingConfiguration.EmptyConfigurationClass,
@@ -74,7 +80,8 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         messageFormat: "Mapping configuration class '{0}' has no partial extension methods",
         category: RuleCategoryConstants.MappingConfiguration,
         DiagnosticSeverity.Info,
-        isEnabledByDefault: true);
+        isEnabledByDefault: true,
+        helpLinkUri: DiagnosticHelpLink.For(RuleIdentifierConstants.MappingConfiguration.EmptyConfigurationClass));
 
     private static readonly DiagnosticDescriptor MethodReturnTypeInvalidDescriptor = new(
         id: RuleIdentifierConstants.MappingConfiguration.MethodReturnTypeInvalid,
@@ -82,7 +89,8 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         messageFormat: "Mapping method '{0}' return type must be a class, record, or struct",
         category: RuleCategoryConstants.MappingConfiguration,
         DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
+        isEnabledByDefault: true,
+        helpLinkUri: DiagnosticHelpLink.For(RuleIdentifierConstants.MappingConfiguration.MethodReturnTypeInvalid));
 
     private static readonly DiagnosticDescriptor TypeNotResolvedDescriptor = new(
         id: RuleIdentifierConstants.MappingConfiguration.TypeNotResolved,
@@ -90,7 +98,8 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         messageFormat: "Type '{0}' could not be resolved in method '{1}'. If this type is produced by another source generator, note that source generators cannot reference types from sibling generators in the same compilation. Consider moving the type to a referenced project or pre-compiling the other generator's output.",
         category: RuleCategoryConstants.MappingConfiguration,
         DiagnosticSeverity.Warning,
-        isEnabledByDefault: true);
+        isEnabledByDefault: true,
+        helpLinkUri: DiagnosticHelpLink.For(RuleIdentifierConstants.MappingConfiguration.TypeNotResolved));
 
     private static readonly DiagnosticDescriptor DuplicateAttributeAndConfigurationDescriptor = new(
         id: RuleIdentifierConstants.ObjectMappingExtended.DuplicateAttributeAndConfiguration,
@@ -98,7 +107,8 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         messageFormat: "Type '{0}' has both [MapTo(typeof({1}))] attribute and configuration-based mapping. Attribute takes precedence.",
         category: RuleCategoryConstants.ObjectMapping,
         DiagnosticSeverity.Warning,
-        isEnabledByDefault: true);
+        isEnabledByDefault: true,
+        helpLinkUri: DiagnosticHelpLink.For(RuleIdentifierConstants.ObjectMappingExtended.DuplicateAttributeAndConfiguration));
 
     private static readonly DiagnosticDescriptor DuplicateConfigurationMappingDescriptor = new(
         id: RuleIdentifierConstants.ObjectMappingExtended.DuplicateConfigurationMapping,
@@ -106,7 +116,8 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         messageFormat: "Type pair '{0}' -> '{1}' is configured multiple times. First configuration is used.",
         category: RuleCategoryConstants.ObjectMapping,
         DiagnosticSeverity.Warning,
-        isEnabledByDefault: true);
+        isEnabledByDefault: true,
+        helpLinkUri: DiagnosticHelpLink.For(RuleIdentifierConstants.ObjectMappingExtended.DuplicateConfigurationMapping));
 
     private static readonly DiagnosticDescriptor ConfigTargetTypeMustBeClassOrStructDescriptor = new(
         id: RuleIdentifierConstants.ObjectMappingExtended.ConfigTargetTypeMustBeClassOrStruct,
@@ -114,7 +125,8 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         messageFormat: "Configuration target type '{0}' must be a class or struct",
         category: RuleCategoryConstants.ObjectMapping,
         DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
+        isEnabledByDefault: true,
+        helpLinkUri: DiagnosticHelpLink.For(RuleIdentifierConstants.ObjectMappingExtended.ConfigTargetTypeMustBeClassOrStruct));
 
     private static readonly DiagnosticDescriptor AutoDetectedEnumPartialMatchDescriptor = new(
         id: RuleIdentifierConstants.EnumMapping.AutoDetectedEnumPartialMatch,
@@ -122,7 +134,8 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         messageFormat: "Auto-detected enum mapping '{0}' -> '{1}': {2} of {3} values unmatched: {4}",
         category: RuleCategoryConstants.EnumMapping,
         DiagnosticSeverity.Warning,
-        isEnabledByDefault: true);
+        isEnabledByDefault: true,
+        helpLinkUri: DiagnosticHelpLink.For(RuleIdentifierConstants.EnumMapping.AutoDetectedEnumPartialMatch));
 
     private static readonly DiagnosticDescriptor AutoDetectedEnumNoMatchDescriptor = new(
         id: RuleIdentifierConstants.EnumMapping.AutoDetectedEnumNoMatch,
@@ -130,7 +143,8 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         messageFormat: "Enum types '{0}' and '{1}' have no matching values; falling back to cast",
         category: RuleCategoryConstants.EnumMapping,
         DiagnosticSeverity.Warning,
-        isEnabledByDefault: true);
+        isEnabledByDefault: true,
+        helpLinkUri: DiagnosticHelpLink.For(RuleIdentifierConstants.EnumMapping.AutoDetectedEnumNoMatch));
 
     private static readonly DiagnosticDescriptor MapCallRequiresTypeArgumentsDescriptor = new(
         id: RuleIdentifierConstants.MappingConfiguration.MapCallRequiresTypeArguments,
@@ -138,7 +152,8 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         messageFormat: "Map() requires exactly two type arguments (source and target type)",
         category: RuleCategoryConstants.MappingConfiguration,
         DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
+        isEnabledByDefault: true,
+        helpLinkUri: DiagnosticHelpLink.For(RuleIdentifierConstants.MappingConfiguration.MapCallRequiresTypeArguments));
 
     private static readonly DiagnosticDescriptor MethodTooManyParametersDescriptor = new(
         id: RuleIdentifierConstants.MappingConfiguration.MethodTooManyParameters,
@@ -146,7 +161,8 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         messageFormat: "Mapping method '{0}' must have exactly one parameter (this TSource source)",
         category: RuleCategoryConstants.MappingConfiguration,
         DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
+        isEnabledByDefault: true,
+        helpLinkUri: DiagnosticHelpLink.For(RuleIdentifierConstants.MappingConfiguration.MethodTooManyParameters));
 
     private static readonly DiagnosticDescriptor MapCallInvalidArgumentDescriptor = new(
         id: RuleIdentifierConstants.MappingConfiguration.MapCallInvalidArgument,
@@ -154,7 +170,8 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         messageFormat: "Map() arguments must be typeof() expressions such as Map(typeof(Source), typeof(Target)), or use Map<Source, Target>()",
         category: RuleCategoryConstants.MappingConfiguration,
         DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
+        isEnabledByDefault: true,
+        helpLinkUri: DiagnosticHelpLink.For(RuleIdentifierConstants.MappingConfiguration.MapCallInvalidArgument));
 
     private static readonly DiagnosticDescriptor AddMappingsLambdaRequiredDescriptor = new(
         id: RuleIdentifierConstants.MappingConfiguration.AddMappingsLambdaRequired,
@@ -162,7 +179,8 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         messageFormat: "AddMappings() requires a lambda expression argument",
         category: RuleCategoryConstants.MappingConfiguration,
         DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
+        isEnabledByDefault: true,
+        helpLinkUri: DiagnosticHelpLink.For(RuleIdentifierConstants.MappingConfiguration.AddMappingsLambdaRequired));
 
     private static readonly DiagnosticDescriptor TargetPropertyNotMappedDescriptor = new(
         id: RuleIdentifierConstants.MappingConfiguration.TargetPropertyNotMapped,
@@ -170,7 +188,8 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         messageFormat: "Target property '{0}' of '{1}' is not mapped from '{2}' and keeps its default value",
         category: RuleCategoryConstants.MappingConfiguration,
         DiagnosticSeverity.Info,
-        isEnabledByDefault: true);
+        isEnabledByDefault: true,
+        helpLinkUri: DiagnosticHelpLink.For(RuleIdentifierConstants.MappingConfiguration.TargetPropertyNotMapped));
 
     private static readonly DiagnosticDescriptor PropertyTypesNotCompatibleDescriptor = new(
         id: RuleIdentifierConstants.MappingConfiguration.PropertyTypesNotCompatible,
@@ -178,7 +197,8 @@ public class MappingConfigurationGenerator : IIncrementalGenerator
         messageFormat: "Property '{0}' is not mapped from '{1}' to '{2}': type '{3}' cannot be converted to '{4}'",
         category: RuleCategoryConstants.MappingConfiguration,
         DiagnosticSeverity.Warning,
-        isEnabledByDefault: true);
+        isEnabledByDefault: true,
+        helpLinkUri: DiagnosticHelpLink.For(RuleIdentifierConstants.MappingConfiguration.PropertyTypesNotCompatible));
 
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {

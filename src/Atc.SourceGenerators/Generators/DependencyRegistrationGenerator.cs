@@ -24,7 +24,8 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
         messageFormat: "The type '{0}' specified in As parameter must be an interface or abstract class, but is a {1}",
         category: RuleCategoryConstants.DependencyInjection,
         DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
+        isEnabledByDefault: true,
+        helpLinkUri: DiagnosticHelpLink.For(RuleIdentifierConstants.DependencyInjection.AsTypeMustBeInterface));
 
     private static readonly DiagnosticDescriptor ClassDoesNotImplementInterfaceDescriptor = new(
         id: RuleIdentifierConstants.DependencyInjection.ClassDoesNotImplementInterface,
@@ -32,7 +33,8 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
         messageFormat: "Class '{0}' does not implement interface or inherit from abstract class '{1}' specified in As parameter",
         category: RuleCategoryConstants.DependencyInjection,
         DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
+        isEnabledByDefault: true,
+        helpLinkUri: DiagnosticHelpLink.For(RuleIdentifierConstants.DependencyInjection.ClassDoesNotImplementInterface));
 
     private static readonly DiagnosticDescriptor DuplicateRegistrationDescriptor = new(
         id: RuleIdentifierConstants.DependencyInjection.DuplicateRegistration,
@@ -40,7 +42,8 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
         messageFormat: "Service '{0}' is registered multiple times with different lifetimes ({1} and {2})",
         category: RuleCategoryConstants.DependencyInjection,
         DiagnosticSeverity.Warning,
-        isEnabledByDefault: true);
+        isEnabledByDefault: true,
+        helpLinkUri: DiagnosticHelpLink.For(RuleIdentifierConstants.DependencyInjection.DuplicateRegistration));
 
     private static readonly DiagnosticDescriptor HostedServiceMustBeSingletonDescriptor = new(
         id: RuleIdentifierConstants.DependencyInjection.HostedServiceMustBeSingleton,
@@ -48,7 +51,8 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
         messageFormat: "Hosted service '{0}' must use Singleton lifetime (or default [Registration]), but is registered with {1} lifetime",
         category: RuleCategoryConstants.DependencyInjection,
         DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
+        isEnabledByDefault: true,
+        helpLinkUri: DiagnosticHelpLink.For(RuleIdentifierConstants.DependencyInjection.HostedServiceMustBeSingleton));
 
     private static readonly DiagnosticDescriptor FactoryMethodNotFoundDescriptor = new(
         id: RuleIdentifierConstants.DependencyInjection.FactoryMethodNotFound,
@@ -56,7 +60,8 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
         messageFormat: "Factory method '{0}' not found in class '{1}'. Factory method must be static and return the service type.",
         category: RuleCategoryConstants.DependencyInjection,
         DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
+        isEnabledByDefault: true,
+        helpLinkUri: DiagnosticHelpLink.For(RuleIdentifierConstants.DependencyInjection.FactoryMethodNotFound));
 
     private static readonly DiagnosticDescriptor FactoryMethodInvalidSignatureDescriptor = new(
         id: RuleIdentifierConstants.DependencyInjection.FactoryMethodInvalidSignature,
@@ -64,7 +69,8 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
         messageFormat: "Factory method '{0}' must be static, accept IServiceProvider as parameter, and return '{1}'",
         category: RuleCategoryConstants.DependencyInjection,
         DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
+        isEnabledByDefault: true,
+        helpLinkUri: DiagnosticHelpLink.For(RuleIdentifierConstants.DependencyInjection.FactoryMethodInvalidSignature));
 
     private static readonly DiagnosticDescriptor InstanceMemberNotFoundDescriptor = new(
         id: RuleIdentifierConstants.DependencyInjection.InstanceMemberNotFound,
@@ -72,7 +78,8 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
         messageFormat: "Instance member '{0}' not found in class '{1}'. The member must be a static field, property, or parameterless method.",
         category: RuleCategoryConstants.DependencyInjection,
         DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
+        isEnabledByDefault: true,
+        helpLinkUri: DiagnosticHelpLink.For(RuleIdentifierConstants.DependencyInjection.InstanceMemberNotFound));
 
     private static readonly DiagnosticDescriptor InstanceMemberMustBeStaticDescriptor = new(
         id: RuleIdentifierConstants.DependencyInjection.InstanceMemberMustBeStatic,
@@ -80,7 +87,8 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
         messageFormat: "Instance member '{0}' must be static",
         category: RuleCategoryConstants.DependencyInjection,
         DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
+        isEnabledByDefault: true,
+        helpLinkUri: DiagnosticHelpLink.For(RuleIdentifierConstants.DependencyInjection.InstanceMemberMustBeStatic));
 
     private static readonly DiagnosticDescriptor InstanceAndFactoryMutuallyExclusiveDescriptor = new(
         id: RuleIdentifierConstants.DependencyInjection.InstanceAndFactoryMutuallyExclusive,
@@ -88,7 +96,8 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
         messageFormat: "Cannot use both Instance and Factory parameters on the same service. Use either Instance for pre-created instances or Factory for custom creation logic.",
         category: RuleCategoryConstants.DependencyInjection,
         DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
+        isEnabledByDefault: true,
+        helpLinkUri: DiagnosticHelpLink.For(RuleIdentifierConstants.DependencyInjection.InstanceAndFactoryMutuallyExclusive));
 
     private static readonly DiagnosticDescriptor InstanceRequiresSingletonLifetimeDescriptor = new(
         id: RuleIdentifierConstants.DependencyInjection.InstanceRequiresSingletonLifetime,
@@ -96,7 +105,8 @@ public class DependencyRegistrationGenerator : IIncrementalGenerator
         messageFormat: "Instance registration can only be used with Singleton lifetime. Current lifetime is '{0}'.",
         category: RuleCategoryConstants.DependencyInjection,
         DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
+        isEnabledByDefault: true,
+        helpLinkUri: DiagnosticHelpLink.For(RuleIdentifierConstants.DependencyInjection.InstanceRequiresSingletonLifetime));
 
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {

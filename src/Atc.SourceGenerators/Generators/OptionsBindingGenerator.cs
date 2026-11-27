@@ -22,7 +22,8 @@ public class OptionsBindingGenerator : IIncrementalGenerator
         messageFormat: "Options class '{0}' must be declared as partial to enable source generation",
         category: RuleCategoryConstants.OptionsBinding,
         DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
+        isEnabledByDefault: true,
+        helpLinkUri: DiagnosticHelpLink.For(RuleIdentifierConstants.OptionsBinding.OptionsClassMustBePartial));
 
     private static readonly DiagnosticDescriptor SectionNameCannotBeEmptyDescriptor = new(
         id: RuleIdentifierConstants.OptionsBinding.SectionNameCannotBeEmpty,
@@ -30,7 +31,8 @@ public class OptionsBindingGenerator : IIncrementalGenerator
         messageFormat: "Section name for options class '{0}' cannot be null or empty",
         category: RuleCategoryConstants.OptionsBinding,
         DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
+        isEnabledByDefault: true,
+        helpLinkUri: DiagnosticHelpLink.For(RuleIdentifierConstants.OptionsBinding.SectionNameCannotBeEmpty));
 
     private static readonly DiagnosticDescriptor ConstSectionNameCannotBeEmptyDescriptor = new(
         id: RuleIdentifierConstants.OptionsBinding.ConstSectionNameCannotBeEmpty,
@@ -38,7 +40,8 @@ public class OptionsBindingGenerator : IIncrementalGenerator
         messageFormat: "Options class '{0}' has const field '{1}' but its value is null or empty",
         category: RuleCategoryConstants.OptionsBinding,
         DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
+        isEnabledByDefault: true,
+        helpLinkUri: DiagnosticHelpLink.For(RuleIdentifierConstants.OptionsBinding.ConstSectionNameCannotBeEmpty));
 
     private static readonly DiagnosticDescriptor OnChangeRequiresMonitorLifetimeDescriptor = new(
         RuleIdentifierConstants.OptionsBinding.OnChangeRequiresMonitorLifetime,
@@ -46,7 +49,8 @@ public class OptionsBindingGenerator : IIncrementalGenerator
         "OnChange callback '{0}' can only be used when Lifetime = OptionsLifetime.Monitor",
         RuleCategoryConstants.OptionsBinding,
         DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
+        isEnabledByDefault: true,
+        helpLinkUri: DiagnosticHelpLink.For(RuleIdentifierConstants.OptionsBinding.OnChangeRequiresMonitorLifetime));
 
     private static readonly DiagnosticDescriptor OnChangeNotSupportedWithNamedOptionsDescriptor = new(
         RuleIdentifierConstants.OptionsBinding.OnChangeNotSupportedWithNamedOptions,
@@ -54,7 +58,8 @@ public class OptionsBindingGenerator : IIncrementalGenerator
         "OnChange callback '{0}' cannot be used with named options (Name = '{1}')",
         RuleCategoryConstants.OptionsBinding,
         DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
+        isEnabledByDefault: true,
+        helpLinkUri: DiagnosticHelpLink.For(RuleIdentifierConstants.OptionsBinding.OnChangeNotSupportedWithNamedOptions));
 
     private static readonly DiagnosticDescriptor OnChangeCallbackNotFoundDescriptor = new(
         RuleIdentifierConstants.OptionsBinding.OnChangeCallbackNotFound,
@@ -62,7 +67,8 @@ public class OptionsBindingGenerator : IIncrementalGenerator
         "OnChange callback method '{0}' not found in class '{1}'",
         RuleCategoryConstants.OptionsBinding,
         DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
+        isEnabledByDefault: true,
+        helpLinkUri: DiagnosticHelpLink.For(RuleIdentifierConstants.OptionsBinding.OnChangeCallbackNotFound));
 
     private static readonly DiagnosticDescriptor OnChangeCallbackInvalidSignatureDescriptor = new(
         RuleIdentifierConstants.OptionsBinding.OnChangeCallbackInvalidSignature,
@@ -70,7 +76,8 @@ public class OptionsBindingGenerator : IIncrementalGenerator
         "OnChange callback method '{0}' must be internal or public with signature: static void {0}({1} options, string? name)",
         RuleCategoryConstants.OptionsBinding,
         DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
+        isEnabledByDefault: true,
+        helpLinkUri: DiagnosticHelpLink.For(RuleIdentifierConstants.OptionsBinding.OnChangeCallbackInvalidSignature));
 
     private static readonly DiagnosticDescriptor PostConfigureNotSupportedWithNamedOptionsDescriptor = new(
         RuleIdentifierConstants.OptionsBinding.PostConfigureNotSupportedWithNamedOptions,
@@ -78,7 +85,8 @@ public class OptionsBindingGenerator : IIncrementalGenerator
         "PostConfigure callback '{0}' cannot be used with named options (Name = '{1}')",
         RuleCategoryConstants.OptionsBinding,
         DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
+        isEnabledByDefault: true,
+        helpLinkUri: DiagnosticHelpLink.For(RuleIdentifierConstants.OptionsBinding.PostConfigureNotSupportedWithNamedOptions));
 
     private static readonly DiagnosticDescriptor PostConfigureCallbackNotFoundDescriptor = new(
         RuleIdentifierConstants.OptionsBinding.PostConfigureCallbackNotFound,
@@ -86,7 +94,8 @@ public class OptionsBindingGenerator : IIncrementalGenerator
         "PostConfigure callback method '{0}' not found in class '{1}'",
         RuleCategoryConstants.OptionsBinding,
         DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
+        isEnabledByDefault: true,
+        helpLinkUri: DiagnosticHelpLink.For(RuleIdentifierConstants.OptionsBinding.PostConfigureCallbackNotFound));
 
     private static readonly DiagnosticDescriptor PostConfigureCallbackInvalidSignatureDescriptor = new(
         RuleIdentifierConstants.OptionsBinding.PostConfigureCallbackInvalidSignature,
@@ -94,7 +103,8 @@ public class OptionsBindingGenerator : IIncrementalGenerator
         "PostConfigure callback method '{0}' must be internal or public with signature: static void {0}({1} options)",
         RuleCategoryConstants.OptionsBinding,
         DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
+        isEnabledByDefault: true,
+        helpLinkUri: DiagnosticHelpLink.For(RuleIdentifierConstants.OptionsBinding.PostConfigureCallbackInvalidSignature));
 
     private static readonly DiagnosticDescriptor ConfigureAllRequiresMultipleNamedOptionsDescriptor = new(
         RuleIdentifierConstants.OptionsBinding.ConfigureAllRequiresMultipleNamedOptions,
@@ -102,7 +112,8 @@ public class OptionsBindingGenerator : IIncrementalGenerator
         "ConfigureAll callback '{0}' can only be used when the class has multiple named instances (Name property specified)",
         RuleCategoryConstants.OptionsBinding,
         DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
+        isEnabledByDefault: true,
+        helpLinkUri: DiagnosticHelpLink.For(RuleIdentifierConstants.OptionsBinding.ConfigureAllRequiresMultipleNamedOptions));
 
     private static readonly DiagnosticDescriptor ConfigureAllCallbackNotFoundDescriptor = new(
         RuleIdentifierConstants.OptionsBinding.ConfigureAllCallbackNotFound,
@@ -110,7 +121,8 @@ public class OptionsBindingGenerator : IIncrementalGenerator
         "ConfigureAll callback method '{0}' not found in class '{1}'",
         RuleCategoryConstants.OptionsBinding,
         DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
+        isEnabledByDefault: true,
+        helpLinkUri: DiagnosticHelpLink.For(RuleIdentifierConstants.OptionsBinding.ConfigureAllCallbackNotFound));
 
     private static readonly DiagnosticDescriptor ConfigureAllCallbackInvalidSignatureDescriptor = new(
         RuleIdentifierConstants.OptionsBinding.ConfigureAllCallbackInvalidSignature,
@@ -118,7 +130,8 @@ public class OptionsBindingGenerator : IIncrementalGenerator
         "ConfigureAll callback method '{0}' must be internal or public with signature: static void {0}({1} options)",
         RuleCategoryConstants.OptionsBinding,
         DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
+        isEnabledByDefault: true,
+        helpLinkUri: DiagnosticHelpLink.For(RuleIdentifierConstants.OptionsBinding.ConfigureAllCallbackInvalidSignature));
 
     private static readonly DiagnosticDescriptor ChildSectionsCannotBeUsedWithNameDescriptor = new(
         RuleIdentifierConstants.OptionsBinding.ChildSectionsCannotBeUsedWithName,
@@ -126,7 +139,8 @@ public class OptionsBindingGenerator : IIncrementalGenerator
         "ChildSections cannot be used with Name property. Use either ChildSections or Name, not both.",
         RuleCategoryConstants.OptionsBinding,
         DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
+        isEnabledByDefault: true,
+        helpLinkUri: DiagnosticHelpLink.For(RuleIdentifierConstants.OptionsBinding.ChildSectionsCannotBeUsedWithName));
 
     private static readonly DiagnosticDescriptor ChildSectionsRequiresAtLeastTwoItemsDescriptor = new(
         RuleIdentifierConstants.OptionsBinding.ChildSectionsRequiresAtLeastTwoItems,
@@ -134,7 +148,8 @@ public class OptionsBindingGenerator : IIncrementalGenerator
         "ChildSections requires at least 2 items. Found {0} item(s).",
         RuleCategoryConstants.OptionsBinding,
         DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
+        isEnabledByDefault: true,
+        helpLinkUri: DiagnosticHelpLink.For(RuleIdentifierConstants.OptionsBinding.ChildSectionsRequiresAtLeastTwoItems));
 
     private static readonly DiagnosticDescriptor ChildSectionsItemsCannotBeNullOrEmptyDescriptor = new(
         RuleIdentifierConstants.OptionsBinding.ChildSectionsItemsCannotBeNullOrEmpty,
@@ -142,7 +157,8 @@ public class OptionsBindingGenerator : IIncrementalGenerator
         "ChildSections array contains null or empty value at index {0}",
         RuleCategoryConstants.OptionsBinding,
         DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
+        isEnabledByDefault: true,
+        helpLinkUri: DiagnosticHelpLink.For(RuleIdentifierConstants.OptionsBinding.ChildSectionsItemsCannotBeNullOrEmpty));
 
     /// <inheritdoc />
     public void Initialize(IncrementalGeneratorInitializationContext context)

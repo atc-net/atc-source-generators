@@ -21,7 +21,8 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         messageFormat: "Class '{0}' must be declared as partial to enable mapping generation",
         category: RuleCategoryConstants.ObjectMapping,
         DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
+        isEnabledByDefault: true,
+        helpLinkUri: DiagnosticHelpLink.For(RuleIdentifierConstants.ObjectMapping.MappingClassMustBePartial));
 
     private static readonly DiagnosticDescriptor TargetTypeMustBeClassOrStructDescriptor = new(
         id: RuleIdentifierConstants.ObjectMapping.TargetTypeMustBeClassOrStruct,
@@ -29,7 +30,8 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         messageFormat: "Target type '{0}' must be a class or struct, but is a {1}",
         category: RuleCategoryConstants.ObjectMapping,
         DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
+        isEnabledByDefault: true,
+        helpLinkUri: DiagnosticHelpLink.For(RuleIdentifierConstants.ObjectMapping.TargetTypeMustBeClassOrStruct));
 
     private static readonly DiagnosticDescriptor MapPropertyTargetNotFoundDescriptor = new(
         id: RuleIdentifierConstants.ObjectMapping.MapPropertyTargetNotFound,
@@ -37,7 +39,8 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         messageFormat: "Property '{0}' with [MapProperty(\"{1}\")] specifies target property '{1}' which does not exist on target type '{2}'",
         category: RuleCategoryConstants.ObjectMapping,
         DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
+        isEnabledByDefault: true,
+        helpLinkUri: DiagnosticHelpLink.For(RuleIdentifierConstants.ObjectMapping.MapPropertyTargetNotFound));
 
     private static readonly DiagnosticDescriptor RequiredPropertyNotMappedDescriptor = new(
         id: RuleIdentifierConstants.ObjectMapping.RequiredPropertyNotMapped,
@@ -45,7 +48,8 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         messageFormat: "Required property '{0}' on target type '{1}' has no mapping from source type '{2}'",
         category: RuleCategoryConstants.ObjectMapping,
         DiagnosticSeverity.Warning,
-        isEnabledByDefault: true);
+        isEnabledByDefault: true,
+        helpLinkUri: DiagnosticHelpLink.For(RuleIdentifierConstants.ObjectMapping.RequiredPropertyNotMapped));
 
     private static readonly DiagnosticDescriptor CollectionElementMappingNotFoundDescriptor = new(
         id: RuleIdentifierConstants.ObjectMapping.CollectionElementMappingNotFound,
@@ -53,7 +57,8 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         messageFormat: "Property '{0}' contains elements of type '{1}' (collection items or dictionary values) but that type has no [MapTo] attribute targeting '{2}'. The property will be skipped.",
         category: RuleCategoryConstants.ObjectMapping,
         DiagnosticSeverity.Warning,
-        isEnabledByDefault: true);
+        isEnabledByDefault: true,
+        helpLinkUri: DiagnosticHelpLink.For(RuleIdentifierConstants.ObjectMapping.CollectionElementMappingNotFound));
 
     private static readonly DiagnosticDescriptor TargetPropertyNotMappedDescriptor = new(
         id: RuleIdentifierConstants.ObjectMapping.TargetPropertyNotMapped,
@@ -61,7 +66,8 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         messageFormat: "Target property '{0}' of '{1}' is not mapped from '{2}' and keeps its default value",
         category: RuleCategoryConstants.ObjectMapping,
         DiagnosticSeverity.Info,
-        isEnabledByDefault: true);
+        isEnabledByDefault: true,
+        helpLinkUri: DiagnosticHelpLink.For(RuleIdentifierConstants.ObjectMapping.TargetPropertyNotMapped));
 
     private static readonly DiagnosticDescriptor HookMethodNotCallableDescriptor = new(
         id: RuleIdentifierConstants.ObjectMapping.HookMethodNotCallable,
@@ -69,7 +75,8 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         messageFormat: "{0} method '{1}' must be a static, internal or public method on '{2}'. The hook is skipped.",
         category: RuleCategoryConstants.ObjectMapping,
         DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
+        isEnabledByDefault: true,
+        helpLinkUri: DiagnosticHelpLink.For(RuleIdentifierConstants.ObjectMapping.HookMethodNotCallable));
 
     private static readonly DiagnosticDescriptor DuplicateMappingMethodDescriptor = new(
         id: RuleIdentifierConstants.ObjectMapping.DuplicateMappingMethod,
@@ -77,7 +84,8 @@ public class ObjectMappingGenerator : IIncrementalGenerator
         messageFormat: "Mapping '{0}' to '{1}' would generate a second '{2}' method for '{0}'. Target types must have different names; this mapping is skipped.",
         category: RuleCategoryConstants.ObjectMapping,
         DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
+        isEnabledByDefault: true,
+        helpLinkUri: DiagnosticHelpLink.For(RuleIdentifierConstants.ObjectMapping.DuplicateMappingMethod));
 
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
