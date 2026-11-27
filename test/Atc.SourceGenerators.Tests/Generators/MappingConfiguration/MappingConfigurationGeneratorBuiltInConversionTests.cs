@@ -804,4 +804,47 @@ public partial class MappingConfigurationGeneratorTests
         Assert.Empty(diagnostics);
         Assert.Contains("is { } __timestamp ? new global::System.DateTimeOffset(__timestamp) : null", output, StringComparison.Ordinal);
     }
+
+    [Theory]
+    [InlineData("int?", "string?", "Value = source.Value?.ToString(global::System.Globalization.CultureInfo.InvariantCulture)")]
+    [InlineData("Guid?", "string?", "Value = source.Value?.ToString()")]
+    [InlineData("DateTime?", "string?", "Value = source.Value?.ToString(\"O\", global::System.Globalization.CultureInfo.InvariantCulture)")]
+    [InlineData("bool?", "string", "Value = source.Value?.ToString()!")]
+    [InlineData("string?", "int?", "Value = string.IsNullOrEmpty(source.Value) ? null : (int?)int.Parse(source.Value, global::System.Globalization.CultureInfo.InvariantCulture)")]
+    [InlineData("string?", "Guid?", "Value = string.IsNullOrEmpty(source.Value) ? null : (global::System.Guid?)global::System.Guid.Parse(source.Value)")]
+    public void Config_Should_Convert_Nullable_Value_Types_To_And_From_String(
+        string sourceType,
+        string targetType,
+        string expected)
+    {
+        var source = $$"""
+                       #nullable enable
+                       using System;
+                       using Atc.SourceGenerators.Annotations;
+
+                       namespace MyApp
+                       {
+                           public class Source
+                           {
+                               public {{sourceType}} Value { get; set; }
+                           }
+
+                           public class Target
+                           {
+                               public {{targetType}} Value { get; set; }
+                           }
+
+                           [MappingConfiguration]
+                           public static partial class Mappings
+                           {
+                               public static partial Target MapToTarget(this Source source);
+                           }
+                       }
+                       """;
+
+        var (diagnostics, output) = GetGeneratedOutput(source);
+
+        Assert.DoesNotContain(diagnostics, d => d.Severity >= DiagnosticSeverity.Warning);
+        Assert.Contains(expected, output, StringComparison.Ordinal);
+    }
 }

@@ -141,6 +141,10 @@ internal static class MappingTypeAnalyzer
         string sourceTypeName,
         string targetTypeName)
     {
+        // Compare without the nullable annotation (string? -> int, int -> string?)
+        sourceTypeName = sourceTypeName.TrimEnd('?');
+        targetTypeName = targetTypeName.TrimEnd('?');
+
         // DateTime/DateTimeOffset <-> string
         if ((sourceTypeName is "System.DateTime" or "System.DateTimeOffset") &&
             targetTypeName == "string")

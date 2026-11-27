@@ -144,51 +144,33 @@ internal static class MappingCodeEmitter
         var targetIsNullableRef = targetTypeName.EndsWith("?", StringComparison.Ordinal) &&
                                   !prop.TargetProperty.Type.IsValueType;
 
-        if (sourceTypeName is "System.DateTime" or "System.DateTimeOffset" && targetTypeName == "string")
+        // DateTime, DateTimeOffset, Guid, numeric and bool to and from string, also as Nullable<T> or string?
+        var underlyingSource = MappingTypeAnalyzer.UnwrapNullable(prop.SourceProperty.Type).ToDisplayString().TrimEnd('?');
+        var underlyingTarget = MappingTypeAnalyzer.UnwrapNullable(prop.TargetProperty.Type).ToDisplayString().TrimEnd('?');
+
+        if (underlyingTarget == "string" && TryGetToStringArguments(underlyingSource, out var toStringArguments))
         {
-            return $"{sourcePropertyAccess}.ToString(\"O\", global::System.Globalization.CultureInfo.InvariantCulture)";
+            if (!MappingTypeAnalyzer.IsNullableValueType(prop.SourceProperty.Type))
+            {
+                return $"{sourcePropertyAccess}.ToString({toStringArguments})";
+            }
+
+            // null stays null; '!' for a non-nullable string target
+            return targetIsNullableRef
+                ? $"{sourcePropertyAccess}?.ToString({toStringArguments})"
+                : $"{sourcePropertyAccess}?.ToString({toStringArguments})!";
         }
 
-        if (sourceTypeName == "string" && targetTypeName == "System.DateTime")
+        if (underlyingSource == "string" && TryGetParseExpression(underlyingTarget, sourceIsNullableRef ? $"{sourcePropertyAccess}!" : sourcePropertyAccess, out var parse))
         {
-            return $"global::System.DateTime.Parse({sourcePropertyAccess}, global::System.Globalization.CultureInfo.InvariantCulture)";
-        }
+            if (!MappingTypeAnalyzer.IsNullableValueType(prop.TargetProperty.Type))
+            {
+                return parse;
+            }
 
-        if (sourceTypeName == "string" && targetTypeName == "System.DateTimeOffset")
-        {
-            return $"global::System.DateTimeOffset.Parse({sourcePropertyAccess}, global::System.Globalization.CultureInfo.InvariantCulture)";
-        }
-
-        if (sourceTypeName == "System.Guid" && targetTypeName == "string")
-        {
-            return $"{sourcePropertyAccess}.ToString()";
-        }
-
-        if (sourceTypeName == "string" && targetTypeName == "System.Guid")
-        {
-            return $"global::System.Guid.Parse({sourcePropertyAccess})";
-        }
-
-        if (MappingTypeAnalyzer.IsNumericType(sourceTypeName) && targetTypeName == "string")
-        {
-            return $"{sourcePropertyAccess}.ToString(global::System.Globalization.CultureInfo.InvariantCulture)";
-        }
-
-        if (sourceTypeName == "string" && MappingTypeAnalyzer.IsNumericType(targetTypeName))
-        {
-            var parts = targetTypeName.Split('.');
-            var simpleTypeName = parts[parts.Length - 1];
-            return $"{simpleTypeName}.Parse({sourcePropertyAccess}, global::System.Globalization.CultureInfo.InvariantCulture)";
-        }
-
-        if (sourceTypeName == "bool" && targetTypeName == "string")
-        {
-            return $"{sourcePropertyAccess}.ToString()";
-        }
-
-        if (sourceTypeName == "string" && targetTypeName == "bool")
-        {
-            return $"bool.Parse({sourcePropertyAccess})";
+            // An empty or null string becomes null
+            TryGetParseExpression(underlyingTarget, sourcePropertyAccess, out var checkedParse);
+            return $"string.IsNullOrEmpty({sourcePropertyAccess}) ? null : ({prop.TargetProperty.Type.ToGlobalDisplayString()}){checkedParse}";
         }
 
         // DateTimeOffset <-> DateTime conversions
@@ -280,5 +262,59 @@ internal static class MappingCodeEmitter
         }
 
         return sourcePropertyAccess;
+    }
+
+    private static bool TryGetToStringArguments(
+        string typeName,
+        out string arguments)
+    {
+        if (typeName is "System.DateTime" or "System.DateTimeOffset")
+        {
+            arguments = "\"O\", global::System.Globalization.CultureInfo.InvariantCulture";
+            return true;
+        }
+
+        if (MappingTypeAnalyzer.IsNumericType(typeName))
+        {
+            arguments = "global::System.Globalization.CultureInfo.InvariantCulture";
+            return true;
+        }
+
+        arguments = string.Empty;
+        return typeName is "System.Guid" or "bool";
+    }
+
+    private static bool TryGetParseExpression(
+        string typeName,
+        string value,
+        out string parse)
+    {
+        if (typeName is "System.DateTime" or "System.DateTimeOffset")
+        {
+            parse = $"global::{typeName}.Parse({value}, global::System.Globalization.CultureInfo.InvariantCulture)";
+            return true;
+        }
+
+        if (MappingTypeAnalyzer.IsNumericType(typeName))
+        {
+            var parts = typeName.Split('.');
+            parse = $"{parts[parts.Length - 1]}.Parse({value}, global::System.Globalization.CultureInfo.InvariantCulture)";
+            return true;
+        }
+
+        if (typeName == "System.Guid")
+        {
+            parse = $"global::System.Guid.Parse({value})";
+            return true;
+        }
+
+        if (typeName == "bool")
+        {
+            parse = $"bool.Parse({value})";
+            return true;
+        }
+
+        parse = string.Empty;
+        return false;
     }
 }
